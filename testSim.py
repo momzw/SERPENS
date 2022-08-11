@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import os
+import random
 from tqdm import tqdm
 
 matplotlib.use('TkAgg')
@@ -18,9 +19,9 @@ sim.G = 6.67428e-11
 
 # labels = ["Sun", "Jupiter", "Io"]
 # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
-sim.add(m=1.988e30)
-sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0])  # Omega=1.753, omega=4.78
-sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles[1])
+sim.add(m=1.988e30, hash="sun")
+sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0], hash="jupiter")  # Omega=1.753, omega=4.78
+sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles[1], hash="io")
 sim.N_active = 3
 sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
@@ -39,7 +40,7 @@ Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
 # ---------------------
 # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
 sim_advance = Io_P / sim.dt / 8  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 150  # Number of times the simulation advances.
+num_sim_advances = 10  # Number of times the simulation advances.
 max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
 
 # Generating particles
@@ -75,24 +76,15 @@ model_smyth_a = 7 / 3       # Speed distribution shape parameter
 # Particle emission position
 # ---------------------
 # Longitude and latitude distributions may be changed inside the 'create_particle' function.
+
+# Plotting
+# ---------------------
+savefig = False
+plot_freq = 2 # Plot at each *plot_freq* advance
+
 """
     =====================================
 """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def random_pos(lat_dist, long_dist, **kwargs):
@@ -165,8 +157,8 @@ def random_temp(temp_min, temp_max, latitude, longitude):
 def random_vel_thermal(temp):
     from scipy.stats import maxwell, norm
     v1 = maxwell.rvs()
-    v2 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian
-    v3 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian
+    v2 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
+    v3 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
     v3 = 0  # 2D
 
     u = 1.660539e-27
@@ -338,22 +330,24 @@ imageio.mimsave('movie.gif', images, fps=1)
 """
 
 for i in range(num_sim_advances):
-    #try:
-    #    os.remove("particles.txt")
-    #except OSError:
-    #    pass
+
+    try:
+        os.remove("particles.txt")
+    except OSError:
+        pass
 
     if gen_max is None or i <= gen_max:
         for j1 in tqdm(range(n_th), desc="Adding thermal particles"):
             p = create_particle("thermal", temp_midnight=Io_temp_min, temp_noon=Io_temp_max)
+            identifier = f"{i}_{j1}"
+            p.hash = identifier
             sim.add(p)
-            #with open("particles.txt", "ab") as f:
-            #    np.savetxt(f, np.c_[p.x, p.y])
+
         for j2 in tqdm(range(n_sp), desc="Adding sputter particles"):
             p = create_particle("sputter")
+            identifier = f"{i}_{j2 + n_th}"
+            p.hash = identifier
             sim.add(p)
-            #with open("particles.txt", "ab") as f:
-            #    np.savetxt(f, np.c_[p.x, p.y])
 
     # Remove particles beyond specified number of Io semi-major axes.
     Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
@@ -366,8 +360,23 @@ for i in range(num_sim_advances):
         else:
             k += 1
 
-    if i % 5 == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
-        print("Number of particles: {0}".format(sim.N))
+
+    tau = 2 * 60 * 60
+    num_lost = 0
+    for j in range(i):
+        dt = sim.t - j * sim_advance
+        identifiers = [f"{j}_{x}" for x in range(n_th + n_sp)]
+        hashes = [rebound.hash(x).value for x in identifiers]
+        for particle in sim.particles[3:]:
+            if particle.hash.value in hashes:
+                prob_to_exist = 1/tau * np.exp(-dt/tau)
+                if random.random() > prob_to_exist:
+                    sim.remove(hash=particle.hash)
+                    num_lost += 1
+    print(f"{num_lost} particles lost.")
+
+
+    if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
         fig, ax = plt.subplots(figsize=(10, 10))
         ax.set_aspect("equal")
 
@@ -399,6 +408,7 @@ for i in range(num_sim_advances):
         ax.set_yticklabels([str(y) for y in ylabels])
 
         fig.suptitle("Particle Simulation around Planetary Body", size='x-large', y=.95)
+        ax.set_title(f"Number of Particles: {sim.N}", y=.90)
         ax.set_xlabel("x-distance in planetary radii")
         ax.set_ylabel("y-distance in planetary radii")
 
@@ -463,13 +473,23 @@ for i in range(num_sim_advances):
         import matplotlib.colors as colors
         ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap='Reds', norm=colors.LogNorm())
 
-        plt.savefig(f'plots/sim2_{i}.png')
-        #plt.show()
+        plt.savefig(f'plots/sim2_{i}.png') if savefig else plt.show()
         plt.close()
 
 
     # ADVANCE INTEGRATION
-    print("Starting advance {0} ... ".format(i))
+    print("Starting advance {0} ... ".format(i+1))
     # sim.integrate(sim.t + Io_P/4)
     sim.steps(int(sim_advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
     print("Advance done! ")
+    print("Number of particles: {0}".format(sim.N))
+    print("------------------------------------------------")
+
+    particle_positions = np.zeros((sim.N, 3), dtype="float64")
+    particle_velocities = np.zeros((sim.N, 3), dtype="float64")
+    sim.serialize_particle_data(xyz=particle_positions)
+    sim.serialize_particle_data(vxvyvz=particle_velocities)
+
+    header = np.array(["x", "y", "z", "vx", "vy", "vz"])
+    data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
+    np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
