@@ -39,14 +39,14 @@ Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
 # Integration specifics
 # ---------------------
 # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
-sim_advance = Io_P / sim.dt / 8  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 10  # Number of times the simulation advances.
+sim_advance = Io_P / sim.dt / 12  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+num_sim_advances = 20  # Number of times the simulation advances.
 max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
 
 # Generating particles
 # ---------------------
 num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
-num_sputter_per_advance = n_sp = 1000  # Number of particles created by sputtering each integration advance.
+num_sputter_per_advance = n_sp = 100  # Number of particles created by sputtering each integration advance.
 
 # Thermal evaporation parameters
 # ---------------------
@@ -69,8 +69,8 @@ model_wurz_binding_en = 2.89 * 1.602e-19  # See table 1, in: Kudriavtsev Y., et 
 model_wurz_inc_mass_in_amu = 23
 model_wurz_ejected_mass_in_amu = 23
 
-model_smyth_v_b = 500       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
-model_smyth_v_M = 20000     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
+model_smyth_v_b = 1000       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
+model_smyth_v_M = 40000     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
 model_smyth_a = 7 / 3       # Speed distribution shape parameter
 
 # Particle emission position
@@ -79,8 +79,8 @@ model_smyth_a = 7 / 3       # Speed distribution shape parameter
 
 # Plotting
 # ---------------------
-savefig = False
-plot_freq = 2 # Plot at each *plot_freq* advance
+savefig = True
+plot_freq = 5 # Plot at each *plot_freq* advance
 
 """
     =====================================
@@ -311,6 +311,11 @@ def create_particle(process, **kwargs):
     return p
 
 
+def particle_lifetime():
+    tau = 2 * 60 * 60
+    return tau
+
+
 """
 # TOOL TO COMBINE PNG TO GIF
 # --------------------------
@@ -360,8 +365,7 @@ for i in range(num_sim_advances):
         else:
             k += 1
 
-
-    tau = 2 * 60 * 60
+    num_lost_pre = num_lost if not i == 0 else 0
     num_lost = 0
     for j in range(i):
         dt = sim.t - j * sim_advance
@@ -369,6 +373,7 @@ for i in range(num_sim_advances):
         hashes = [rebound.hash(x).value for x in identifiers]
         for particle in sim.particles[3:]:
             if particle.hash.value in hashes:
+                tau = particle_lifetime()
                 prob_to_exist = 1/tau * np.exp(-dt/tau)
                 if random.random() > prob_to_exist:
                     sim.remove(hash=particle.hash)
