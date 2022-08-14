@@ -1,15 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.colors as colors
+from rebound.plotting import fading_line
 matplotlib.use('TkAgg')
 
 
 
-def plotting(sim, save=True, show=True, **kwargs):
+def plotting(sim, density=True, save=True, show=True, **kwargs):
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_aspect("equal")
 
     ps = sim.particles
+
+    # ============================================================================
 
     # PLOT CENTER AT SUN
     # ------------------
@@ -46,10 +50,10 @@ def plotting(sim, save=True, show=True, **kwargs):
     # ax.set_xlim([-lim + ps[2].x, lim + ps[2].x])
     # ax.set_ylim([-lim + ps[2].y, lim + ps[2].y])
 
-    # ===============================================================
+    # ============================================================================
+
     ax.plot([ps[0].x, ps[2].x], [ps[0].y, ps[2].y], color='k',
             linestyle='--', linewidth=1)
-    # ===============================================================
 
     Io_patch = plt.Circle((ps[2].x, ps[2].y), ps[2].r, fc='k', alpha=.7)
     Jup_patch = plt.Circle((ps[1].x, ps[1].y), ps[1].r, fc='orange')
@@ -59,30 +63,11 @@ def plotting(sim, save=True, show=True, **kwargs):
     ax.scatter(ps[0].x, ps[0].y, s=35, facecolor='yellow', zorder=3)  # Sun
     ax.scatter(ps[1].x, ps[1].y, s=35, facecolor='orange', zorder=3)  # Jupiter
     ax.scatter(ps[2].x, ps[2].y, s=10, facecolor='black', zorder=2)  # Io
-    # for particle in ps[3:]:
-    #    ax.scatter(particle.x, particle.y, s=.1, facecolor='red', alpha=.3)
-
-    from rebound.plotting import fading_line
 
     Io = ps[2]
     o = np.array(Io.sample_orbit(primary=sim.particles[1]))
     lc = fading_line(o[:, 0], o[:, 1], alpha=0.5)
     ax.add_collection(lc)
-
-    # =====================
-    xdata = []
-    ydata = []
-    for k in range(3, sim.N):
-        xdata.append(ps[k].x)
-        ydata.append(ps[k].y)
-
-    a_Io = ps[2].calculate_orbit(primary=sim.particles[1]).a
-
-    H, xedges, yedges = np.histogram2d(xdata, ydata,
-                                       range=[[ps[1].x - 1.8 * a_Io, ps[1].x + 1.8 * a_Io],
-                                              [ps[1].y - 1.8 * a_Io, ps[1].y + 1.8 * a_Io]],
-                                       bins=160)
-    H = H.T
 
     # xp, yp = ps[1].x, ps[1].y
     # X = []
@@ -96,12 +81,17 @@ def plotting(sim, save=True, show=True, **kwargs):
     #    y_norm = (yval - yp)/ps[1].r
     #    Y.append(yval)
 
-    import matplotlib.colors as colors
-    ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
-              cmap='Reds', norm=colors.LogNorm())
+    if density:
+        if "histogram" in kwargs:
+            H = kwargs.get("histogram")
+            ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap='Reds', norm=colors.LogNorm())
+        else:
+            print("Error: Trying to plot density without passing histogram")
+    else:
+        for particle in ps[3:]:
+            ax.scatter(particle.x, particle.y, s=.2, facecolor='red', alpha=.3)
 
     i = kwargs.get("iter", 0)
-
     if save: plt.savefig(f'plots/sim_{i}.png')
     if show: plt.show()
 
