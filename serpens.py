@@ -32,9 +32,18 @@ sim = rebound.Simulation()
 sim.integrator = "whfast" # Fast and unbiased symplectic Wisdom-Holman integrator. Suitability not yet assessed.
 sim.collision = "direct" # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
 sim.collision_resolve = "merge"
+
+# SI units:
+# ---------
 sim.units = ('m', 's', 'kg')
+sim.G = 6.6743e-11
+
+# CGS units:
+# ----------
+# sim.G = 6.67430e-8
+
+
 sim.dt = 500
-sim.G = 6.67428e-11
 
 # labels = ["Sun", "Jupiter", "Io"]
 # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
@@ -47,8 +56,18 @@ sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates withou
 sim.particles[1].r = 69911000
 sim.particles[2].r = 1821600
 
-Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
 
+# IMPORTANT:
+# * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
+# * If particle masses are changed or massive particles' position/velocity are changed manually you need to include
+#   sim.ri_whfast.recalculate_coordinates_this_timestep
+# * Synchronization is needed if simulation gets manipulated or particle states get printed.
+# Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
+# => sim.ri_whfast.safe_mode = 0
+
+
+Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
+Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
 
 """
     PARAMETER SETUP
@@ -59,13 +78,15 @@ Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
 # ---------------------
 # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
 sim_advance = Io_P / sim.dt / 12  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 20  # Number of times the simulation advances.
+num_sim_advances = 80  # Number of times the simulation advances.
+stop_at_steady_state = True
 max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
 
 # Generating particles
 # ---------------------
 num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
-num_sputter_per_advance = n_sp = 500  # Number of particles created by sputtering each integration advance.
+num_sputter_per_advance = n_sp = 300  # Number of particles created by sputtering each integration advance.
+r_max =  1.8 * Io_a # Maximal radial distance. Particles beyond get removed from simulation.
 
 # Thermal evaporation parameters
 # ---------------------
@@ -98,8 +119,9 @@ model_smyth_a = 7 / 3       # Speed distribution shape parameter
 
 # Plotting
 # ---------------------
-savefig = True
-plot_freq = 1 # Plot at each *plot_freq* advance
+savefig = False
+showfig = True
+plot_freq = 4 # Plot at each *plot_freq* advance
 
 """
     =====================================
@@ -330,6 +352,21 @@ def create_particle(process, **kwargs):
     return p
 
 
+def getHistogram(sim, bins):
+    ps = sim.particles
+    xdata = []
+    ydata = []
+    for k in range(3, sim.N):
+        xdata.append(ps[k].x)
+        ydata.append(ps[k].y)
+
+    Io_a = ps[2].calculate_orbit(primary=sim.particles[1]).a
+
+    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - 1.8 * Io_a, ps[1].x + 1.8 * Io_a], [ps[1].y - 1.8 * Io_a, ps[1].y + 1.8 * Io_a]], bins=bins)
+    H = H.T
+    return H
+
+
 def particle_lifetime():
     tau = 2 * 60 * 60
     return tau
@@ -355,10 +392,7 @@ imageio.mimsave('movie.gif', images, fps=1)
 
 for i in range(num_sim_advances):
 
-    try:
-        os.remove("particles.txt")
-    except OSError:
-        pass
+    sim_N_before = sim.N
 
     if gen_max is None or i <= gen_max:
         for j1 in tqdm(range(n_th), desc="Adding thermal particles"):
@@ -374,11 +408,10 @@ for i in range(num_sim_advances):
             sim.add(p)
 
     # Remove particles beyond specified number of Io semi-major axes.
-    Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
     N = sim.N
     k = 3
     while k < N:
-        if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles[1].xyz)) > 1.8 * Io_a:
+        if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles[1].xyz)) > r_max * Io_a:
             sim.remove(k)
             N += -1
         else:
@@ -393,16 +426,18 @@ for i in range(num_sim_advances):
         for particle in sim.particles[3:]:
             if particle.hash.value in hashes:
                 tau = particle_lifetime()
-                prob_to_exist = 1/tau * np.exp(-dt/tau)
+                prob_to_exist = np.exp(-dt/tau)
                 if random.random() > prob_to_exist:
                     sim.remove(hash=particle.hash)
                     num_lost += 1
     print(f"{num_lost} particles lost.")
 
 
-    if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
-        plotting(sim, iter=i)
+    H = getHistogram(sim, 160)
 
+
+    if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
+        plotting(sim, histogram=H, save=savefig, show=showfig, iter=i)
 
 
     # ADVANCE INTEGRATION
@@ -421,3 +456,7 @@ for i in range(num_sim_advances):
     header = np.array(["x", "y", "z", "vx", "vy", "vz"])
     data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
     np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
+
+    if stop_at_steady_state and np.abs(sim_N_before - sim.N) < 0.001:
+        print("Reached steady state!")
+        break
