@@ -82,11 +82,13 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
     #    Y.append(yval)
 
     if density:
-        if "histogram" in kwargs:
+        if "histogram" in kwargs and "xedges" in kwargs and "yedges" in kwargs:
             H = kwargs.get("histogram")
+            xedges = kwargs.get("xedges")
+            yedges = kwargs.get("yedges")
             ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap='Reds', norm=colors.LogNorm())
         else:
-            print("Error: Trying to plot density without passing histogram")
+            print("Error: Trying to plot density without passing necessary kwargs \"histogram\", \"xedges\", \"yedges\"")
     else:
         for particle in ps[3:]:
             ax.scatter(particle.x, particle.y, s=.2, facecolor='red', alpha=.3)
