@@ -85,7 +85,7 @@ max_num_of_generation_advances = gen_max = None  # Define a maximum number of pa
 # Generating particles
 # ---------------------
 num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
-num_sputter_per_advance = n_sp = 300  # Number of particles created by sputtering each integration advance.
+num_sputter_per_advance = n_sp = 2000  # Number of particles created by sputtering each integration advance.
 r_max =  1.8 * Io_a # Maximal radial distance. Particles beyond get removed from simulation.
 
 # Thermal evaporation parameters
@@ -352,19 +352,11 @@ def create_particle(process, **kwargs):
     return p
 
 
-def getHistogram(sim, bins):
+def getHistogram(sim, xdata, ydata, bins):
     ps = sim.particles
-    xdata = []
-    ydata = []
-    for k in range(3, sim.N):
-        xdata.append(ps[k].x)
-        ydata.append(ps[k].y)
-
-    Io_a = ps[2].calculate_orbit(primary=sim.particles[1]).a
-
-    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - 1.8 * Io_a, ps[1].x + 1.8 * Io_a], [ps[1].y - 1.8 * Io_a, ps[1].y + 1.8 * Io_a]], bins=bins)
+    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - r_max, ps[1].x + r_max], [ps[1].y - r_max, ps[1].y + 1.8 * r_max]], bins=bins)
     H = H.T
-    return H
+    return H, xedges, yedges
 
 
 def particle_lifetime():
@@ -390,73 +382,92 @@ for filename in filenames:
 imageio.mimsave('movie.gif', images, fps=1)
 """
 
-for i in range(num_sim_advances):
+def run_simulation():
 
-    sim_N_before = sim.N
+    for i in range(num_sim_advances):
 
-    if gen_max is None or i <= gen_max:
-        for j1 in tqdm(range(n_th), desc="Adding thermal particles"):
-            p = create_particle("thermal", temp_midnight=Io_temp_min, temp_noon=Io_temp_max)
-            identifier = f"{i}_{j1}"
-            p.hash = identifier
-            sim.add(p)
+        sim_N_before = sim.N
 
-        for j2 in tqdm(range(n_sp), desc="Adding sputter particles"):
-            p = create_particle("sputter")
-            identifier = f"{i}_{j2 + n_th}"
-            p.hash = identifier
-            sim.add(p)
+        if gen_max is None or i <= gen_max:
+            for j1 in tqdm(range(n_th), desc="Adding thermal particles"):
+                p = create_particle("thermal", temp_midnight=Io_temp_min, temp_noon=Io_temp_max)
+                identifier = f"{i}_{j1}"
+                p.hash = identifier
+                sim.add(p)
 
-    # Remove particles beyond specified number of Io semi-major axes.
-    N = sim.N
-    k = 3
-    while k < N:
-        if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles[1].xyz)) > r_max * Io_a:
-            sim.remove(k)
-            N += -1
-        else:
-            k += 1
+            for j2 in tqdm(range(n_sp), desc="Adding sputter particles"):
+                p = create_particle("sputter")
+                identifier = f"{i}_{j2 + n_th}"
+                p.hash = identifier
+                sim.add(p)
 
-    num_lost_pre = num_lost if not i == 0 else 0
-    num_lost = 0
-    for j in range(i):
-        dt = sim.t - j * sim_advance
-        identifiers = [f"{j}_{x}" for x in range(n_th + n_sp)]
-        hashes = [rebound.hash(x).value for x in identifiers]
-        for particle in sim.particles[3:]:
-            if particle.hash.value in hashes:
-                tau = particle_lifetime()
-                prob_to_exist = np.exp(-dt/tau)
-                if random.random() > prob_to_exist:
-                    sim.remove(hash=particle.hash)
-                    num_lost += 1
-    print(f"{num_lost} particles lost.")
+        # Remove particles beyond specified number of Io semi-major axes.
+        N = sim.N
+        k = 3
+        while k < N:
+            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles[1].xyz)) > r_max * Io_a:
+                sim.remove(k)
+                N += -1
+            else:
+                k += 1
+
+        num_lost_pre = num_lost if not i == 0 else 0
+        num_lost = 0
+        for j in range(i):
+            dt = sim.t - j * sim_advance
+            identifiers = [f"{j}_{x}" for x in range(n_th + n_sp)]
+            hashes = [rebound.hash(x).value for x in identifiers]
+            for particle in sim.particles[3:]:
+                if particle.hash.value in hashes:
+                    tau = particle_lifetime()
+                    prob_to_exist = np.exp(-dt/tau)
+                    if random.random() > prob_to_exist:
+                        sim.remove(hash=particle.hash)
+                        num_lost += 1
+        print(f"{num_lost} particles lost.")
+
+        ps = sim.particles
+        xdata = []
+        ydata = []
+        rdata = []
+        for k in range(3, sim.N):
+            xdata.append(ps[k].x)
+            ydata.append(ps[k].y)
+            rdata.append((np.sqrt((ps[k].x - ps[1].x)**2 + (ps[k].y-ps[1].y)**2))/ps[1].r)
+        H, xedges, yedges = getHistogram(sim, xdata, ydata, 160)
+
+        if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
+            plotting(sim, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
+
+            y, binEdges, patches = plt.hist(rdata, 100, log=True, range=(0,50))
+            bincenters = (binEdges[1:] + binEdges[:-1]) / 2
+
+            plt.plot(bincenters[y!=0], y[y!=0], '-', c='black')
+            plt.grid(True)
+            plt.show()
 
 
-    H = getHistogram(sim, 160)
+        # ADVANCE INTEGRATION
+        print("Starting advance {0} ... ".format(i+1))
+        # sim.integrate(sim.t + Io_P/4)
+        sim.steps(int(sim_advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
+        print("Advance done! ")
+        print("Number of particles: {0}".format(sim.N))
+        print("------------------------------------------------")
 
+        particle_positions = np.zeros((sim.N, 3), dtype="float64")
+        particle_velocities = np.zeros((sim.N, 3), dtype="float64")
+        sim.serialize_particle_data(xyz=particle_positions)
+        sim.serialize_particle_data(vxvyvz=particle_velocities)
 
-    if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
-        plotting(sim, histogram=H, save=savefig, show=showfig, iter=i)
+        header = np.array(["x", "y", "z", "vx", "vy", "vz"])
+        data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
+        np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
 
+        if stop_at_steady_state and np.abs(sim_N_before - sim.N) < 0.001:
+            print("Reached steady state!")
+            plotting(sim, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
+            break
+    return
 
-    # ADVANCE INTEGRATION
-    print("Starting advance {0} ... ".format(i+1))
-    # sim.integrate(sim.t + Io_P/4)
-    sim.steps(int(sim_advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
-    print("Advance done! ")
-    print("Number of particles: {0}".format(sim.N))
-    print("------------------------------------------------")
-
-    particle_positions = np.zeros((sim.N, 3), dtype="float64")
-    particle_velocities = np.zeros((sim.N, 3), dtype="float64")
-    sim.serialize_particle_data(xyz=particle_positions)
-    sim.serialize_particle_data(vxvyvz=particle_velocities)
-
-    header = np.array(["x", "y", "z", "vx", "vy", "vz"])
-    data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
-    np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
-
-    if stop_at_steady_state and np.abs(sim_N_before - sim.N) < 0.001:
-        print("Reached steady state!")
-        break
+run_simulation()
