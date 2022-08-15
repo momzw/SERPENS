@@ -78,7 +78,7 @@ Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
 # ---------------------
 # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
 sim_advance = Io_P / sim.dt / 12  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 80  # Number of times the simulation advances.
+num_sim_advances = 6  # Number of times the simulation advances.
 stop_at_steady_state = True
 max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
 
@@ -121,7 +121,7 @@ model_smyth_a = 7 / 3       # Speed distribution shape parameter
 # ---------------------
 savefig = False
 showfig = True
-plot_freq = 4 # Plot at each *plot_freq* advance
+plot_freq = 2 # Plot at each *plot_freq* advance
 
 """
     =====================================
@@ -364,30 +364,31 @@ def particle_lifetime():
     return tau
 
 
-"""
-# TOOL TO COMBINE PNG TO GIF
-# --------------------------
+def pngToGif(max_PNG_index, step):
+    """
+    TOOL TO COMBINE PNG TO GIF
+    """
+    import imageio
+    filenames = [f'plots/sim_{i}.png' for i in range(0,max_PNG_index,step)]
+    #with imageio.get_writer('mygif.gif', mode='I') as writer:
+    #    for filename in filenames:
+    #        image = imageio.imread(filename)
+    #        writer.append_data(image)
 
+    images = []
+    for filename in filenames:
+        images.append(imageio.imread(filename))
+    imageio.mimsave('movie.gif', images, fps=1)
 
-import imageio
-filenames = [f'plots/sim2_{i}.png' for i in range(0,100,5)]
-#with imageio.get_writer('mygif.gif', mode='I') as writer:
-#    for filename in filenames:
-#        image = imageio.imread(filename)
-#        writer.append_data(image)
-
-images = []
-for filename in filenames:
-    images.append(imageio.imread(filename))
-imageio.mimsave('movie.gif', images, fps=1)
-"""
 
 def run_simulation():
-
+    sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     for i in range(num_sim_advances):
 
         sim_N_before = sim.N
 
+        # Add particles
+        # -------------
         if gen_max is None or i <= gen_max:
             for j1 in tqdm(range(n_th), desc="Adding thermal particles"):
                 p = create_particle("thermal", temp_midnight=Io_temp_min, temp_noon=Io_temp_max)
@@ -401,7 +402,8 @@ def run_simulation():
                 p.hash = identifier
                 sim.add(p)
 
-        # Remove particles beyond specified number of Io semi-major axes.
+        # Remove particles beyond specified number of Io semi-major axes
+        # --------------------------------------------------------------
         N = sim.N
         k = 3
         while k < N:
@@ -411,7 +413,8 @@ def run_simulation():
             else:
                 k += 1
 
-        num_lost_pre = num_lost if not i == 0 else 0
+        # Remove particles through loss function
+        # --------------------------------------
         num_lost = 0
         for j in range(i):
             dt = sim.t - j * sim_advance
@@ -426,6 +429,9 @@ def run_simulation():
                         num_lost += 1
         print(f"{num_lost} particles lost.")
 
+        """
+        # Get various particle data
+        # -----------------
         ps = sim.particles
         xdata = []
         ydata = []
@@ -435,7 +441,9 @@ def run_simulation():
             ydata.append(ps[k].y)
             rdata.append((np.sqrt((ps[k].x - ps[1].x)**2 + (ps[k].y-ps[1].y)**2))/ps[1].r)
         H, xedges, yedges = getHistogram(sim, xdata, ydata, 160)
-
+        
+        # Plotting
+        # --------
         if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
             plotting(sim, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
 
@@ -445,16 +453,22 @@ def run_simulation():
             plt.plot(bincenters[y!=0], y[y!=0], '-', c='black')
             plt.grid(True)
             plt.show()
-
+        """
 
         # ADVANCE INTEGRATION
+        # ===================
         print("Starting advance {0} ... ".format(i+1))
         # sim.integrate(sim.t + Io_P/4)
         sim.steps(int(sim_advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
         print("Advance done! ")
         print("Number of particles: {0}".format(sim.N))
+
+        sim.simulationarchive_snapshot("archive.bin")
+
         print("------------------------------------------------")
 
+        # SAVE PARTICLES
+        # ==============
         particle_positions = np.zeros((sim.N, 3), dtype="float64")
         particle_velocities = np.zeros((sim.N, 3), dtype="float64")
         sim.serialize_particle_data(xyz=particle_positions)
@@ -464,10 +478,53 @@ def run_simulation():
         data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
         np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
 
+        # Stop if steady state
+        # --------------------
         if stop_at_steady_state and np.abs(sim_N_before - sim.N) < 0.001:
             print("Reached steady state!")
-            plotting(sim, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
+            sim.simulationarchive_snapshot("archive.bin")
             break
+    print("Simulation completed successfully!")
     return
 
 run_simulation()
+
+sa = rebound.SimulationArchive("archive.bin")
+for i, sim_instance in enumerate(sa):
+    ps = sim_instance.particles
+    xdata = []
+    ydata = []
+    rdata = []
+    for k in range(3, sim_instance.N):
+        xdata.append(ps[k].x)
+        ydata.append(ps[k].y)
+        rdata.append((np.sqrt((ps[k].x - ps[1].x) ** 2 + (ps[k].y - ps[1].y) ** 2)) / ps[1].r)
+    H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
+
+    if i % plot_freq == 1:
+        plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
+
+        y, binEdges, patches = plt.hist(rdata, 100, log=True, range=(0, 50))
+        bincenters = (binEdges[1:] + binEdges[:-1]) / 2
+
+        plt.plot(bincenters[y != 0], y[y != 0], '-', c='black')
+        plt.grid(True)
+        plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
