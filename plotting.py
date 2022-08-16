@@ -8,7 +8,7 @@ matplotlib.use('TkAgg')
 
 
 def plotting(sim, density=True, save=True, show=True, **kwargs):
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_aspect("equal")
 
     ps = sim.particles
@@ -52,21 +52,22 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
 
     # ============================================================================
 
-    ax.plot([ps[0].x, ps[2].x], [ps[0].y, ps[2].y], color='k',
-            linestyle='--', linewidth=1)
+    # Show direction to Sun:
+    ax.plot([ps[0].x, ps[2].x], [ps[0].y, ps[2].y], color='bisque',
+            linestyle=':', linewidth=1, zorder=1)
 
-    Io_patch = plt.Circle((ps[2].x, ps[2].y), ps[2].r, fc='k', alpha=.7)
-    Jup_patch = plt.Circle((ps[1].x, ps[1].y), ps[1].r, fc='orange')
+    Io_patch = plt.Circle((ps[2].x, ps[2].y), ps[2].r, fc='y', alpha=.7)
+    Jup_patch = plt.Circle((ps[1].x, ps[1].y), ps[1].r, fc='sandybrown')
 
     ax.add_patch(Io_patch)
     ax.add_patch(Jup_patch)
     ax.scatter(ps[0].x, ps[0].y, s=35, facecolor='yellow', zorder=3)  # Sun
-    ax.scatter(ps[1].x, ps[1].y, s=35, facecolor='orange', zorder=3)  # Jupiter
-    ax.scatter(ps[2].x, ps[2].y, s=10, facecolor='black', zorder=2)  # Io
+    ax.scatter(ps[1].x, ps[1].y, s=35, facecolor='sandybrown', zorder=3)  # Jupiter
+    ax.scatter(ps[2].x, ps[2].y, s=10, facecolor='y', zorder=2)  # Io
 
     Io = ps[2]
     o = np.array(Io.sample_orbit(primary=sim.particles[1]))
-    lc = fading_line(o[:, 0], o[:, 1], alpha=0.5)
+    lc = fading_line(o[:, 0], o[:, 1], alpha=0.5, color='yellow')
     ax.add_collection(lc)
 
     # xp, yp = ps[1].x, ps[1].y
@@ -86,7 +87,10 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
             H = kwargs.get("histogram")
             xedges = kwargs.get("xedges")
             yedges = kwargs.get("yedges")
-            ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap='Reds', norm=colors.LogNorm())
+            norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin = 0, vmax = 0) # Not needed if first sim_instance is already with particles.
+            cmap = matplotlib.cm.afmhot
+            cmap.set_bad('k', 1.)
+            ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
         else:
             print("Error: Trying to plot density without passing necessary kwargs \"histogram\", \"xedges\", \"yedges\"")
     else:

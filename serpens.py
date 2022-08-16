@@ -354,7 +354,7 @@ def create_particle(process, **kwargs):
 
 def getHistogram(sim, xdata, ydata, bins):
     ps = sim.particles
-    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - r_max, ps[1].x + r_max], [ps[1].y - r_max, ps[1].y + 1.8 * r_max]], bins=bins)
+    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - r_max, ps[1].x + r_max], [ps[1].y - r_max, ps[1].y + r_max]], bins=bins)
     H = H.T
     return H, xedges, yedges
 
@@ -487,7 +487,7 @@ def run_simulation():
     print("Simulation completed successfully!")
     return
 
-run_simulation()
+#run_simulation()
 
 sa = rebound.SimulationArchive("archive.bin")
 for i, sim_instance in enumerate(sa):
@@ -501,10 +501,11 @@ for i, sim_instance in enumerate(sa):
         rdata.append((np.sqrt((ps[k].x - ps[1].x) ** 2 + (ps[k].y - ps[1].y) ** 2)) / ps[1].r)
     H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
 
-    if i % plot_freq == 1:
+    if i % plot_freq == 0:
         plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
 
-        y, binEdges, patches = plt.hist(rdata, 100, log=True, range=(0, 50))
+        log = True if rdata else False  # Not needed if first sim_instance is already with particles.
+        y, binEdges, patches = plt.hist(rdata, 100, log=log, range=(0, 50))
         bincenters = (binEdges[1:] + binEdges[:-1]) / 2
 
         plt.plot(bincenters[y != 0], y[y != 0], '-', c='black')
