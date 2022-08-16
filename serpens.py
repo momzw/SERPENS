@@ -27,47 +27,57 @@ matplotlib.use('TkAgg')
 
 """
 
-sim = rebound.Simulation()
-# sim.automateSimulationArchive("archive.bin", walltime=60)
-sim.integrator = "whfast" # Fast and unbiased symplectic Wisdom-Holman integrator. Suitability not yet assessed.
-sim.collision = "direct" # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
-sim.collision_resolve = "merge"
 
-# SI units:
-# ---------
-sim.units = ('m', 's', 'kg')
-sim.G = 6.6743e-11
+def init3():
+    """
+    This function initializes the basic REBOUND simulation structure and adds the first 3 major objects.
+    These three objects are the host star, planet and moon.
+    :return: rebound simulation object
+    """
+    sim = rebound.Simulation()
+    # sim.automateSimulationArchive("archive.bin", walltime=60)
+    sim.integrator = "whfast" # Fast and unbiased symplectic Wisdom-Holman integrator. Suitability not yet assessed.
+    sim.collision = "direct" # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
+    sim.collision_resolve = "merge"
 
-# CGS units:
-# ----------
-# sim.G = 6.67430e-8
+    # SI units:
+    # ---------
+    sim.units = ('m', 's', 'kg')
+    sim.G = 6.6743e-11
+
+    # CGS units:
+    # ----------
+    # sim.G = 6.67430e-8
+
+    sim.dt = 500
+
+    # labels = ["Sun", "Jupiter", "Io"]
+    # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
+    sim.add(m=1.988e30, hash="sun")
+    sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0], hash="jupiter")  # Omega=1.753, omega=4.78
+    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles[1], hash="io")
+    sim.N_active = 3
+    sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
+
+    sim.particles[1].r = 69911000
+    sim.particles[2].r = 1821600
 
 
-sim.dt = 500
+    # IMPORTANT:
+    # * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
+    # * If particle masses are changed or massive particles' position/velocity are changed manually you need to include
+    #   sim.ri_whfast.recalculate_coordinates_this_timestep
+    # * Synchronization is needed if simulation gets manipulated or particle states get printed.
+    # Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
+    # => sim.ri_whfast.safe_mode = 0
 
-# labels = ["Sun", "Jupiter", "Io"]
-# sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
-sim.add(m=1.988e30, hash="sun")
-sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0], hash="jupiter")  # Omega=1.753, omega=4.78
-sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles[1], hash="io")
-sim.N_active = 3
-sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
+    return sim
 
-sim.particles[1].r = 69911000
-sim.particles[2].r = 1821600
-
-
-# IMPORTANT:
-# * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
-# * If particle masses are changed or massive particles' position/velocity are changed manually you need to include
-#   sim.ri_whfast.recalculate_coordinates_this_timestep
-# * Synchronization is needed if simulation gets manipulated or particle states get printed.
-# Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
-# => sim.ri_whfast.safe_mode = 0
-
+sim = init3()
 
 Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
 Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
+
 
 """
     PARAMETER SETUP
@@ -129,6 +139,14 @@ plot_freq = 2 # Plot at each *plot_freq* advance
 
 
 def random_pos(lat_dist, long_dist, **kwargs):
+    """
+    This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
+    :param lat_dist: str. Valid are "truncnorm" and "uniform".
+    :param long_dist: str. Valid are "truncnorm" and "uniform".
+    :param kwargs: kwargs. Distribution shape parameters.
+    :return: pos: ndarray, latitude: float, longitude: float
+
+    """
     # Coordinates:
     # Inertial system Cartesian coordinates. x-axis points from star away, y in direction of orbit.
     valid_dist = {"truncnorm": 0, "uniform": 1}
@@ -180,6 +198,14 @@ def random_pos(lat_dist, long_dist, **kwargs):
 
 
 def random_temp(temp_min, temp_max, latitude, longitude):
+    """
+    Returns a random temperature depending on implemented model.
+    :param temp_min: float. Lowest temperature on the moon
+    :param temp_max: float. Highest temperature on the moon
+    :param latitude: float
+    :param longitude: float
+    :return: temp: float
+    """
     longitude_wrt_sun = longitude + np.arctan2(sim.particles[2].y, sim.particles[2].x)
     if not spherical_symm_ejection:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
@@ -196,6 +222,11 @@ def random_temp(temp_min, temp_max, latitude, longitude):
 
 
 def random_vel_thermal(temp):
+    """
+    Gives a random thermal velocity vector for a sodium atom given a local temperature.
+    :param temp: float
+    :return: vel_Na: ndarray
+    """
     from scipy.stats import maxwell, norm
     v1 = maxwell.rvs()
     v2 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
@@ -210,6 +241,13 @@ def random_vel_thermal(temp):
 
 
 def random_vel_sputter(E_i, E_b):
+    """
+    Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
+    # TODO: Use kwargs for Wurz model parameters.
+    :param E_i: float. Energy of incoming particles, used in Wurz model.
+    :param E_b: float. Binding energy of atom to be surpassed for ejection, used in Wurz model.
+    :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
+    """
     from scipy.stats import rv_continuous
 
     class _elevation_gen(rv_continuous):
@@ -302,6 +340,13 @@ def random_vel_sputter(E_i, E_b):
 
 
 def create_particle(process, **kwargs):
+    """
+    Generates a REBOUND particle with random velocity at random position from process given by function argument.
+    See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
+    :param process: str. Valid are "thermal" and "sputter".
+    :param kwargs: kwargs. Parameters forwarded to random generation functions.
+    :return: p: rebound particle object.
+    """
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
         if valid_process[process] == 0:
@@ -353,6 +398,14 @@ def create_particle(process, **kwargs):
 
 
 def getHistogram(sim, xdata, ydata, bins):
+    """
+    Calculates a 2d histogram essentially defining a density distribution.
+    :param sim: rebound simulation object.
+    :param xdata: array_like. x-positions of particles to be analyzed.
+    :param ydata: array_like. y-positions of particles to be analyzed.
+    :param bins: int or array_like or [int, int] or [array, array]. See documentation for np.histogram2d.
+    :return: H: ndarray (shape(nx, ny)), xedges: ndarray (shape(nx+1,)), yedges: ndarray (shape(ny+1,)). 2d-Histogram and bin edges along x- and y-axis.
+    """
     ps = sim.particles
     H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - r_max, ps[1].x + r_max], [ps[1].y - r_max, ps[1].y + r_max]], bins=bins)
     H = H.T
@@ -360,6 +413,10 @@ def getHistogram(sim, xdata, ydata, bins):
 
 
 def particle_lifetime():
+    """
+    Calculates a particle's lifetime.
+    :return: tau: float.
+    """
     tau = 2 * 60 * 60
     return tau
 
@@ -382,6 +439,14 @@ def pngToGif(max_PNG_index, step):
 
 
 def run_simulation():
+    """
+    Runs a REBOUND simulation given the at the beginning defined setup.
+    Simulation stati after each advance get appended to the "archive.bin" file. These can be loaded at any later point.
+    NOTE: Any "archive.bin" file in the folder gets deleted and overwritten!
+
+    Saves a "particles.txt" file with every particles' position and velocity components. File gets overwritten at each advance.
+    :return:
+    """
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     for i in range(num_sim_advances):
 
