@@ -2,7 +2,6 @@ import rebound
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-import os
 import random
 from tqdm import tqdm
 from plotting import plotting
@@ -54,13 +53,14 @@ def init3():
     # labels = ["Sun", "Jupiter", "Io"]
     # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
     sim.add(m=1.988e30, hash="sun")
-    sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0], hash="jupiter")  # Omega=1.753, omega=4.78
-    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles[1], hash="io")
+    sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0], hash="planet")  # Omega=1.753, omega=4.78
+    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.00087, primary=sim.particles["planet"], hash="moon")
+    #sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon2")
     sim.N_active = 3
     sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
-    sim.particles[1].r = 69911000
-    sim.particles[2].r = 1821600
+    sim.particles["planet"].r = 69911000
+    sim.particles["moon"].r = 1821600
 
 
     # IMPORTANT:
@@ -75,8 +75,8 @@ def init3():
 
 sim = init3()
 
-Io_P = sim.particles[2].calculate_orbit(primary=sim.particles[1]).P
-Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
+Io_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
+Io_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
 
 
 """
@@ -84,18 +84,19 @@ Io_a = sim.particles[2].calculate_orbit(primary=sim.particles[1]).a
     _______________
     all units in SI
 """
+
 # Integration specifics
 # ---------------------
 # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
 sim_advance = Io_P / sim.dt / 12  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 6  # Number of times the simulation advances.
+num_sim_advances = 60  # Number of times the simulation advances.
 stop_at_steady_state = True
 max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
 
 # Generating particles
 # ---------------------
 num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
-num_sputter_per_advance = n_sp = 2000  # Number of particles created by sputtering each integration advance.
+num_sputter_per_advance = n_sp = 5000  # Number of particles created by sputtering each integration advance.
 r_max =  1.8 * Io_a # Maximal radial distance. Particles beyond get removed from simulation.
 
 # Thermal evaporation parameters
@@ -107,12 +108,12 @@ part_mass_in_amu = 23
 
 # Sputtering model
 # ---------------------
-sput_model = "smyth"  # Valid inputs: maxwell, wurz, smyth.
+sput_model = "maxwell"  # Valid inputs: maxwell, wurz, smyth.
 
 # Sputtering model shape parameters
 # ---------------------
-model_maxwell_mean = 2500
-model_maxwell_std = 300
+model_maxwell_mean = 3500
+model_maxwell_std = 100
 
 model_wurz_inc_part_speed = 5000
 model_wurz_binding_en = 2.89 * 1.602e-19  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
@@ -131,7 +132,7 @@ model_smyth_a = 7 / 3       # Speed distribution shape parameter
 # ---------------------
 savefig = False
 showfig = True
-plot_freq = 2 # Plot at each *plot_freq* advance
+plot_freq = 1 # Plot at each *plot_freq* advance
 
 """
     =====================================
@@ -184,12 +185,12 @@ def random_pos(lat_dist, long_dist, **kwargs):
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
-    x = sim.particles[2].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
-    y = sim.particles[2].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
-    z = sim.particles[2].r * np.cos(np.pi / 2 - latitude)
+    x = sim.particles["moon"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
+    y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
+    z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
 
-    x = sim.particles[2].r * np.cos(longitude)  # 2D-TEST
-    y = sim.particles[2].r * np.sin(longitude)  # 2D-TEST
+    x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
+    y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
     z = 0  # 2D-TEST
 
     pos = np.array([x, y, z])
@@ -206,7 +207,7 @@ def random_temp(temp_min, temp_max, latitude, longitude):
     :param longitude: float
     :return: temp: float
     """
-    longitude_wrt_sun = longitude + np.arctan2(sim.particles[2].y, sim.particles[2].x)
+    longitude_wrt_sun = longitude + np.arctan2(sim.particles["moon"].y, sim.particles["moon"].x)
     if not spherical_symm_ejection:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
         # Need to change temperature-longitude dependence.
@@ -358,13 +359,13 @@ def create_particle(process, **kwargs):
             ran_vel_not_rotated_in_place = random_vel_thermal(ran_temp)
 
         else:
-            angle_correction = np.arctan2((sim.particles[2].y - sim.particles[1].y),
-                                          (sim.particles[2].x - sim.particles[1].x))
-            ran_pos, ran_lat, ran_long = random_pos(lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
-                                                    b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
-                                                    b_long=3 * np.pi / 2 + angle_correction,
-                                                    loc_long=np.pi / 2 + angle_correction)
-            # ran_pos, ran_lat, ran_long = random_pos(lat_dist="uniform", long_dist="uniform")
+            angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
+                                          (sim.particles["moon"].x - sim.particles["planet"].x))
+            #ran_pos, ran_lat, ran_long = random_pos(lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
+            #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
+            #                                        b_long=3 * np.pi / 2 + angle_correction,
+            #                                        loc_long=np.pi / 2 + angle_correction)
+            ran_pos, ran_lat, ran_long = random_pos(lat_dist="uniform", long_dist="uniform")
             u = 1.660539e-27
             E_inc_def = 1 / 2 * model_wurz_inc_mass_in_amu * u * (model_wurz_inc_part_speed ** 2)
             E_inc = kwargs.get("E_incoming", E_inc_def)
@@ -387,8 +388,8 @@ def create_particle(process, **kwargs):
     ran_vel = rot @ ran_vel_not_rotated_in_place
 
     # Io position and velocity:
-    Io_x, Io_y, Io_z = sim.particles[2].x, sim.particles[2].y, sim.particles[2].z
-    Io_vx, Io_vy, Io_vz = sim.particles[2].vx, sim.particles[2].vy, sim.particles[2].vz
+    Io_x, Io_y, Io_z = sim.particles["moon"].x, sim.particles["moon"].y, sim.particles["moon"].z
+    Io_vx, Io_vy, Io_vz = sim.particles["moon"].vx, sim.particles["moon"].vy, sim.particles["moon"].vz
 
     p = rebound.Particle()
     p.x, p.y, p.z = ran_pos[0] + Io_x, ran_pos[1] + Io_y, ran_pos[2] + Io_z
@@ -407,7 +408,7 @@ def getHistogram(sim, xdata, ydata, bins):
     :return: H: ndarray (shape(nx, ny)), xedges: ndarray (shape(nx+1,)), yedges: ndarray (shape(ny+1,)). 2d-Histogram and bin edges along x- and y-axis.
     """
     ps = sim.particles
-    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps[1].x - r_max, ps[1].x + r_max], [ps[1].y - r_max, ps[1].y + r_max]], bins=bins)
+    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps["planet"].x - r_max, ps["planet"].x + r_max], [ps["planet"].y - r_max, ps["planet"].y + r_max]], bins=bins)
     H = H.T
     return H, xedges, yedges
 
@@ -417,7 +418,7 @@ def particle_lifetime():
     Calculates a particle's lifetime.
     :return: tau: float.
     """
-    tau = 2 * 60 * 60
+    tau = 4 * 60 * 60
     return tau
 
 
@@ -472,7 +473,7 @@ def run_simulation():
         N = sim.N
         k = 3
         while k < N:
-            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles[1].xyz)) > r_max * Io_a:
+            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > r_max * Io_a:
                 sim.remove(k)
                 N += -1
             else:
@@ -504,7 +505,7 @@ def run_simulation():
         for k in range(3, sim.N):
             xdata.append(ps[k].x)
             ydata.append(ps[k].y)
-            rdata.append((np.sqrt((ps[k].x - ps[1].x)**2 + (ps[k].y-ps[1].y)**2))/ps[1].r)
+            rdata.append((np.sqrt((ps[k].x - ps["planet"].x)**2 + (ps[k].y-ps["planet"].y)**2))/ps["planet"].r)
         H, xedges, yedges = getHistogram(sim, xdata, ydata, 160)
         
         # Plotting
@@ -545,12 +546,13 @@ def run_simulation():
 
         # Stop if steady state
         # --------------------
-        if stop_at_steady_state and np.abs(sim_N_before - sim.N) < 0.001:
+        if stop_at_steady_state and np.abs(sim_N_before - sim.N) < 0.001 * (n_th + n_sp):
             print("Reached steady state!")
             sim.simulationarchive_snapshot("archive.bin")
             break
     print("Simulation completed successfully!")
     return
+
 
 #run_simulation()
 
@@ -563,7 +565,7 @@ for i, sim_instance in enumerate(sa):
     for k in range(3, sim_instance.N):
         xdata.append(ps[k].x)
         ydata.append(ps[k].y)
-        rdata.append((np.sqrt((ps[k].x - ps[1].x) ** 2 + (ps[k].y - ps[1].y) ** 2)) / ps[1].r)
+        rdata.append((np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r)
     H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
 
     if i % plot_freq == 0:
