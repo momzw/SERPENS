@@ -97,7 +97,7 @@ max_num_of_generation_advances = gen_max = None  # Define a maximum number of pa
 # ---------------------
 num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
 num_sputter_per_advance = n_sp = 5000  # Number of particles created by sputtering each integration advance.
-r_max =  1.8 * Io_a # Maximal radial distance. Particles beyond get removed from simulation.
+r_max = 1.8 * Io_a # Maximal radial distance. Particles beyond get removed from simulation.
 
 # Thermal evaporation parameters
 # ---------------------
@@ -553,8 +553,9 @@ def run_simulation():
     print("Simulation completed successfully!")
     return
 
+test = 1
 
-#run_simulation()
+run_simulation()
 
 sa = rebound.SimulationArchive("archive.bin")
 for i, sim_instance in enumerate(sa):
