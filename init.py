@@ -2,54 +2,45 @@ import rebound
 
 
 class Simulation_Parameters:
-    def __init__(self, name):
-        self.var = {}
-        self.name = name
-    def add_var(self, key, value):
-        self.var[key] = value
-    def get_var(self, key):
-        return self.var[key]
+    def int(self):
+        self.int_spec = {
+            "sim_advance": 1/8,
+            "num_sim_advances": 20,
+            "stop_at_steady_state": True,
+            "max_num_of_generation_advances": None
+        }
+        return self.int_spec
+    def gen(self):
+        self.gen_spec = {
+            "n_th": 0,
+            "n_sp": 2000,
+            "r_max": 1.8
+        }
+        return self.gen_spec
+    def therm(self):
+        self.therm_spec = {
+            "Io_temp_max": 130,
+            "Io_temp_min": 90,
+            "spherical_symm_ejection": False,
+            "part_mass_in_amu": 23
+        }
+        return self.therm_spec
+    def sput(self):
+        self.sput_spec = {
+            "sput_model": 'smyth',
+            "model_maxwell_mean": 2500,
+            "model_maxwell_std": 300,
 
-# Integration specifics
-# ---------------------
-# NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
-sim_advance = 1/8  # Fraction of orbital period on each advance. When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 20  # Number of times the simulation advances.
-stop_at_steady_state = True
-max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
+            "model_wurz_inc_part_speed": 5000,
+            "model_wurz_binding_en": 2.89 * 1.602e-19,
+            "model_wurz_inc_mass_in_amu": 23,
+            "model_wurz_ejected_mass_in_amu": 23,
 
-# Generating particles
-# ---------------------
-num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
-num_sputter_per_advance = n_sp = 2000  # Number of particles created by sputtering each integration advance.
-r_max = 1.8  # Maximal radial distance in units of moon semi-major axis. Particles beyond get removed from simulation.
-
-# Thermal evaporation parameters
-# ---------------------
-Io_temp_max = 130
-Io_temp_min = 90
-spherical_symm_ejection = False
-part_mass_in_amu = 23
-
-
-int_spec = Simulation_Parameters('integration specifics')
-gen_spec = Simulation_Parameters('generation specifics')
-therm_spec = Simulation_Parameters('thermal evaporation specifics')
-sput_spec = Simulation_Parameters('sputtering specifics')
-
-int_spec.add_var("sim_advance", sim_advance)
-int_spec.add_var("num_sim_advances", num_sim_advances)
-int_spec.add_var("stop_at_steady_state", stop_at_steady_state)
-int_spec.add_var("gen_max", gen_max)
-
-gen_spec.add_var("n_th", n_th)
-gen_spec.add_var("n_sp", n_sp)
-gen_spec.add_var("r_max", r_max)
-
-therm_spec.add_var("Io_temp_max", Io_temp_max)
-therm_spec.add_var("Io_temp_min", Io_temp_min)
-therm_spec.add_var("spherical_symm_ejection", spherical_symm_ejection)
-therm_spec.add_var("part_mass_in_amu", part_mass_in_amu)
+            "model_smyth_v_b": 1000,
+            "model_smyth_v_M": 40000,
+            "model_smyth_a": 7 / 3
+        }
+        return self.sput_spec
 
 
 def init3():
