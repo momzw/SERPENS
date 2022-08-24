@@ -1,32 +1,36 @@
 import rebound
 import numpy as np
+from init import Simulation_Parameters
 
 # ====================================================================================================================================================================
 
+therm_Params = Simulation_Parameters.therm()
+sput_Params = Simulation_Parameters.sput()
+
 # Thermal evaporation parameters
 # ---------------------
-Io_temp_max = 130
-Io_temp_min = 90
-spherical_symm_ejection = False
-part_mass_in_amu = 23
+Io_temp_max = therm_Params["Io_temp_max"]
+Io_temp_min = therm_Params["Io_temp_min"]
+spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
+part_mass_in_amu = therm_Params["part_mass_in_amu"]
 
 # Sputtering model
 # ---------------------
-sput_model = "smyth"  # Valid inputs: maxwell, wurz, smyth.
+sput_model = sput_Params["sput_model"]  # Valid inputs: maxwell, wurz, smyth.
 
 # Sputtering model shape parameters
 # ---------------------
-model_maxwell_mean = 2500
-model_maxwell_std = 300
+model_maxwell_mean = sput_Params["model_maxwell_mean"]
+model_maxwell_std = sput_Params["model_maxwell_std"]
 
-model_wurz_inc_part_speed = 5000
-model_wurz_binding_en = 2.89 * 1.602e-19  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
-model_wurz_inc_mass_in_amu = 23
-model_wurz_ejected_mass_in_amu = 23
+model_wurz_inc_part_speed = sput_Params["model_wurz_inc_part_speed"]
+model_wurz_binding_en = sput_Params["model_wurz_binding_en"]  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
+model_wurz_inc_mass_in_amu = sput_Params["model_wurz_inc_mass_in_amu"]
+model_wurz_ejected_mass_in_amu = sput_Params["model_wurz_ejected_mass_in_amu"]
 
-model_smyth_v_b = 1000       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
-model_smyth_v_M = 40000     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
-model_smyth_a = 7 / 3       # Speed distribution shape parameter
+model_smyth_v_b = sput_Params["model_smyth_v_b"]       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
+model_smyth_v_M = sput_Params["model_smyth_v_M"]     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
+model_smyth_a = sput_Params["model_smyth_a"]       # Speed distribution shape parameter
 
 # ====================================================================================================================================================================
 

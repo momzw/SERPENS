@@ -3,7 +3,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 from create_particle import create_particle
-from init import init3, int_spec, gen_spec
+from init import init3, Simulation_Parameters
 
 
 
@@ -28,23 +28,26 @@ def run_simulation(sim):
     Io_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
     Io_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
 
+    int_Params = Simulation_Parameters.int()
+    gen_Params = Simulation_Parameters.gen()
+
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
-    for i in range(int_spec.get_var("num_sim_advances")):
+    for i in range(int_Params["num_sim_advances"]):
 
         sim_N_before = sim.N
         # Add particles
         # -------------
-        if int_spec.get_var("gen_max") is None or i <= int_spec.get_var("gen_max"):
-            for j1 in tqdm(range(gen_spec.get_var("n_th")), desc="Adding thermal particles"):
+        if int_Params["gen_max"] is None or i <= int_Params["gen_max"]:
+            for j1 in tqdm(range(gen_Params["n_th"]), desc="Adding thermal particles"):
                 #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
                 p = create_particle("thermal")
                 identifier = f"{i}_{j1}"
                 p.hash = identifier
                 sim.add(p)
 
-            for j2 in tqdm(range(gen_spec.get_var("n_sp")), desc="Adding sputter particles"):
+            for j2 in tqdm(range(gen_Params["n_sp"]), desc="Adding sputter particles"):
                 p = create_particle("sputter")
-                identifier = f"{i}_{j2 + gen_spec.get_var('n_th')}"
+                identifier = f"{i}_{j2 + gen_Params['n_th']}"
                 p.hash = identifier
                 sim.add(p)
         # Remove particles beyond specified number of Io semi-major axes
@@ -52,7 +55,7 @@ def run_simulation(sim):
         N = sim.N
         k = 3
         while k < N:
-            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > gen_spec.get_var("r_max") * Io_a:
+            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > gen_Params["r_max"] * Io_a:
                 sim.remove(k)
                 N += -1
             else:
@@ -62,8 +65,8 @@ def run_simulation(sim):
         # --------------------------------------
         num_lost = 0
         for j in range(i):
-            dt = sim.t - j * int_spec.get_var("sim_advance")
-            identifiers = [f"{j}_{x}" for x in range(gen_spec.get_var("n_th") + gen_spec.get_var("n_sp"))]
+            dt = sim.t - j * int_Params["sim_advance"]
+            identifiers = [f"{j}_{x}" for x in range(gen_Params["n_th"] + gen_Params["n_sp"])]
             hashes = [rebound.hash(x).value for x in identifiers]
             for particle in sim.particles[3:]:
                 if particle.hash.value in hashes:
@@ -78,7 +81,7 @@ def run_simulation(sim):
         # ===================
         print("Starting advance {0} ... ".format(i + 1))
         # sim.integrate(sim.t + Io_P/4)
-        advance = Io_P / sim.dt * int_spec.get_var("sim_advance")
+        advance = Io_P / sim.dt * int_Params["sim_advance"]
         sim.steps(int(advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
         print("Advance done! ")
         print("Number of particles: {0}".format(sim.N))
@@ -100,7 +103,7 @@ def run_simulation(sim):
 
         # Stop if steady state
         # --------------------
-        if int_spec.get_var("stop_at_steady_state") and np.abs(sim_N_before - sim.N) < 0.001:
+        if int_Params["stop_at_steady_state"] and np.abs(sim_N_before - sim.N) < 0.001:
             print("Reached steady state!")
             sim.simulationarchive_snapshot("archive.bin")
             break
