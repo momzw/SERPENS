@@ -2,19 +2,21 @@ import rebound
 
 
 class Simulation_Parameters:
+    def __init__(self):
+        pass
     def int(self):
         self.int_spec = {
             "sim_advance": 1/8,
             "num_sim_advances": 20,
             "stop_at_steady_state": True,
-            "max_num_of_generation_advances": None
+            "gen_max": None
         }
         return self.int_spec
     def gen(self):
         self.gen_spec = {
             "n_th": 0,
-            "n_sp": 2000,
-            "r_max": 1.8
+            "n_sp": 4000,
+            "r_max": 2
         }
         return self.gen_spec
     def therm(self):
@@ -69,8 +71,8 @@ def init3():
     # labels = ["Sun", "Jupiter", "Io"]
     # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
     sim.add(m=1.988e30, hash="sun")
-    sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles[0], hash="planet")  # Omega=1.753, omega=4.78
-    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles[1], hash="moon")
+    sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
+    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
     sim.N_active = 3
     sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
@@ -88,4 +90,4 @@ def init3():
 
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
 
-    return sim
+    return
