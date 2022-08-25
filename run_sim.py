@@ -16,7 +16,7 @@ def particle_lifetime():
     return tau
 
 
-def run_simulation(sim):
+def run_simulation():
     """
     Runs a REBOUND simulation given the at the beginning defined setup.
     Simulation stati after each advance get appended to the "archive.bin" file. These can be loaded at any later point.
@@ -25,13 +25,16 @@ def run_simulation(sim):
     Saves a "particles.txt" file with every particles' position and velocity components. File gets overwritten at each advance.
     :return:
     """
+    sim = rebound.Simulation("archive.bin")
+
     Io_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
     Io_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
 
-    int_Params = Simulation_Parameters.int()
-    gen_Params = Simulation_Parameters.gen()
+    Params = Simulation_Parameters()
+    int_Params = Params.int()
+    gen_Params = Params.gen()
 
-    sim.simulationarchive_snapshot("archive.bin", deletefile=True)
+    #sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     for i in range(int_Params["num_sim_advances"]):
 
         sim_N_before = sim.N
@@ -113,4 +116,4 @@ def run_simulation(sim):
 
 if __name__ == "__main__":
     sim = init3()
-    run_simulation(sim)
+    run_simulation()
