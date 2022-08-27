@@ -238,7 +238,7 @@ def random_vel_sputter(E_i, E_b):
     return vel
 
 
-def create_particle(process, **kwargs):
+def create_particle(sim, process, **kwargs):
     """
     Generates a REBOUND particle with random velocity at random position from process given by function argument.
     See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
@@ -246,7 +246,7 @@ def create_particle(process, **kwargs):
     :param kwargs: kwargs. Parameters forwarded to random generation functions: temp_midnight, temp_noon, E_incoming, E_bind
     :return: p: rebound particle object.
     """
-    sim = rebound.Simulation("archive.bin")
+    #sim = rebound.Simulation("archive.bin")
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
