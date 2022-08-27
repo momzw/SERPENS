@@ -43,13 +43,13 @@ def run_simulation():
         if int_Params["gen_max"] is None or i <= int_Params["gen_max"]:
             for j1 in tqdm(range(gen_Params["n_th"]), desc="Adding thermal particles"):
                 #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
-                p = create_particle("thermal")
+                p = create_particle(sim,"thermal")
                 identifier = f"{i}_{j1}"
                 p.hash = identifier
                 sim.add(p)
 
             for j2 in tqdm(range(gen_Params["n_sp"]), desc="Adding sputter particles"):
-                p = create_particle("sputter")
+                p = create_particle(sim,"sputter")
                 identifier = f"{i}_{j2 + gen_Params['n_th']}"
                 p.hash = identifier
                 sim.add(p)
@@ -115,5 +115,5 @@ def run_simulation():
 
 
 if __name__ == "__main__":
-    sim = init3()
+    init3()
     run_simulation()

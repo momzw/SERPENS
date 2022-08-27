@@ -29,7 +29,7 @@ class Simulation_Parameters:
         return self.therm_spec
     def sput(self):
         self.sput_spec = {
-            "sput_model": 'smyth',
+            "sput_model": 'maxwell',
             "model_maxwell_mean": 2500,
             "model_maxwell_std": 300,
 
@@ -89,5 +89,6 @@ def init3():
     # => sim.ri_whfast.safe_mode = 0
 
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
+    print("Initialized new simulation instance.")
 
     return
