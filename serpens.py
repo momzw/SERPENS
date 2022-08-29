@@ -89,14 +89,14 @@ Io_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
 # ---------------------
 # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
 sim_advance = Io_P / sim.dt / 12  # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-num_sim_advances = 60  # Number of times the simulation advances.
+num_sim_advances = 10  # Number of times the simulation advances.
 stop_at_steady_state = True
 max_num_of_generation_advances = gen_max = None  # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
 
 # Generating particles
 # ---------------------
 num_thermal_per_advance = n_th = 0  # Number of particles created by thermal evap each integration advance.
-num_sputter_per_advance = n_sp = 5000  # Number of particles created by sputtering each integration advance.
+num_sputter_per_advance = n_sp = 500  # Number of particles created by sputtering each integration advance.
 r_max =  1.8 * Io_a # Maximal radial distance. Particles beyond get removed from simulation.
 
 # Thermal evaporation parameters
@@ -112,8 +112,8 @@ sput_model = "maxwell"  # Valid inputs: maxwell, wurz, smyth.
 
 # Sputtering model shape parameters
 # ---------------------
-model_maxwell_mean = 3500
-model_maxwell_std = 100
+model_maxwell_mean = 2300
+model_maxwell_std = 200
 
 model_wurz_inc_part_speed = 5000
 model_wurz_binding_en = 2.89 * 1.602e-19  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
@@ -135,7 +135,7 @@ showfig = True
 plot_freq = 1 # Plot at each *plot_freq* advance
 
 """
-    =====================================
+    ===============================================================================================================
 """
 
 
@@ -418,28 +418,37 @@ def particle_lifetime():
     Calculates a particle's lifetime.
     :return: tau: float.
     """
-    tau = 4 * 60 * 60
+    tau = 1000 * 60 * 60
     return tau
 
 
-def pngToGif(max_PNG_index, step):
-    """
-    TOOL TO COMBINE PNG TO GIF
-    """
-    import imageio
-    filenames = [f'plots/sim_{i}.png' for i in range(0,max_PNG_index,step)]
-    #with imageio.get_writer('mygif.gif', mode='I') as writer:
-    #    for filename in filenames:
-    #        image = imageio.imread(filename)
-    #        writer.append_data(image)
+def add_major_objects(hash = None):
+    sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash=hash)
+    sim.particles[hash].r = 1560800
+    sim.N_active += 1
 
-    images = []
-    for filename in filenames:
-        images.append(imageio.imread(filename))
-    imageio.mimsave('movie.gif', images, fps=1)
+#def pngToGif(max_PNG_index, step):
+#    """
+#    TOOL TO COMBINE PNG TO GIF
+#    """
+#    import imageio
+#    filenames = [f'plots/sim_{i}.png' for i in range(0,max_PNG_index,step)]
+#    #with imageio.get_writer('mygif.gif', mode='I') as writer:
+#    #    for filename in filenames:
+#    #        image = imageio.imread(filename)
+#    #        writer.append_data(image)
+#
+#    images = []
+#    for filename in filenames:
+#        images.append(imageio.imread(filename))
+#    imageio.mimsave('movie.gif', images, fps=1)
+
+"""
+    ===============================================================================================================
+"""
 
 
-def run_simulation():
+def run_simulation(additional_majors = False):
     """
     Runs a REBOUND simulation given the at the beginning defined setup.
     Simulation stati after each advance get appended to the "archive.bin" file. These can be loaded at any later point.
@@ -449,6 +458,10 @@ def run_simulation():
     :return:
     """
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
+
+    if additional_majors:
+        add_major_objects(hash="europa")
+
     for i in range(num_sim_advances):
 
         sim_N_before = sim.N
@@ -471,7 +484,7 @@ def run_simulation():
         # Remove particles beyond specified number of Io semi-major axes
         # --------------------------------------------------------------
         N = sim.N
-        k = 3
+        k = sim.N_active
         while k < N:
             if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > r_max * Io_a:
                 sim.remove(k)
@@ -486,7 +499,7 @@ def run_simulation():
             dt = sim.t - j * sim_advance
             identifiers = [f"{j}_{x}" for x in range(n_th + n_sp)]
             hashes = [rebound.hash(x).value for x in identifiers]
-            for particle in sim.particles[3:]:
+            for particle in sim.particles[sim.N_active:]:
                 if particle.hash.value in hashes:
                     tau = particle_lifetime()
                     prob_to_exist = np.exp(-dt/tau)
@@ -495,31 +508,6 @@ def run_simulation():
                         num_lost += 1
         print(f"{num_lost} particles lost.")
 
-        """
-        # Get various particle data
-        # -----------------
-        ps = sim.particles
-        xdata = []
-        ydata = []
-        rdata = []
-        for k in range(3, sim.N):
-            xdata.append(ps[k].x)
-            ydata.append(ps[k].y)
-            rdata.append((np.sqrt((ps[k].x - ps["planet"].x)**2 + (ps[k].y-ps["planet"].y)**2))/ps["planet"].r)
-        H, xedges, yedges = getHistogram(sim, xdata, ydata, 160)
-        
-        # Plotting
-        # --------
-        if i % plot_freq == 0:  # Adjust '1' to plot every 'x' integration advance. Here: Plot at every advance.
-            plotting(sim, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
-
-            y, binEdges, patches = plt.hist(rdata, 100, log=True, range=(0,50))
-            bincenters = (binEdges[1:] + binEdges[:-1]) / 2
-
-            plt.plot(bincenters[y!=0], y[y!=0], '-', c='black')
-            plt.grid(True)
-            plt.show()
-        """
 
         # ADVANCE INTEGRATION
         # ===================
@@ -554,7 +542,7 @@ def run_simulation():
     return
 
 
-#run_simulation()
+#run_simulation(additional_majors=True)
 
 sa = rebound.SimulationArchive("archive.bin")
 for i, sim_instance in enumerate(sa):
@@ -562,7 +550,7 @@ for i, sim_instance in enumerate(sa):
     xdata = []
     ydata = []
     rdata = []
-    for k in range(3, sim_instance.N):
+    for k in range(sim.N_active, sim_instance.N):
         xdata.append(ps[k].x)
         ydata.append(ps[k].y)
         rdata.append((np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r)

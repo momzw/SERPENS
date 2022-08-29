@@ -61,6 +61,7 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
 
     ax.add_patch(Io_patch)
     ax.add_patch(Jup_patch)
+
     ax.scatter(ps[0].x, ps[0].y, s=35, facecolor='yellow', zorder=3)  # Sun
     ax.scatter(ps[1].x, ps[1].y, s=35, facecolor='sandybrown', zorder=3)  # Jupiter
     ax.scatter(ps[2].x, ps[2].y, s=10, facecolor='y', zorder=2)  # Io
@@ -69,6 +70,15 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
     o = np.array(Io.sample_orbit(primary=sim.particles[1]))
     lc = fading_line(o[:, 0], o[:, 1], alpha=0.5, color='yellow')
     ax.add_collection(lc)
+
+    for i in range(sim.N_active - 3):
+        major_obj = plt.Circle((ps[3+i].x, ps[3+i].y), ps[3+i].r, fc='r', alpha=0.7)
+        ax.add_patch(major_obj)
+        ax.scatter(ps[3+i].x, ps[3+i].y, s=10, fc='r', zorder=2)
+        o_add = np.array(ps[3+i].sample_orbit(primary=ps[1]))
+        lc_add = fading_line(o_add[:, 0], o_add[:, 1], alpha=0.5, color='red')
+        ax.add_collection(lc_add)
+
 
     # xp, yp = ps[1].x, ps[1].y
     # X = []
@@ -94,7 +104,7 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         else:
             print("Error: Trying to plot density without passing necessary kwargs \"histogram\", \"xedges\", \"yedges\"")
     else:
-        for particle in ps[3:]:
+        for particle in ps[sim.N_active:]:
             ax.scatter(particle.x, particle.y, s=.2, facecolor='red', alpha=.3)
 
     i = kwargs.get("iter", 0)
