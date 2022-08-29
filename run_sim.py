@@ -12,7 +12,7 @@ def particle_lifetime():
     Calculates a particle's lifetime.
     :return: tau: float.
     """
-    tau = 4 * 60 * 60
+    tau = 1000 * 60 * 60
     return tau
 
 
@@ -38,6 +38,7 @@ def run_simulation():
     for i in range(int_Params["num_sim_advances"]):
 
         sim_N_before = sim.N
+
         # Add particles
         # -------------
         if int_Params["gen_max"] is None or i <= int_Params["gen_max"]:
@@ -53,6 +54,7 @@ def run_simulation():
                 identifier = f"{i}_{j2 + gen_Params['n_th']}"
                 p.hash = identifier
                 sim.add(p)
+
         # Remove particles beyond specified number of Io semi-major axes
         # --------------------------------------------------------------
         N = sim.N

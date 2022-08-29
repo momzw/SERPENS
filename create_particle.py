@@ -248,6 +248,9 @@ def create_particle(sim, process, **kwargs):
     """
     #sim = rebound.Simulation("archive.bin")
 
+    Io_temp_max = therm_Params["Io_temp_max"]
+    Io_temp_min = therm_Params["Io_temp_min"]
+
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
         if valid_process[process] == 0:
