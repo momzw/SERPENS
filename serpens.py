@@ -77,16 +77,24 @@ def pngToGif(max_PNG_index, step):
 
 
 
-dat = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
-xdat = dat[:,0][3:]
-ydat = dat[:,1][3:]
+#dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
+#xdat_final = dat[:,0][3:]
+#ydat_final = dat[:,1][3:]
 
 sa = rebound.SimulationArchive("archive.bin")
 for i, sim_instance in enumerate(sa):
     ps = sim_instance.particles
 
-    rdata = np.sqrt((xdat - ps["planet"].x)**2 + (ydat - ps["planet"].y)**2) / ps["planet"].r
-    H, xedges, yedges = getHistogram(sim_instance, xdat, ydat, 160)
+    xdata = []
+    ydata = []
+    rdata = []
+    for k in range(sim_instance.N_active, sim_instance.N):
+        xdata.append(ps[k].x)
+        ydata.append(ps[k].y)
+        rdata.append((np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r)
+
+    #rdata = np.sqrt((xdata - ps["planet"].x)**2 + (ydat - ps["planet"].y)**2) / ps["planet"].r
+    H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
 
     if i % plot_freq == 0:
         plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
@@ -94,7 +102,7 @@ for i, sim_instance in enumerate(sa):
         if i == 0:
             continue
 
-        log = True if np.ndarray.tolist(rdata) else False  # Not needed if first sim_instance is already with particles.
+        log = True if rdata else False  # Not needed if first sim_instance is already with particles.
         y, binEdges, patches = plt.hist(rdata, 100, log=log, range=(0, 50))
         bincenters = (binEdges[1:] + binEdges[:-1]) / 2
 

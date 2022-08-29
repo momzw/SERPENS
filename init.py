@@ -21,7 +21,7 @@ class Simulation_Parameters:
         # Generating particles
         self.gen_spec = {
             "n_th": 0,      # Number of particles created by thermal evap each integration advance.
-            "n_sp": 3000,   # Number of particles created by sputtering each integration advance.
+            "n_sp": 500,   # Number of particles created by sputtering each integration advance.
             "r_max": 2      # Maximal radial distance in units of moon's semi-major axis. Particles beyond get removed from simulation.
         }
         return self.gen_spec
