@@ -29,8 +29,8 @@ class Simulation_Parameters:
     def therm(self):
         # Thermal evaporation parameters
         self.therm_spec = {
-            "Io_temp_max": 130,
-            "Io_temp_min": 90,
+            "source_temp_max": 130,
+            "source_temp_min": 90,
             "spherical_symm_ejection": False,
             "part_mass_in_amu": 23
         }
@@ -60,13 +60,13 @@ class Simulation_Parameters:
     # Longitude and latitude distributions may be changed inside the 'create_particle' function.
 
 
-def add_major_objects(sim, hash = None):
-    sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash=hash)
+def add_major_objects(sim, hash = None, primary_hash = "planet"):
+    sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles[primary_hash], hash=hash)
     sim.particles[hash].r = 1560800
     sim.N_active += 1
 
 
-def init3(additional_majors = False):
+def init3(additional_majors = False, moon = True):
     """
     This function initializes the basic REBOUND simulation structure and adds the first 3 major objects.
     These three objects are the host star, planet and moon.
@@ -93,15 +93,20 @@ def init3(additional_majors = False):
     # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
     sim.add(m=1.988e30, hash="sun")
     sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
-    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-    sim.N_active = 3
-    sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
     sim.particles["planet"].r = 69911000
-    sim.particles["moon"].r = 1821600
+
+    if moon:
+        sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
+        sim.particles["moon"].r = 1821600
+        sim.N_active = 3
+    else:
+        sim.N_active = 2
 
     if additional_majors:
         add_major_objects(sim, hash="europa")
+
+    sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
     # IMPORTANT:
     # * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
