@@ -52,9 +52,16 @@ def getHistogram(sim, xdata, ydata, bins):
     gen_Params = Params.gen()
     r_max = gen_Params["r_max"]
 
-    ps = sim.particles
-    Io_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
-    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[ps["planet"].x - r_max*Io_a, ps["planet"].x + r_max*Io_a], [ps["planet"].y - r_max*Io_a, ps["planet"].y + r_max*Io_a]], bins=bins)
+    try:
+        moon_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
+        moon_exists = True
+    except rebound.ParticleNotFound:
+        planet_a = sim.particles["planet"].calculate_orbit(primary=sim.particles[0]).a
+        moon_exists = False
+
+    boundry = r_max * moon_a if moon_exists else r_max * planet_a
+
+    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[-boundry, boundry], [-boundry, boundry]], bins=bins)
     H = H.T
     return H, xedges, yedges
 
