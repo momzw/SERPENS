@@ -44,7 +44,7 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         ax.set_yticklabels([str(y) for y in ylabels])
 
         fig.suptitle("Particle Simulation around Planetary Body", size='x-large', y=.95)
-        ax.set_title(f"Number of Particles: {sim.N}", y=.90)
+        ax.set_title(f"Number of Particles: {sim.N}", y=.90, c='w')
         ax.set_xlabel("x-distance in planetary radii")
         ax.set_ylabel("y-distance in planetary radii")
 
@@ -81,8 +81,8 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         ax.set_xlim([-lim, lim])
         ax.set_ylim([-lim, lim])
 
-        xlocs = np.linspace(-12 * ps["planet"].r, 12 * ps["planet"].r, 13)
-        ylocs = np.linspace(-12 * ps["planet"].r, 12 * ps["planet"].r, 13)
+        xlocs = np.linspace(-12 * ps[0].r, 12 * ps[0].r, 13)
+        ylocs = np.linspace(-12 * ps[0].r, 12 * ps[0].r, 13)
         xlabels = np.around(np.array(xlocs) / ps[0].r, 2)
         ylabels = np.around(np.array(ylocs)  / ps[0].r, 2)
 
@@ -92,12 +92,14 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         ax.set_yticklabels([str(y) for y in ylabels])
 
         fig.suptitle("Particle Simulation around Stellar Body", size='x-large', y=.95)
-        ax.set_title(f"Number of Particles: {sim.N}", y=.90)
+        ax.set_title(f"Number of Particles: {sim.N}", y=.90, c='w')
         ax.set_xlabel("x-distance in stellar radii")
         ax.set_ylabel("y-distance in stellar radii")
 
         planet_patch = plt.Circle((ps["planet"].x, ps["planet"].y), ps["planet"].r, fc='sandybrown')
+        star_patch = plt.Circle((ps[0].x, ps[0].y), ps[0].r, fc='y', zorder=4)
         ax.add_patch(planet_patch)
+        ax.add_patch(star_patch)
 
         o = np.array(ps["planet"].sample_orbit(primary=sim.particles[0]))
         lc = fading_line(o[:, 0], o[:, 1], alpha=0.5, color='yellow')
@@ -115,6 +117,8 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
     # ax.set_ylim([-lim + ps[2].y, lim + ps[2].y])
 
     # ============================================================================
+
+    ax.set_facecolor('k')
 
     if density:
         if "histogram" in kwargs and "xedges" in kwargs and "yedges" in kwargs:

@@ -61,7 +61,7 @@ def run_simulation():
                 p.hash = identifier
                 sim.add(p)
 
-        # Remove particles beyond specified number of Io semi-major axes
+        # Remove particles beyond specified number of semi-major axes
         # --------------------------------------------------------------
         boundry = gen_Params["r_max"] * moon_a if moon_exists else gen_Params["r_max"] * planet_a
         N = sim.N
@@ -123,5 +123,5 @@ def run_simulation():
 
 
 if __name__ == "__main__":
-    init3(moon=False)
+    init3()
     run_simulation()
