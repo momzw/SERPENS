@@ -59,13 +59,6 @@ def getHistogram(sim, xdata, ydata, bins):
     return H, xedges, yedges
 
 
-
-def add_major_objects(sim, hash = None):
-    sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash=hash)
-    sim.particles[hash].r = 1560800
-    sim.N_active += 1
-
-
 def pngToGif(max_PNG_index, step):
     """
     TOOL TO COMBINE PNG TO GIF

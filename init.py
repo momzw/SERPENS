@@ -60,7 +60,13 @@ class Simulation_Parameters:
     # Longitude and latitude distributions may be changed inside the 'create_particle' function.
 
 
-def init3():
+def add_major_objects(sim, hash = None):
+    sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash=hash)
+    sim.particles[hash].r = 1560800
+    sim.N_active += 1
+
+
+def init3(additional_majors = False):
     """
     This function initializes the basic REBOUND simulation structure and adds the first 3 major objects.
     These three objects are the host star, planet and moon.
@@ -94,6 +100,8 @@ def init3():
     sim.particles["planet"].r = 69911000
     sim.particles["moon"].r = 1821600
 
+    if additional_majors:
+        add_major_objects(sim, hash="europa")
 
     # IMPORTANT:
     # * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
