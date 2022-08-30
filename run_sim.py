@@ -27,12 +27,18 @@ def run_simulation():
     """
     sim = rebound.Simulation("archive.bin")
 
-    Io_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
-    Io_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
-
     Params = Simulation_Parameters()
     int_Params = Params.int()
     gen_Params = Params.gen()
+
+    try:
+        moon_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
+        moon_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
+        moon_exists = True
+    except rebound.ParticleNotFound:
+        planet_P = sim.particles["planet"].P
+        planet_a = sim.particles["planet"].a
+        moon_exists = False
 
     #sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     for i in range(int_Params["num_sim_advances"]):
@@ -57,10 +63,11 @@ def run_simulation():
 
         # Remove particles beyond specified number of Io semi-major axes
         # --------------------------------------------------------------
+        boundry = gen_Params["r_max"] * moon_a if moon_exists else gen_Params["r_max"] * planet_a
         N = sim.N
-        k = 3
+        k = sim.N_active
         while k < N:
-            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > gen_Params["r_max"] * Io_a:
+            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > boundry:
                 sim.remove(k)
                 N += -1
             else:
@@ -86,7 +93,7 @@ def run_simulation():
         # ===================
         print("Starting advance {0} ... ".format(i + 1))
         # sim.integrate(sim.t + Io_P/4)
-        advance = Io_P / sim.dt * int_Params["sim_advance"]
+        advance = moon_P / sim.dt * int_Params["sim_advance"] if moon_exists else planet_P / sim.dt * int_Params["sim_advance"]
         sim.steps(int(advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
         print("Advance done! ")
         print("Number of particles: {0}".format(sim.N))
@@ -116,5 +123,5 @@ def run_simulation():
 
 
 if __name__ == "__main__":
-    init3()
+    init3(moon=False)
     run_simulation()

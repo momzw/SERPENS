@@ -10,8 +10,8 @@ sput_Params = Params.sput()
 
 # Thermal evaporation parameters
 # ---------------------
-Io_temp_max = therm_Params["Io_temp_max"]
-Io_temp_min = therm_Params["Io_temp_min"]
+source_temp_max = therm_Params["source_temp_max"]
+source_temp_min = therm_Params["source_temp_min"]
 spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
 part_mass_in_amu = therm_Params["part_mass_in_amu"]
 
@@ -83,13 +83,22 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
-    x = sim.particles["moon"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
-    y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
-    z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
+    try:
+        x = sim.particles["moon"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
+        y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
+        z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
 
-    x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
-    y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
-    z = 0  # 2D-TEST
+        x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
+        y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
+        z = 0  # 2D-TEST
+    except rebound.ParticleNotFound:
+        x = sim.particles["planet"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
+        y = sim.particles["planet"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
+        z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitude)
+
+        x = sim.particles["planet"].r * np.cos(longitude)  # 2D-TEST
+        y = sim.particles["planet"].r * np.sin(longitude)  # 2D-TEST
+        z = 0  # 2D-TEST
 
     pos = np.array([x, y, z])
 
@@ -105,7 +114,11 @@ def random_temp(sim, temp_min, temp_max, latitude, longitude):
     :param longitude: float
     :return: temp: float
     """
-    longitude_wrt_sun = longitude + np.arctan2(sim.particles["moon"].y, sim.particles["moon"].x)
+    try:
+        longitude_wrt_sun = longitude + np.arctan2(sim.particles["moon"].y, sim.particles["moon"].x)
+    except rebound.ParticleNotFound:
+        longitude_wrt_sun = longitude + np.arctan2(sim.particles["planet"].y, sim.particles["planet"].x)
+
     if not spherical_symm_ejection:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
         # Need to change temperature-longitude dependence.
@@ -248,22 +261,32 @@ def create_particle(process, **kwargs):
     """
     sim = rebound.Simulation("archive.bin")
 
-    Io_temp_max = therm_Params["Io_temp_max"]
-    Io_temp_min = therm_Params["Io_temp_min"]
+    try:
+        sim.particles["moon"]
+    except rebound.ParticleNotFound:
+        moon_exists = False
+    else:
+        moon_exists = True
+
+    source_temp_max = therm_Params["source_temp_max"]
+    source_temp_min = therm_Params["source_temp_min"]
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
         if valid_process[process] == 0:
-            temp_min = kwargs.get("temp_midnight", Io_temp_min)  # Default value corresponds to Io
-            temp_max = kwargs.get("temp_noon", Io_temp_max)  # Default value corresponds to Io
+            temp_min = kwargs.get("temp_midnight", source_temp_min)  # Default value corresponds to Io
+            temp_max = kwargs.get("temp_noon", source_temp_max)  # Default value corresponds to Io
             ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                     b_long=2 * np.pi)
             ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
             ran_vel_not_rotated_in_place = random_vel_thermal(ran_temp)
 
         else:
-            angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
-                                          (sim.particles["moon"].x - sim.particles["planet"].x))
+            if moon_exists:
+                angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
+                                              (sim.particles["moon"].x - sim.particles["planet"].x))
+            else:
+                angle_correction = np.arctan2(sim.particles["planet"].y,sim.particles["planet"].x)
             #ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
             #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
             #                                        b_long=3 * np.pi / 2 + angle_correction,
@@ -290,12 +313,16 @@ def create_particle(process, **kwargs):
     # NOTE: Escape velocity 2550 m/s at surface.
     ran_vel = rot @ ran_vel_not_rotated_in_place
 
-    # Io position and velocity:
-    Io_x, Io_y, Io_z = sim.particles["moon"].x, sim.particles["moon"].y, sim.particles["moon"].z
-    Io_vx, Io_vy, Io_vz = sim.particles["moon"].vx, sim.particles["moon"].vy, sim.particles["moon"].vz
+    # source position and velocity:
+    if moon_exists:
+        source_x, source_y, source_z = sim.particles["moon"].x, sim.particles["moon"].y, sim.particles["moon"].z
+        source_vx, source_vy, source_vz = sim.particles["moon"].vx, sim.particles["moon"].vy, sim.particles["moon"].vz
+    else:
+        source_x, source_y, source_z = sim.particles["planet"].x, sim.particles["planet"].y, sim.particles["planet"].z
+        source_vx, source_vy, source_vz = sim.particles["planet"].vx, sim.particles["planet"].vy, sim.particles["planet"].vz
 
     p = rebound.Particle()
-    p.x, p.y, p.z = ran_pos[0] + Io_x, ran_pos[1] + Io_y, ran_pos[2] + Io_z
-    p.vx, p.vy, p.vz = ran_vel[0] + Io_vx, ran_vel[1] + Io_vy, ran_vel[2] + Io_vz
+    p.x, p.y, p.z = ran_pos[0] + source_x, ran_pos[1] + source_y, ran_pos[2] + source_z
+    p.vx, p.vy, p.vz = ran_vel[0] + source_vx, ran_vel[1] + source_vy, ran_vel[2] + source_vz
 
     return p

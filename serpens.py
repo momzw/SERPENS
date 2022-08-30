@@ -81,7 +81,6 @@ def pngToGif(max_PNG_index, step):
     imageio.mimsave('movie.gif', images, fps=1)
 
 
-
 #dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
 #xdat_final = dat[:,0][3:]
 #ydat_final = dat[:,1][3:]
@@ -90,13 +89,23 @@ sa = rebound.SimulationArchive("archive.bin")
 for i, sim_instance in enumerate(sa):
     ps = sim_instance.particles
 
+    try:
+        sim_instance.particles["moon"]
+    except rebound.ParticleNotFound:
+        moon_exists = False
+    else:
+        moon_exists= True
+
     xdata = []
     ydata = []
     rdata = []
     for k in range(sim_instance.N_active, sim_instance.N):
         xdata.append(ps[k].x)
         ydata.append(ps[k].y)
-        rdata.append((np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r)
+        if moon_exists:
+            rdata.append((np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r)
+        else:
+            rdata.append((np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r)
 
     #rdata = np.sqrt((xdata - ps["planet"].x)**2 + (ydat - ps["planet"].y)**2) / ps["planet"].r
     H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
