@@ -24,15 +24,15 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
 
     # PLOT CENTER AT JUPITER
     # ----------------------
-    lim = 15 * ps[1].r
+    lim = 15 * ps["planet"].r
 
-    ax.set_xlim([-lim + ps[1].x, lim + ps[1].x])
-    ax.set_ylim([-lim + ps[1].y, lim + ps[1].y])
+    ax.set_xlim([-lim + ps["planet"].x, lim + ps["planet"].x])
+    ax.set_ylim([-lim + ps["planet"].y, lim + ps["planet"].y])
 
-    xlocs = np.linspace(ps[1].x - 12 * ps[1].r, ps[1].x + 12 * ps[1].r, 13)
-    ylocs = np.linspace(ps[1].y - 12 * ps[1].r, ps[1].y + 12 * ps[1].r, 13)
-    xlabels = np.around((np.array(xlocs) - ps[1].x) / ps[1].r, 2)
-    ylabels = np.around((np.array(ylocs) - ps[1].y) / ps[1].r, 2)
+    xlocs = np.linspace(ps["planet"].x - 12 * ps["planet"].r, ps["planet"].x + 12 * ps["planet"].r, 13)
+    ylocs = np.linspace(ps["planet"].y - 12 * ps["planet"].r, ps["planet"].y + 12 * ps["planet"].r, 13)
+    xlabels = np.around((np.array(xlocs) - ps["planet"].x) / ps["planet"].r, 2)
+    ylabels = np.around((np.array(ylocs) - ps["planet"].y) / ps["planet"].r, 2)
 
     ax.set_xticks(xlocs)
     ax.set_xticklabels([str(x) for x in xlabels])
@@ -53,21 +53,20 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
     # ============================================================================
 
     # Show direction to Sun:
-    ax.plot([ps[0].x, ps[2].x], [ps[0].y, ps[2].y], color='bisque',
+    ax.plot([ps["sun"].x, ps["moon"].x], [ps["sun"].y, ps["moon"].y], color='bisque',
             linestyle=':', linewidth=1, zorder=1)
 
-    Io_patch = plt.Circle((ps[2].x, ps[2].y), ps[2].r, fc='y', alpha=.7)
-    Jup_patch = plt.Circle((ps[1].x, ps[1].y), ps[1].r, fc='sandybrown')
+    Io_patch = plt.Circle((ps["moon"].x, ps["moon"].y), ps["moon"].r, fc='y', alpha=.7)
+    Jup_patch = plt.Circle((ps["planet"].x, ps["planet"].y), ps["planet"].r, fc='sandybrown')
 
     ax.add_patch(Io_patch)
     ax.add_patch(Jup_patch)
+    ax.scatter(ps["sun"].x, ps["sun"].y, s=35, facecolor='yellow', zorder=3)  # Sun
+    ax.scatter(ps["planet"].x, ps["planet"].y, s=35, facecolor='sandybrown', zorder=3)  # Jupiter
+    ax.scatter(ps["moon"].x, ps["moon"].y, s=10, facecolor='y', zorder=2)  # Io
 
-    ax.scatter(ps[0].x, ps[0].y, s=35, facecolor='yellow', zorder=3)  # Sun
-    ax.scatter(ps[1].x, ps[1].y, s=35, facecolor='sandybrown', zorder=3)  # Jupiter
-    ax.scatter(ps[2].x, ps[2].y, s=10, facecolor='y', zorder=2)  # Io
-
-    Io = ps[2]
-    o = np.array(Io.sample_orbit(primary=sim.particles[1]))
+    Io = ps["moon"]
+    o = np.array(Io.sample_orbit(primary=sim.particles["planet"]))
     lc = fading_line(o[:, 0], o[:, 1], alpha=0.5, color='yellow')
     ax.add_collection(lc)
 

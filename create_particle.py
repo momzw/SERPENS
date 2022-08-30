@@ -1,39 +1,43 @@
 import rebound
 import numpy as np
+from init import Simulation_Parameters
 
 # ====================================================================================================================================================================
+
+Params = Simulation_Parameters()
+therm_Params = Params.therm()
+sput_Params = Params.sput()
 
 # Thermal evaporation parameters
 # ---------------------
-Io_temp_max = 130
-Io_temp_min = 90
-spherical_symm_ejection = False
-part_mass_in_amu = 23
+Io_temp_max = therm_Params["Io_temp_max"]
+Io_temp_min = therm_Params["Io_temp_min"]
+spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
+part_mass_in_amu = therm_Params["part_mass_in_amu"]
 
 # Sputtering model
 # ---------------------
-sput_model = "smyth"  # Valid inputs: maxwell, wurz, smyth.
+sput_model = sput_Params["sput_model"]  # Valid inputs: maxwell, wurz, smyth.
 
 # Sputtering model shape parameters
 # ---------------------
-model_maxwell_mean = 2500
-model_maxwell_std = 300
+model_maxwell_mean = sput_Params["model_maxwell_mean"]
+model_maxwell_std = sput_Params["model_maxwell_std"]
 
-model_wurz_inc_part_speed = 5000
-model_wurz_binding_en = 2.89 * 1.602e-19  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
-model_wurz_inc_mass_in_amu = 23
-model_wurz_ejected_mass_in_amu = 23
+model_wurz_inc_part_speed = sput_Params["model_wurz_inc_part_speed"]
+model_wurz_binding_en = sput_Params["model_wurz_binding_en"]  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
+model_wurz_inc_mass_in_amu = sput_Params["model_wurz_inc_mass_in_amu"]
+model_wurz_ejected_mass_in_amu = sput_Params["model_wurz_ejected_mass_in_amu"]
 
-model_smyth_v_b = 1000       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
-model_smyth_v_M = 40000     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
-model_smyth_a = 7 / 3       # Speed distribution shape parameter
+model_smyth_v_b = sput_Params["model_smyth_v_b"]       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
+model_smyth_v_M = sput_Params["model_smyth_v_M"]     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
+model_smyth_a = sput_Params["model_smyth_a"]       # Speed distribution shape parameter
 
 # ====================================================================================================================================================================
 
 
-sim = rebound.Simulation("archive.bin")
 
-def random_pos(lat_dist, long_dist, **kwargs):
+def random_pos(sim, lat_dist, long_dist, **kwargs):
     """
     This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
     :param lat_dist: str. Valid are "truncnorm" and "uniform".
@@ -92,7 +96,7 @@ def random_pos(lat_dist, long_dist, **kwargs):
     return pos, latitude, longitude
 
 
-def random_temp(temp_min, temp_max, latitude, longitude):
+def random_temp(sim, temp_min, temp_max, latitude, longitude):
     """
     Returns a random temperature depending on implemented model.
     :param temp_min: float. Lowest temperature on the moon
@@ -242,24 +246,29 @@ def create_particle(process, **kwargs):
     :param kwargs: kwargs. Parameters forwarded to random generation functions: temp_midnight, temp_noon, E_incoming, E_bind
     :return: p: rebound particle object.
     """
+    sim = rebound.Simulation("archive.bin")
+
+    Io_temp_max = therm_Params["Io_temp_max"]
+    Io_temp_min = therm_Params["Io_temp_min"]
+
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
         if valid_process[process] == 0:
             temp_min = kwargs.get("temp_midnight", Io_temp_min)  # Default value corresponds to Io
             temp_max = kwargs.get("temp_noon", Io_temp_max)  # Default value corresponds to Io
-            ran_pos, ran_lat, ran_long = random_pos(lat_dist="truncnorm", long_dist="uniform", a_long=0,
+            ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                     b_long=2 * np.pi)
-            ran_temp = random_temp(temp_min, temp_max, ran_lat, ran_long)
+            ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
             ran_vel_not_rotated_in_place = random_vel_thermal(ran_temp)
 
         else:
             angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
                                           (sim.particles["moon"].x - sim.particles["planet"].x))
-            ran_pos, ran_lat, ran_long = random_pos(lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
-                                                    b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
-                                                    b_long=3 * np.pi / 2 + angle_correction,
-                                                    loc_long=np.pi / 2 + angle_correction)
-            # ran_pos, ran_lat, ran_long = random_pos(lat_dist="uniform", long_dist="uniform")
+            #ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
+            #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
+            #                                        b_long=3 * np.pi / 2 + angle_correction,
+            #                                        loc_long=np.pi / 2 + angle_correction)
+            ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform")
             u = 1.660539e-27
             E_inc_def = 1 / 2 * model_wurz_inc_mass_in_amu * u * (model_wurz_inc_part_speed ** 2)
             E_inc = kwargs.get("E_incoming", E_inc_def)
