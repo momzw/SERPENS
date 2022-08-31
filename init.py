@@ -89,21 +89,25 @@ def init3(additional_majors = False, moon = True):
 
     sim.dt = 500
 
-    # labels = ["Sun", "Jupiter", "Io"]
-    # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
-    sim.add(m=1.988e30, hash="sun")
-    sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
+    # PRELIMINARY: moon defines which objects to use!
+    # ----------------------------------------------
+    if moon:
+        # labels = ["Sun", "Jupiter", "Io"]
+        # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
+        sim.add(m=1.988e30, hash="sun")
+        sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
 
-    sim.particles["sun"].r = 696340000
-    sim.particles["planet"].r = 69911000
+        sim.particles["sun"].r = 696340000
+        sim.particles["planet"].r = 69911000
+    else:
+        # 55 Cancri e
+        # -----------
+        sim.add(m=1.799e30, hash="sun")
+        sim.add(m=4.77179e25, a=2.244e9, e=0.05, inc=0.00288, primary=sim.particles["sun"], hash="planet")
 
-    # 55 Cancri e
-    # -----------
-    #sim.add(m=1.799e30, hash="sun")
-    #sim.add(m=4.77179e25, a=2.244e9, e=0.05, inc=0.00288, primary=sim.particles["sun"], hash="planet")
-
-    #sim.particles["sun"].r = 6.56e8
-    #sim.particles["planet"].r = 1.196e7
+        sim.particles["sun"].r = 6.56e8
+        sim.particles["planet"].r = 1.196e7
+    # ----------------------------------------------
 
     if moon:
         sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
