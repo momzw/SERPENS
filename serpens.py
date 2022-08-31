@@ -32,6 +32,7 @@ savefig = False
 showfig = True
 plot_freq = 1 # Plot at each *plot_freq* advance
 
+showhist = True
 """
     ===============================================================================================================
 """
@@ -82,11 +83,6 @@ def pngToGif(max_PNG_index, step):
         images.append(imageio.imread(filename))
     imageio.mimsave('movie.gif', images, fps=1)
 
-    images = []
-    for filename in filenames:
-        images.append(imageio.imread(filename))
-    imageio.mimsave('movie.gif', images, fps=1)
-
 
 #dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
 #xdat_final = dat[:,0][3:]
@@ -118,9 +114,9 @@ for i, sim_instance in enumerate(sa):
     H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
 
     if i % plot_freq == 0:
-        plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges)
+        plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges, density=True)
 
-        if i == 0:
+        if i == 0 or not showhist:
             continue
 
         log = True if rdata else False  # Not needed if first sim_instance is already with particles.
@@ -130,11 +126,6 @@ for i, sim_instance in enumerate(sa):
         plt.plot(bincenters[y != 0], y[y != 0], '-', c='black')
         plt.grid(True)
         plt.show()
-
-
-
-
-
 
 
 
