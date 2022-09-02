@@ -3,12 +3,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 from plotting import plotting
-from init import Simulation_Parameters
+from init import Parameters
 
 matplotlib.use('TkAgg')
-
-
-
 
 """
 
@@ -25,19 +22,16 @@ matplotlib.use('TkAgg')
 
 """
 
-
 # Plotting
 # ---------------------
 savefig = False
 showfig = True
-plot_freq = 1 # Plot at each *plot_freq* advance
+plot_freq = 1  # Plot at each *plot_freq* advance
 
 showhist = True
 """
     ===============================================================================================================
 """
-
-
 
 
 def getHistogram(sim, xdata, ydata, bins):
@@ -49,9 +43,8 @@ def getHistogram(sim, xdata, ydata, bins):
     :param bins: int or array_like or [int, int] or [array, array]. See documentation for np.histogram2d.
     :return: H: ndarray (shape(nx, ny)), xedges: ndarray (shape(nx+1,)), yedges: ndarray (shape(ny+1,)). 2d-Histogram and bin edges along x- and y-axis.
     """
-    Params = Simulation_Parameters()
-    gen_Params = Params.gen()
-    r_max = gen_Params["r_max"]
+    Params = Parameters()
+    r_max = Params.int_spec["r_max"]
 
     try:
         moon_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
@@ -60,9 +53,17 @@ def getHistogram(sim, xdata, ydata, bins):
         planet_a = sim.particles["planet"].calculate_orbit(primary=sim.particles[0]).a
         moon_exists = False
 
-    boundry = r_max * moon_a if moon_exists else r_max * planet_a
+    if moon_exists:
+        boundary = r_max * moon_a
+        H, xedges, yedges = np.histogram2d(xdata, ydata, range=[
+            [-boundary + sim.particles["planet"].x, boundary + sim.particles["planet"].x],
+            [-boundary + sim.particles["planet"].y, boundary + sim.particles["planet"].y]], bins=bins)
+    else:
+        boundary = r_max * planet_a
+        H, xedges, yedges = np.histogram2d(xdata, ydata, range=[
+            [-boundary, boundary],
+            [-boundary, boundary]], bins=bins)
 
-    H, xedges, yedges = np.histogram2d(xdata, ydata, range=[[-boundry, boundry], [-boundry, boundry]], bins=bins)
     H = H.T
     return H, xedges, yedges
 
@@ -72,8 +73,8 @@ def pngToGif(max_PNG_index, step):
     TOOL TO COMBINE PNG TO GIF
     """
     import imageio
-    filenames = [f'plots/sim_{i}.png' for i in range(0,max_PNG_index,step)]
-    #with imageio.get_writer('mygif.gif', mode='I') as writer:
+    filenames = [f'plots/sim_{i}.png' for i in range(0, max_PNG_index, step)]
+    # with imageio.get_writer('mygif.gif', mode='I') as writer:
     #    for filename in filenames:
     #        image = imageio.imread(filename)
     #        writer.append_data(image)
@@ -81,12 +82,12 @@ def pngToGif(max_PNG_index, step):
     images = []
     for filename in filenames:
         images.append(imageio.imread(filename))
-    imageio.mimsave('movie.gif', images, fps=1)
+    imageio.mimsave('movie.gif', images, fps=3)
 
 
-#dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
-#xdat_final = dat[:,0][3:]
-#ydat_final = dat[:,1][3:]
+# dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
+# xdat_final = dat[:,0][3:]
+# ydat_final = dat[:,1][3:]
 
 sa = rebound.SimulationArchive("archive.bin")
 for i, sim_instance in enumerate(sa):
@@ -97,11 +98,12 @@ for i, sim_instance in enumerate(sa):
     except rebound.ParticleNotFound:
         moon_exists = False
     else:
-        moon_exists= True
+        moon_exists = True
 
     xdata = []
     ydata = []
-    rdata = []
+    rdata = []  # Distance from primary
+    rdata_per_cm = []
     for k in range(sim_instance.N_active, sim_instance.N):
         xdata.append(ps[k].x)
         ydata.append(ps[k].y)
@@ -110,32 +112,27 @@ for i, sim_instance in enumerate(sa):
         else:
             rdata.append((np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r)
 
-    #rdata = np.sqrt((xdata - ps["planet"].x)**2 + (ydat - ps["planet"].y)**2) / ps["planet"].r
-    H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, 160)
+    # rdata = np.sqrt((xdata - ps["planet"].x)**2 + (ydat - ps["planet"].y)**2) / ps["planet"].r
+    H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, bins=160)
 
     if i % plot_freq == 0:
-        plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges, density=True)
+        plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
+                 density=True)
 
         if i == 0 or not showhist:
             continue
 
         log = True if rdata else False  # Not needed if first sim_instance is already with particles.
-        y, binEdges, patches = plt.hist(rdata, 100, log=log, range=(0, 50))
-        bincenters = (binEdges[1:] + binEdges[:-1]) / 2
 
-        plt.plot(bincenters[y != 0], y[y != 0], '-', c='black')
+        counts, bin_edges = np.histogram(rdata, 100, range=(0, 50))
+        bin_width = bin_edges[1] - bin_edges[0]
+        weights = counts / (bin_width * ps[0].r) / 100
+        bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
+
+        plt.hist(bin_edges[:-1], bin_edges, weights=weights)
+        plt.plot(bincenters[weights != 0], weights[weights != 0], '-', c='black')
+        plt.yscale("log")
+        plt.xlabel("Distance from primary in primary radii")
+        plt.ylabel("Number of particles per cm")
         plt.grid(True)
         plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-

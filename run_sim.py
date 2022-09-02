@@ -3,17 +3,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 from create_particle import create_particle
-from init import init3, Simulation_Parameters
-
-
-
-def particle_lifetime():
-    """
-    Calculates a particle's lifetime.
-    :return: tau: float.
-    """
-    tau = 1000 * 60 * 60
-    return tau
+from init import init3, Parameters
 
 
 def run_simulation():
@@ -27,9 +17,8 @@ def run_simulation():
     """
     sim = rebound.Simulation("archive.bin")
 
-    Params = Simulation_Parameters()
-    int_Params = Params.int()
-    gen_Params = Params.gen()
+    Params = Parameters()
+    num_species = Params.num_species
 
     try:
         moon_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
@@ -40,60 +29,66 @@ def run_simulation():
         planet_a = sim.particles["planet"].a
         moon_exists = False
 
-    #sim.simulationarchive_snapshot("archive.bin", deletefile=True)
-    for i in range(int_Params["num_sim_advances"]):
+    for i in range(Params.int_spec["num_sim_advances"]):
 
         sim_N_before = sim.N
 
-        # Add particles
-        # -------------
-        if int_Params["gen_max"] is None or i <= int_Params["gen_max"]:
-            for j1 in tqdm(range(gen_Params["n_th"]), desc="Adding thermal particles"):
-                #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
-                p = create_particle("thermal")
-                identifier = f"{i}_{j1}"
-                p.hash = identifier
-                sim.add(p)
+        for ns in range(num_species):
+            species = Params.get_species(ns+1)
 
-            for j2 in tqdm(range(gen_Params["n_sp"]), desc="Adding sputter particles"):
-                p = create_particle("sputter")
-                identifier = f"{i}_{j2 + gen_Params['n_th']}"
-                p.hash = identifier
-                sim.add(p)
+            if (species.n_th == 0 or None) and (species.n_sp == 0 or None):
+                continue
+
+            # Add particles of given species
+            # ------------------------------
+            if Params.int_spec["gen_max"] is None or i <= Params.int_spec["gen_max"]:
+                for j1 in tqdm(range(species.n_th), desc=f"Adding {species.element} particles thermally"):
+                    #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
+                    p = create_particle(species, "thermal")
+                    identifier = f"{species.id}_{i}_{j1}"
+                    p.hash = identifier
+                    sim.add(p)
+
+                for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.element} particles via sputtering"):
+                    p = create_particle(species,"sputter")
+                    identifier = f"{species.id}_{i}_{j2 + species.n_th}"
+                    p.hash = identifier
+                    sim.add(p)
+
+            # Remove particles through loss function
+            # --------------------------------------
+            num_lost = 0
+            for j in range(i):
+                dt = sim.t - j * Params.int_spec["sim_advance"]
+                identifiers = [f"{species.id}_{j}_{x}" for x in range(species.n_th + species.n_sp)]
+                hashes = [rebound.hash(x).value for x in identifiers]
+                for particle in sim.particles[sim.N_active:]:
+                    if particle.hash.value in hashes:
+                        tau = species.lifetime()
+                        prob_to_exist = np.exp(-dt / tau)
+                        if random.random() > prob_to_exist:
+                            sim.remove(hash=particle.hash)
+                            num_lost += 1
+            print(f"{num_lost} particles lost.")
+
 
         # Remove particles beyond specified number of semi-major axes
         # --------------------------------------------------------------
-        boundry = gen_Params["r_max"] * moon_a if moon_exists else gen_Params["r_max"] * planet_a
+        boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
         N = sim.N
         k = sim.N_active
         while k < N:
-            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > boundry:
+            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > boundary:
                 sim.remove(k)
                 N += -1
             else:
                 k += 1
 
-        # Remove particles through loss function
-        # --------------------------------------
-        num_lost = 0
-        for j in range(i):
-            dt = sim.t - j * int_Params["sim_advance"]
-            identifiers = [f"{j}_{x}" for x in range(gen_Params["n_th"] + gen_Params["n_sp"])]
-            hashes = [rebound.hash(x).value for x in identifiers]
-            for particle in sim.particles[3:]:
-                if particle.hash.value in hashes:
-                    tau = particle_lifetime()
-                    prob_to_exist = np.exp(-dt / tau)
-                    if random.random() > prob_to_exist:
-                        sim.remove(hash=particle.hash)
-                        num_lost += 1
-        print(f"{num_lost} particles lost.")
-
         # ADVANCE INTEGRATION
         # ===================
         print("Starting advance {0} ... ".format(i + 1))
         # sim.integrate(sim.t + Io_P/4)
-        advance = moon_P / sim.dt * int_Params["sim_advance"] if moon_exists else planet_P / sim.dt * int_Params["sim_advance"]
+        advance = moon_P / sim.dt * Params.int_spec["sim_advance"] if moon_exists else planet_P / sim.dt * Params.int_spec["sim_advance"]
         sim.steps(int(advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
         print("Advance done! ")
         print("Number of particles: {0}".format(sim.N))
@@ -115,7 +110,7 @@ def run_simulation():
 
         # Stop if steady state
         # --------------------
-        if int_Params["stop_at_steady_state"] and np.abs(sim_N_before - sim.N) < 0.001:
+        if Params.int_spec["stop_at_steady_state"] and np.abs(sim_N_before - sim.N) < 0.001:
             print("Reached steady state!")
             break
     print("Simulation completed successfully!")
@@ -123,5 +118,5 @@ def run_simulation():
 
 
 if __name__ == "__main__":
-    init3()
+    init3(moon=True)
     run_simulation()

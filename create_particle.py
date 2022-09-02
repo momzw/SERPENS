@@ -1,10 +1,10 @@
 import rebound
 import numpy as np
-from init import Simulation_Parameters
+from init import Parameters
 
 # ====================================================================================================================================================================
 
-Params = Simulation_Parameters()
+Params = Parameters()
 therm_Params = Params.therm()
 sput_Params = Params.sput()
 
@@ -13,7 +13,6 @@ sput_Params = Params.sput()
 source_temp_max = therm_Params["source_temp_max"]
 source_temp_min = therm_Params["source_temp_min"]
 spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
-part_mass_in_amu = therm_Params["part_mass_in_amu"]
 
 # Sputtering model
 # ---------------------
@@ -133,7 +132,7 @@ def random_temp(sim, temp_min, temp_max, latitude, longitude):
     return temp
 
 
-def random_vel_thermal(temp):
+def random_vel_thermal(species, temp):
     """
     Gives a random thermal velocity vector for a sodium atom given a local temperature.
     :param temp: float
@@ -145,9 +144,8 @@ def random_vel_thermal(temp):
     v3 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
     v3 = 0  # 2D
 
-    u = 1.660539e-27
     k_B = 1.380649e-23
-    vel_Na = np.sqrt((k_B * temp) / (part_mass_in_amu * u)) * np.array([v1, v2, v3])
+    vel_Na = np.sqrt((k_B * temp) / species.m) * np.array([v1, v2, v3])
 
     return vel_Na
 
@@ -251,7 +249,7 @@ def random_vel_sputter(E_i, E_b):
     return vel
 
 
-def create_particle(process, **kwargs):
+def create_particle(species, process, **kwargs):
     """
     Generates a REBOUND particle with random velocity at random position from process given by function argument.
     See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
@@ -268,18 +266,18 @@ def create_particle(process, **kwargs):
     else:
         moon_exists = True
 
-    source_temp_max = therm_Params["source_temp_max"]
-    source_temp_min = therm_Params["source_temp_min"]
-
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
         if valid_process[process] == 0:
             temp_min = kwargs.get("temp_midnight", source_temp_min)  # Default value corresponds to Io
             temp_max = kwargs.get("temp_noon", source_temp_max)  # Default value corresponds to Io
+
             ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                     b_long=2 * np.pi)
+
             ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
-            ran_vel_not_rotated_in_place = random_vel_thermal(ran_temp)
+
+            ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)
 
         else:
             if moon_exists:
@@ -287,11 +285,13 @@ def create_particle(process, **kwargs):
                                               (sim.particles["moon"].x - sim.particles["planet"].x))
             else:
                 angle_correction = np.arctan2(sim.particles["planet"].y,sim.particles["planet"].x)
+
             #ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
             #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
             #                                        b_long=3 * np.pi / 2 + angle_correction,
             #                                        loc_long=np.pi / 2 + angle_correction)
             ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform")
+
             u = 1.660539e-27
             E_inc_def = 1 / 2 * model_wurz_inc_mass_in_amu * u * (model_wurz_inc_part_speed ** 2)
             E_inc = kwargs.get("E_incoming", E_inc_def)
