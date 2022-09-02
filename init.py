@@ -1,38 +1,80 @@
 import rebound
 
+class SpeciesSpecifics:
 
-class Simulation_Parameters:
+    def __init__(self, mass_number, type="neutral"):
+        amu = 1.660539066e-27
+        self.type = type
+        self.mass_num = mass_number
+        self.m = mass_number * amu
+
+
+class Species(SpeciesSpecifics):
+
+    def __init__(self, element, n_th = None, n_sp = None):
+        self.element = element
+        implementedSpecies = {
+            "Sodium": 1,
+            "Oxygen": 2
+        }
+        if element in implementedSpecies:
+            if implementedSpecies[element] == 1:
+                super().__init__(23)
+                self.bind = 2.89 * 1.602e-19
+                self.id = 1
+            else:
+                super().__init__(16)
+                self.id = 2
+        else:
+            print(f"The species '{element}' has not been implemented.")
+            return
+
+        self.n_th = n_th
+        self.n_sp = n_sp
+
+    def lifetime(self):
+        tau = 2 * 60 * 60
+        return tau
+
+    def method_chain(self):
+        return self
+
+"""
+class Species:
+    def __init__(self, name, mass_number, type = "neutral", n_th = None, n_sp = None):
+        amu = 1.660539066e-27
+        self.name = name
+        self.type = type
+        self.n_th = n_th
+        self.n_sp = n_sp
+        self.mass_number = mass_number
+        self.m = mass_number * amu
+"""
+
+class Parameters:
+
+    # Integration specifics
+    # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
+    int_spec = {
+        "sim_advance": 1 / 12,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+        "num_sim_advances": 80,             # Number of times the simulation advances.
+        "stop_at_steady_state": False,
+        "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
+        "r_max": 2                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
+    }
 
     def __init__(self):
-        pass
+        self.species1 = Species("Sodium", n_th=0, n_sp=2000)
+        self.species2 = Species("Oxygen", n_th=0, n_sp=0)
 
-    def int(self):
-        # Integration specifics
-        # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
-        self.int_spec = {
-            "sim_advance": 1/12,            # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-            "num_sim_advances": 25,         # Number of times the simulation advances.
-            "stop_at_steady_state": False,
-            "gen_max": None                 # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
-        }
-        return self.int_spec
-
-    def gen(self):
-        # Generating particles
-        self.gen_spec = {
-            "n_th": 0,      # Number of particles created by thermal evap each integration advance.
-            "n_sp": 500,   # Number of particles created by sputtering each integration advance.
-            "r_max": 2      # Maximal radial distance in units of moon's semi-major axis. Particles beyond get removed from simulation.
-        }
-        return self.gen_spec
+        self.num_species = len(locals()['self'].__dict__)
 
     def therm(self):
         # Thermal evaporation parameters
         self.therm_spec = {
-            "source_temp_max": 130,
-            "source_temp_min": 90,
+            "source_temp_max": 2709,
+            "source_temp_min": 1613,
             "spherical_symm_ejection": False,
-            "part_mass_in_amu": 23
         }
         return self.therm_spec
 
@@ -54,6 +96,14 @@ class Simulation_Parameters:
             "model_smyth_a": 7 / 3      # Speed distribution shape parameter
         }
         return self.sput_spec
+
+    def get_species(self, id):
+        if id == 1:
+            return self.species1.method_chain()
+        elif id == 2:
+            return self.species2.method_chain()
+        else:
+            return None
 
     # Particle emission position
     # ---------------------
