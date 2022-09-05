@@ -5,12 +5,11 @@ import matplotlib.colors as colors
 import rebound
 from rebound.plotting import fading_line
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from init import Parameters
 matplotlib.use('TkAgg')
 
 
-
-def plotting(sim, density=True, save=True, show=True, **kwargs):
-    fig, ax = plt.subplots(figsize=(8, 8))
+def plotting(fig, ax, sim, density=True, save=True, show=True, **kwargs):
     ax.set_aspect("equal")
 
     ps = sim.particles
@@ -44,8 +43,6 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         ax.set_yticks(ylocs)
         ax.set_yticklabels([str(y) for y in ylabels])
 
-        fig.suptitle("Particle Simulation around Planetary Body", size='x-large', y=.95)
-        ax.set_title(f"Number of Particles: {sim.N}", y=.90, c='w')
         ax.set_xlabel("x-distance in planetary radii")
         ax.set_ylabel("y-distance in planetary radii")
 
@@ -92,8 +89,6 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         ax.set_yticks(ylocs)
         ax.set_yticklabels([str(y) for y in ylabels])
 
-        fig.suptitle("Particle Simulation around Stellar Body", size='x-large', y=.95)
-        ax.set_title(f"Number of Particles: {sim.N}", y=.90, c='w')
         ax.set_xlabel("x-distance in stellar radii")
         ax.set_ylabel("y-distance in stellar radii")
 
@@ -143,8 +138,9 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
         for particle in ps[sim.N_active:]:
             ax.scatter(particle.x, particle.y, s=.2, facecolor='red', alpha=.3)
 
-    i = kwargs.get("iter", 0)
-    if save: plt.savefig(f'plots/sim_{i}.png')
-    if show: plt.show()
+    return ax
+    #i = kwargs.get("iter", 0)
+    #if save: plt.savefig(f'plots/sim_{i}.png')
+    #if show: plt.show()
 
-    plt.close()
+    #plt.close()
