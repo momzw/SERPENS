@@ -15,16 +15,23 @@ class Species(SpeciesSpecifics):
         self.element = element
         implementedSpecies = {
             "Sodium": 1,
-            "Oxygen": 2
+            "Oxygen": 2,
+            "Sulfur": 3
         }
         if element in implementedSpecies:
             if implementedSpecies[element] == 1:
                 super().__init__(23)
                 self.bind = 2.89 * 1.602e-19
                 self.id = 1
-            else:
+                self.lifetime = 2 * 60 * 60
+            elif implementedSpecies[element] == 2:
                 super().__init__(16)
                 self.id = 2
+                self.lifetime = 20 * 60 * 60
+            else:
+                super().__init__(32)
+                self.id = 3
+                self.lifetime = 40 * 60 * 60
         else:
             print(f"The species '{element}' has not been implemented.")
             return
@@ -36,9 +43,9 @@ class Species(SpeciesSpecifics):
         num = mass_per_sec / self.m
         return num / (self.n_th + self.n_sp)
 
-    def lifetime(self):
-        tau = 17.7/2 * 60 * 60
-        return tau
+    #def lifetime(self):
+    #    tau = 17.7/2 * 60 * 60
+    #    return tau
 
     def method_chain(self):
         return self
@@ -58,7 +65,8 @@ class Parameters:
 
     def __init__(self):
         self.species1 = Species("Sodium", n_th=0, n_sp=1000)
-        self.species2 = Species("Oxygen", n_th=0, n_sp=500)
+        self.species2 = Species("Oxygen", n_th=0, n_sp=1000)
+        self.species3 = Species("Sulfur", n_th=0, n_sp=1000)
 
         self.num_species = len(locals()['self'].__dict__)
 
@@ -95,6 +103,8 @@ class Parameters:
             return self.species1.method_chain()
         elif id == 2:
             return self.species2.method_chain()
+        elif id == 3:
+            return self.species3.method_chain()
         else:
             return None
 

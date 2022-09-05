@@ -65,7 +65,7 @@ def run_simulation():
                 hashes = [rebound.hash(x).value for x in identifiers]
                 for particle in sim.particles[sim.N_active:]:
                     if particle.hash.value in hashes:
-                        tau = species.lifetime()
+                        tau = species.lifetime
                         prob_to_exist = np.exp(-dt / tau)
                         if random.random() > prob_to_exist:
                             sim.remove(hash=particle.hash)

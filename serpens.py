@@ -104,8 +104,10 @@ if __name__ == "__main__":
             moon_exists = True
 
         hashes_and_species = np.zeros((1,2))    # np.zeros((sim_instance.N - sim_instance.N_active, 2)) !
+        species_names = []
         for ns in range(Params.num_species):
             species = Params.get_species(ns + 1)
+            species_names.append(species.element)
             identifiers = [f"{species.id}_{j}_{x}" for j in range(Params.int_spec["num_sim_advances"]) for x in range(species.n_th + species.n_sp)]
             hashes = [rebound.hash(x).value for x in identifiers]
             for particle in sim_instance.particles[sim_instance.N_active:]:
@@ -113,6 +115,8 @@ if __name__ == "__main__":
                     hash_and_species = np.array([[particle.hash.value, species.id]])
                     hashes_and_species = np.concatenate((hashes_and_species, hash_and_species))
         hashes_and_species = np.delete(hashes_and_species, 0, 0)
+
+        species_occurences = np.bincount(hashes_and_species[:,1].astype(int))[1:]
 
         xdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
         ydata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
@@ -130,9 +134,21 @@ if __name__ == "__main__":
 
         if i % plot_freq == 0:
 
-            H, xedges, yedges = getHistogram(sim_instance, xdata[:,0], ydata[:,0], bins=160)
-            plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
-                     density=True)
+            subplot_rows = int(np.ceil(Params.num_species/3))
+            subplot_columns = Params.num_species if Params.num_species <= 3 else 3
+            fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 8))
+            for k in range(Params.num_species):
+                H, xedges, yedges = getHistogram(sim_instance, xdata[:, k][xdata[:, k] != 0], ydata[:, k][ydata[:, k] != 0], bins=160)
+                plotting(fig, axs[k], sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
+                         density=True)
+                if not species_occurences.size == 0:
+                    axs[k].set_title(f"{species_names[k]} \n Number of Particles: {species_occurences[k]}", y=1.08, c='k', size='x-large')
+            if moon_exists:
+                fig.suptitle(f"Particle Simulation around Planetary Body \n Number of particles {sim_instance.N}", size='xx-large', y=.95)
+            else:
+                fig.suptitle(f"Particle Simulation around Stellar Body \n Number of particles {sim_instance.N}", size='xx-large', y=.95)
+            plt.tight_layout()
+            plt.show()
 
             if i == 0 or not showhist:
                 continue
