@@ -42,18 +42,19 @@ def run_simulation():
             # Add particles of given species
             # ------------------------------
             if Params.int_spec["gen_max"] is None or i <= Params.int_spec["gen_max"]:
-                for j1 in tqdm(range(species.n_th), desc=f"Adding {species.element} particles thermally"):
-                    #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
-                    p = create_particle(species, "thermal")
-                    identifier = f"{species.id}_{i}_{j1}"
-                    p.hash = identifier
-                    sim.add(p)
-
-                for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.element} particles via sputtering"):
-                    p = create_particle(species,"sputter")
-                    identifier = f"{species.id}_{i}_{j2 + species.n_th}"
-                    p.hash = identifier
-                    sim.add(p)
+                if not (species.n_th == 0 or None):
+                    for j1 in tqdm(range(species.n_th), desc=f"Adding {species.element} particles thermally"):
+                        #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
+                        p = create_particle(species, "thermal")
+                        identifier = f"{species.id}_{i}_{j1}"
+                        p.hash = identifier
+                        sim.add(p)
+                if not (species.n_sp == 0 or None):
+                    for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.element} particles via sputtering"):
+                        p = create_particle(species,"sputter")
+                        identifier = f"{species.id}_{i}_{j2 + species.n_th}"
+                        p.hash = identifier
+                        sim.add(p)
 
             # Remove particles through loss function
             # --------------------------------------
@@ -69,11 +70,11 @@ def run_simulation():
                         if random.random() > prob_to_exist:
                             sim.remove(hash=particle.hash)
                             num_lost += 1
-            print(f"{num_lost} particles lost.")
+            print(f"{num_lost} {species.element} particles lost.")
 
 
         # Remove particles beyond specified number of semi-major axes
-        # --------------------------------------------------------------
+        # -----------------------------------------------------------
         boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
         N = sim.N
         k = sim.N_active
@@ -86,6 +87,7 @@ def run_simulation():
 
         # ADVANCE INTEGRATION
         # ===================
+        print("------------------------------------------------")
         print("Starting advance {0} ... ".format(i + 1))
         # sim.integrate(sim.t + Io_P/4)
         advance = moon_P / sim.dt * Params.int_spec["sim_advance"] if moon_exists else planet_P / sim.dt * Params.int_spec["sim_advance"]
@@ -101,8 +103,7 @@ def run_simulation():
         # ==============
         particle_positions = np.zeros((sim.N, 3), dtype="float64")
         particle_velocities = np.zeros((sim.N, 3), dtype="float64")
-        sim.serialize_particle_data(xyz=particle_positions)
-        sim.serialize_particle_data(vxvyvz=particle_velocities)
+        sim.serialize_particle_data(xyz=particle_positions, vxvyvz=particle_velocities)
 
         header = np.array(["x", "y", "z", "vx", "vy", "vz"])
         data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
