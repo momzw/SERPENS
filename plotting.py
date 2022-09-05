@@ -4,6 +4,7 @@ import matplotlib
 import matplotlib.colors as colors
 import rebound
 from rebound.plotting import fading_line
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 matplotlib.use('TkAgg')
 
 
@@ -128,7 +129,14 @@ def plotting(sim, density=True, save=True, show=True, **kwargs):
             norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin = 0, vmax = 0) # Not needed if first sim_instance is already with particles.
             cmap = matplotlib.cm.afmhot
             cmap.set_bad('k', 1.)
-            ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
+            im = ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
+
+            if not np.max(H) == 0:
+                # Colorbar
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes('right', size='5%', pad=0.05)
+                fig.colorbar(im, cax=cax, orientation='vertical')
+
         else:
             print("Error: Trying to plot density without passing necessary kwargs \"histogram\", \"xedges\", \"yedges\"")
     else:

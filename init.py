@@ -32,24 +32,17 @@ class Species(SpeciesSpecifics):
         self.n_th = n_th
         self.n_sp = n_sp
 
+    def particles_per_superparticle(self, mass_per_sec):
+        num = mass_per_sec / self.m
+        return num / (self.n_th + self.n_sp)
+
     def lifetime(self):
-        tau = 2 * 60 * 60
+        tau = 17.7/2 * 60 * 60
         return tau
 
     def method_chain(self):
         return self
 
-"""
-class Species:
-    def __init__(self, name, mass_number, type = "neutral", n_th = None, n_sp = None):
-        amu = 1.660539066e-27
-        self.name = name
-        self.type = type
-        self.n_th = n_th
-        self.n_sp = n_sp
-        self.mass_number = mass_number
-        self.m = mass_number * amu
-"""
 
 class Parameters:
 
@@ -57,23 +50,23 @@ class Parameters:
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
         "sim_advance": 1 / 12,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 80,             # Number of times the simulation advances.
+        "num_sim_advances": 12,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
         "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
         "r_max": 2                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
     }
 
     def __init__(self):
-        self.species1 = Species("Sodium", n_th=0, n_sp=2000)
-        self.species2 = Species("Oxygen", n_th=0, n_sp=0)
+        self.species1 = Species("Sodium", n_th=0, n_sp=1000)
+        self.species2 = Species("Oxygen", n_th=0, n_sp=500)
 
         self.num_species = len(locals()['self'].__dict__)
 
     def therm(self):
         # Thermal evaporation parameters
         self.therm_spec = {
-            "source_temp_max": 2709,
-            "source_temp_min": 1613,
+            "source_temp_max": 2703,
+            "source_temp_min": 1609,
             "spherical_symm_ejection": False,
         }
         return self.therm_spec

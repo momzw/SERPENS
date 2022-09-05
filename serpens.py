@@ -22,6 +22,8 @@ matplotlib.use('TkAgg')
 
 """
 
+Params = Parameters()
+
 # Plotting
 # ---------------------
 savefig = False
@@ -43,7 +45,6 @@ def getHistogram(sim, xdata, ydata, bins):
     :param bins: int or array_like or [int, int] or [array, array]. See documentation for np.histogram2d.
     :return: H: ndarray (shape(nx, ny)), xedges: ndarray (shape(nx+1,)), yedges: ndarray (shape(ny+1,)). 2d-Histogram and bin edges along x- and y-axis.
     """
-    Params = Parameters()
     r_max = Params.int_spec["r_max"]
 
     try:
@@ -82,57 +83,81 @@ def pngToGif(max_PNG_index, step):
     images = []
     for filename in filenames:
         images.append(imageio.imread(filename))
-    imageio.mimsave('movie.gif', images, fps=3)
+    imageio.mimsave('movie.gif', images, fps=4)
 
 
-# dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
-# xdat_final = dat[:,0][3:]
-# ydat_final = dat[:,1][3:]
+if __name__ == "__main__":
 
-sa = rebound.SimulationArchive("archive.bin")
-for i, sim_instance in enumerate(sa):
-    ps = sim_instance.particles
+    # dat_final = np.loadtxt("particles.txt", skiprows=1, usecols=(0,1))
+    # xdat_final = dat[:,0][3:]
+    # ydat_final = dat[:,1][3:]
 
-    try:
-        sim_instance.particles["moon"]
-    except rebound.ParticleNotFound:
-        moon_exists = False
-    else:
-        moon_exists = True
+    sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
+    for i, sim_instance in enumerate(sa):
+        ps = sim_instance.particles
 
-    xdata = []
-    ydata = []
-    rdata = []  # Distance from primary
-    rdata_per_cm = []
-    for k in range(sim_instance.N_active, sim_instance.N):
-        xdata.append(ps[k].x)
-        ydata.append(ps[k].y)
-        if moon_exists:
-            rdata.append((np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r)
+        try:
+            sim_instance.particles["moon"]
+        except rebound.ParticleNotFound:
+            moon_exists = False
         else:
-            rdata.append((np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r)
+            moon_exists = True
 
-    # rdata = np.sqrt((xdata - ps["planet"].x)**2 + (ydat - ps["planet"].y)**2) / ps["planet"].r
-    H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, bins=160)
+        hashes_and_species = np.zeros((1,2))    # np.zeros((sim_instance.N - sim_instance.N_active, 2)) !
+        for ns in range(Params.num_species):
+            species = Params.get_species(ns + 1)
+            identifiers = [f"{species.id}_{j}_{x}" for j in range(Params.int_spec["num_sim_advances"]) for x in range(species.n_th + species.n_sp)]
+            hashes = [rebound.hash(x).value for x in identifiers]
+            for particle in sim_instance.particles[sim_instance.N_active:]:
+                if particle.hash.value in hashes:
+                    hash_and_species = np.array([[particle.hash.value, species.id]])
+                    hashes_and_species = np.concatenate((hashes_and_species, hash_and_species))
+        hashes_and_species = np.delete(hashes_and_species, 0, 0)
 
-    if i % plot_freq == 0:
-        plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
-                 density=True)
+        xdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
+        ydata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
+        rdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))  # Distance from primary
+        for k in range(sim_instance.N_active, sim_instance.N):
+            ps_species = hashes_and_species[:,1][np.where(ps[k].hash.value == hashes_and_species[:,0])][0]
 
-        if i == 0 or not showhist:
-            continue
+            xdata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].x
+            ydata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].y
 
-        log = True if rdata else False  # Not needed if first sim_instance is already with particles.
+            if moon_exists:
+                rdata[int(k - sim_instance.N_active)][int(ps_species-1)] = (np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r
+            else:
+                rdata[int(k - sim_instance.N_active)][int(ps_species-1)] = (np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r
 
-        counts, bin_edges = np.histogram(rdata, 100, range=(0, 50))
-        bin_width = bin_edges[1] - bin_edges[0]
-        weights = counts / (bin_width * ps[0].r) / 100
-        bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
+        if i % plot_freq == 0:
 
-        plt.hist(bin_edges[:-1], bin_edges, weights=weights)
-        plt.plot(bincenters[weights != 0], weights[weights != 0], '-', c='black')
-        plt.yscale("log")
-        plt.xlabel("Distance from primary in primary radii")
-        plt.ylabel("Number of particles per cm")
-        plt.grid(True)
-        plt.show()
+            H, xedges, yedges = getHistogram(sim_instance, xdata[:,0], ydata[:,0], bins=160)
+            plotting(sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
+                     density=True)
+
+            if i == 0 or not showhist:
+                continue
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            for k in range(Params.num_species):
+                counts, bin_edges = np.histogram(rdata[:,k][rdata[:,k] != 0], 100 , range=(0, 50))  #bins=int(np.sqrt(len(rdata[:,k])))
+                bin_width = bin_edges[1] - bin_edges[0]
+                if moon_exists:
+                    weights = counts / (bin_width * ps["planet"].r) / 100
+                else:
+                    weights = counts / (bin_width * ps[0].r) / 100
+
+                weights_phys = weights * Params.get_species(k+1).particles_per_superparticle(1e3)
+
+                bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
+
+                ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', label=f"{Params.get_species(k+1).element}", alpha=1)
+                ax.scatter(bincenters[weights != 0], weights_phys[weights != 0], marker='x')
+
+            #plt.hist(bin_edges[:-1], bin_edges, weights=weights_phys)
+            #plt.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', c='black', alpha = 0.5)
+            ax.set_yscale("log")
+            ax.set_xlabel("Distance from primary in primary radii")
+            ax.set_ylabel("Number of particles per cm")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
