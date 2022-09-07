@@ -56,30 +56,27 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "sim_advance": 1 / 12,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 12,             # Number of times the simulation advances.
+        "sim_advance": 1 / 8,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+        "num_sim_advances": 64,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
         "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
         "r_max": 2                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
     }
 
     def __init__(self):
-        self.species1 = Species("Sodium", n_th=0, n_sp=1000)
-        self.species2 = Species("Oxygen", n_th=0, n_sp=1000)
-        self.species3 = Species("Sulfur", n_th=0, n_sp=1000)
+        self.species1 = Species("Sodium", n_th=0, n_sp=500)
+        self.species2 = Species("Oxygen", n_th=0, n_sp=500)
+        self.species3 = Species("Sulfur", n_th=0, n_sp=500)
 
         self.num_species = len(locals()['self'].__dict__)
 
-    def therm(self):
         # Thermal evaporation parameters
         self.therm_spec = {
             "source_temp_max": 2703,
             "source_temp_min": 1609,
             "spherical_symm_ejection": False,
         }
-        return self.therm_spec
 
-    def sput(self):
         # Sputtering model and shape parameters
         self.sput_spec = {
             "sput_model": 'maxwell',    # Valid inputs: maxwell, wurz, smyth.
@@ -96,7 +93,16 @@ class Parameters:
             "model_smyth_v_M": 40000,   # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
             "model_smyth_a": 7 / 3      # Speed distribution shape parameter
         }
-        return self.sput_spec
+
+    def __str__(self):
+        s = "Integration specifics: \n" + f"\t {self.int_spec} \n"
+        s += "Species: \n"
+        for i in range(1, self.num_species+1):
+            species = locals()['self'].__dict__
+            s += "\t" + str(vars(species[f"species{i}"])) + "\n"
+        s += f"Thermal evaporation parameters: \n \t {self.therm_spec} \n"
+        s += f"Sputtering model and shape parameters: \n \t {self.sput_spec} \n"
+        return s
 
     def get_species(self, id):
         if id == 1:

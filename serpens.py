@@ -2,6 +2,8 @@ import rebound
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+import os as os
+from datetime import datetime
 from plotting import plotting
 from init import Parameters
 
@@ -26,11 +28,11 @@ Params = Parameters()
 
 # Plotting
 # ---------------------
-savefig = False
-showfig = True
+save = True
+showfig = False
 plot_freq = 1  # Plot at each *plot_freq* advance
 
-showhist = True
+showhist = False
 """
     ===============================================================================================================
 """
@@ -83,7 +85,7 @@ def pngToGif(max_PNG_index, step):
     images = []
     for filename in filenames:
         images.append(imageio.imread(filename))
-    imageio.mimsave('movie.gif', images, fps=4)
+    imageio.mimsave('movie.gif', images, fps=1)
 
 
 if __name__ == "__main__":
@@ -93,15 +95,26 @@ if __name__ == "__main__":
     # ydat_final = dat[:,1][3:]
 
     sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
+
+    sim1 = sa[0]
+    try:
+        sim1.particles["moon"]
+    except rebound.ParticleNotFound:
+        moon_exists = False
+    else:
+        moon_exists = True
+
+    if save:
+        if moon_exists:
+            path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_moonsource"
+        else:
+            path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_planetsource"
+        os.makedirs(f'output/{path}/plots')
+        with open(f"output/{path}/Parameters.txt", "w") as text_file:
+            text_file.write(f"{Params.__str__()}")
+
     for i, sim_instance in enumerate(sa):
         ps = sim_instance.particles
-
-        try:
-            sim_instance.particles["moon"]
-        except rebound.ParticleNotFound:
-            moon_exists = False
-        else:
-            moon_exists = True
 
         hashes_and_species = np.zeros((1,2))    # np.zeros((sim_instance.N - sim_instance.N_active, 2)) !
         species_names = []
@@ -139,7 +152,7 @@ if __name__ == "__main__":
             fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 8))
             for k in range(Params.num_species):
                 H, xedges, yedges = getHistogram(sim_instance, xdata[:, k][xdata[:, k] != 0], ydata[:, k][ydata[:, k] != 0], bins=160)
-                plotting(fig, axs[k], sim_instance, save=savefig, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
+                plotting(fig, axs[k], sim_instance, save=save, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
                          density=True)
                 if not species_occurences.size == 0:
                     axs[k].set_title(f"{species_names[k]} \n Number of Particles: {species_occurences[k]}", y=1.08, c='k', size='x-large')
@@ -148,7 +161,16 @@ if __name__ == "__main__":
             else:
                 fig.suptitle(f"Particle Simulation around Stellar Body \n Number of particles {sim_instance.N}", size='xx-large', y=.95)
             plt.tight_layout()
-            plt.show()
+            if save:
+                if moon_exists:
+                    orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).f, 2)
+                else:
+                    orbit_phase = np.around(sim_instance.particles["planet"].calculate_orbit(primary=sim_instance.particles[0]).f, 2)
+                frame_identifier = f"Density_Image_TopDown_{orbit_phase}"
+                plt.savefig(f'output/{path}/plots/sim_{frame_identifier}.png')
+            if showfig:
+                plt.show()
+            plt.close()
 
             if i == 0 or not showhist:
                 continue
@@ -177,3 +199,4 @@ if __name__ == "__main__":
             plt.legend()
             plt.grid(True)
             plt.show()
+
