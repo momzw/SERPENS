@@ -56,6 +56,7 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
+        "moon": True,
         "sim_advance": 1 / 8,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
         "num_sim_advances": 64,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
@@ -66,7 +67,7 @@ class Parameters:
     def __init__(self):
         self.species1 = Species("Sodium", n_th=0, n_sp=500)
         self.species2 = Species("Oxygen", n_th=0, n_sp=500)
-        self.species3 = Species("Sulfur", n_th=0, n_sp=500)
+        #self.species3 = Species("Sulfur", n_th=0, n_sp=500)
 
         self.num_species = len(locals()['self'].__dict__)
 

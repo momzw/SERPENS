@@ -5,6 +5,7 @@ import matplotlib.colors as colors
 import rebound
 from rebound.plotting import fading_line
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from init import Parameters
 
 matplotlib.use('TkAgg')
 

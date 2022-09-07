@@ -87,17 +87,17 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
         y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
         z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
 
-        x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
-        y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
-        z = 0  # 2D-TEST
+        #x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
+        #y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
+        #z = 0  # 2D-TEST
     except rebound.ParticleNotFound:
         x = sim.particles["planet"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
         y = sim.particles["planet"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
         z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitude)
 
-        x = sim.particles["planet"].r * np.cos(longitude)  # 2D-TEST
-        y = sim.particles["planet"].r * np.sin(longitude)  # 2D-TEST
-        z = 0  # 2D-TEST
+        #x = sim.particles["planet"].r * np.cos(longitude)  # 2D-TEST
+        #y = sim.particles["planet"].r * np.sin(longitude)  # 2D-TEST
+        #z = 0  # 2D-TEST
 
     pos = np.array([x, y, z])
 
@@ -142,7 +142,7 @@ def random_vel_thermal(species, temp):
     v1 = maxwell.rvs()
     v2 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
     v3 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
-    v3 = 0  # 2D
+    #v3 = 0  # 2D
 
     k_B = 1.380649e-23
     vel_Na = np.sqrt((k_B * temp) / species.m) * np.array([v1, v2, v3])
@@ -173,7 +173,7 @@ def random_vel_sputter(E_i, E_b):
     v1 = np.cos(ran_azi) * np.sin(ran_elev)
     v2 = np.sin(ran_azi) * np.sin(ran_elev)
     v3 = np.cos(ran_elev)
-    v1 = 0  # 2D-TEST
+    #v1 = 0  # 2D-TEST
 
     # ___________________________________________________
 
@@ -308,7 +308,7 @@ def create_particle(species, process, **kwargs):
     rot_y = np.array([[np.cos(ran_lat), 0, -np.sin(ran_lat)], [0, 1, 0], [np.sin(ran_lat), 0, np.cos(ran_lat)]])
     rot = rot_y @ rot_z
 
-    rot = rot_z  # 2D-TEST
+    #rot = rot_z  # 2D-TEST
 
     # NOTE: Escape velocity 2550 m/s at surface.
     ran_vel = rot @ ran_vel_not_rotated_in_place

@@ -119,5 +119,6 @@ def run_simulation():
 
 
 if __name__ == "__main__":
-    init3(moon=False)
+    Params = Parameters()
+    init3(moon = Params.int_spec["moon"])
     run_simulation()
