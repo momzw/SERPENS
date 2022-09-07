@@ -119,5 +119,5 @@ def run_simulation():
 
 
 if __name__ == "__main__":
-    init3(moon=True)
+    init3(moon=False)
     run_simulation()

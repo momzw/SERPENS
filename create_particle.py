@@ -5,8 +5,8 @@ from init import Parameters
 # ====================================================================================================================================================================
 
 Params = Parameters()
-therm_Params = Params.therm()
-sput_Params = Params.sput()
+therm_Params = Params.therm_spec
+sput_Params = Params.sput_spec
 
 # Thermal evaporation parameters
 # ---------------------
