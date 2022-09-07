@@ -1,8 +1,10 @@
 import rebound
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import matplotlib
 import numpy as np
 import os as os
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from datetime import datetime
 from plotting import plotting
 from init import Parameters
@@ -28,11 +30,12 @@ Params = Parameters()
 
 # Plotting
 # ---------------------
-save = True
-showfig = False
+save = False
 plot_freq = 1  # Plot at each *plot_freq* advance
 
+showfig = True
 showhist = False
+show_column_density = True
 """
     ===============================================================================================================
 """
@@ -133,12 +136,14 @@ if __name__ == "__main__":
 
         xdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
         ydata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
+        zdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
         rdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))  # Distance from primary
         for k in range(sim_instance.N_active, sim_instance.N):
             ps_species = hashes_and_species[:,1][np.where(ps[k].hash.value == hashes_and_species[:,0])][0]
 
             xdata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].x
             ydata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].y
+            zdata[int(k - sim_instance.N_active)][int(ps_species - 1)] = ps[k].z
 
             if moon_exists:
                 rdata[int(k - sim_instance.N_active)][int(ps_species-1)] = (np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r
@@ -147,6 +152,7 @@ if __name__ == "__main__":
 
         if i % plot_freq == 0:
 
+            # IMSHOW TOP DOWN COLUMN DENSITY PLOTS
             subplot_rows = int(np.ceil(Params.num_species/3))
             subplot_columns = Params.num_species if Params.num_species <= 3 else 3
             fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 8))
@@ -155,48 +161,133 @@ if __name__ == "__main__":
                 plotting(fig, axs[k], sim_instance, save=save, show=showfig, iter=i, histogram=H, xedges=xedges, yedges=yedges,
                          density=True)
                 if not species_occurences.size == 0:
-                    axs[k].set_title(f"{species_names[k]} \n Number of Particles: {species_occurences[k]}", y=1.08, c='k', size='x-large')
+                    axs[k].set_title(f"{species_names[k]} \n Number of superparticles: {species_occurences[k]}", y=1.08, c='k', size='x-large')
             if moon_exists:
-                fig.suptitle(f"Particle Simulation around Planetary Body \n Number of particles {sim_instance.N}", size='xx-large', y=.95)
+                fig.suptitle(f"Particle Simulation around Planetary Body \n Number of superparticles {sim_instance.N}", size='xx-large', y=.95)
             else:
-                fig.suptitle(f"Particle Simulation around Stellar Body \n Number of particles {sim_instance.N}", size='xx-large', y=.95)
+                fig.suptitle(f"Particle Simulation around Stellar Body \n Number of superparticles {sim_instance.N}", size='xx-large', y=.95)
             plt.tight_layout()
             if save:
                 if moon_exists:
-                    orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).f, 2)
+                    orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).f * 180/np.pi, 2)
                 else:
-                    orbit_phase = np.around(sim_instance.particles["planet"].calculate_orbit(primary=sim_instance.particles[0]).f, 2)
-                frame_identifier = f"Density_Image_TopDown_{orbit_phase}"
-                plt.savefig(f'output/{path}/plots/sim_{frame_identifier}.png')
+                    orbit_phase = np.around(sim_instance.particles["planet"].calculate_orbit(primary=sim_instance.particles[0]).f * 180/np.pi, 2)
+                frame_identifier = f"ColumnDensity_TopDown_{orbit_phase}"
+                plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
             if showfig:
                 plt.show()
             plt.close()
 
-            if i == 0 or not showhist:
-                continue
 
+            # RADIAL HISTOGRAM
+            if not i ==0:
+                fig, ax = plt.subplots(figsize=(8, 8))
+                for k in range(Params.num_species):
+                    counts, bin_edges = np.histogram(rdata[:,k][rdata[:,k] != 0], 100 , range=(0, 50))  #bins=int(np.sqrt(len(rdata[:,k])))
+                    bin_width = bin_edges[1] - bin_edges[0]
+                    if moon_exists:
+                        weights = counts / (bin_width * ps["planet"].r) / 100
+                    else:
+                        weights = counts / (bin_width * ps[0].r) / 100
+
+                    weights_phys = weights * Params.get_species(k+1).particles_per_superparticle(1e3)
+
+                    bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
+
+                    ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', label=f"{Params.get_species(k+1).element}", alpha=1)
+                    ax.scatter(bincenters[weights != 0], weights_phys[weights != 0], marker='x')
+
+                ax.set_yscale("log")
+                ax.set_xlabel("Distance from primary in primary radii")
+                ax.set_ylabel("Number of particles per cm")
+                plt.legend()
+                plt.grid(True)
+                if save:
+                    frame_identifier = f"Radial_FullOrbit_Linear_Density_{i}"
+                    plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
+                if showhist:
+                    plt.show()
+                plt.close()
+
+
+            # COLUMN DENSITY
             fig, ax = plt.subplots(figsize=(8, 8))
-            for k in range(Params.num_species):
-                counts, bin_edges = np.histogram(rdata[:,k][rdata[:,k] != 0], 100 , range=(0, 50))  #bins=int(np.sqrt(len(rdata[:,k])))
-                bin_width = bin_edges[1] - bin_edges[0]
-                if moon_exists:
-                    weights = counts / (bin_width * ps["planet"].r) / 100
-                else:
-                    weights = counts / (bin_width * ps[0].r) / 100
+            fig.suptitle(r"Particle density in 1/cm$^2$", size='xx-large', y=.95)
+            if moon_exists:
+                moon_a = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
+                yboundryC = Params.int_spec["r_max"] * moon_a + sim_instance.particles["moon"].y
+                zboundryC = 10 * sim_instance.particles["planet"].r
 
-                weights_phys = weights * Params.get_species(k+1).particles_per_superparticle(1e3)
+                moon_patch = plt.Circle((ps["moon"].y, ps["moon"].z), ps["moon"].r, fc='y', alpha=.7)
+                planet_patch = plt.Circle((ps["planet"].y, ps["planet"].z), ps["planet"].r, fc='sandybrown')
 
-                bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
+                ax.add_patch(moon_patch)
+                ax.add_patch(planet_patch)
 
-                ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', label=f"{Params.get_species(k+1).element}", alpha=1)
-                ax.scatter(bincenters[weights != 0], weights_phys[weights != 0], marker='x')
+                lim = 15 * ps["planet"].r
+                ax.set_xlim([-lim + ps["planet"].y, lim + ps["planet"].y])
+                ax.set_ylim([-lim + ps["planet"].z, lim + ps["planet"].z])
 
-            #plt.hist(bin_edges[:-1], bin_edges, weights=weights_phys)
-            #plt.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', c='black', alpha = 0.5)
-            ax.set_yscale("log")
-            ax.set_xlabel("Distance from primary in primary radii")
-            ax.set_ylabel("Number of particles per cm")
-            plt.legend()
-            plt.grid(True)
+                ax.set_xlabel("y-distance in planetary radii")
+                ax.set_ylabel("z-distance in planetary radii")
+
+            else:
+                planet_a = sim_instance.particles["planet"].a
+                yboundryC = Params.int_spec["r_max"] * planet_a
+                zboundryC = 10 * sim_instance.particles[0].r
+
+                planet_patch = plt.Circle((ps["planet"].y, ps["planet"].z), ps["planet"].r, fc='sandybrown')
+                star_patch = plt.Circle((ps[0].x, ps[0].y), ps[0].r, fc='y', zorder=4)
+
+                ax.add_patch(planet_patch)
+                ax.add_patch(star_patch)
+
+                lim = 15 * ps["planet"].r
+                ax.set_xlim([-lim + ps[0].y, lim + ps[0].y])
+                ax.set_ylim([-lim + ps[0].z, lim + ps[0].z])
+
+                ax.set_xlabel("y-distance in stellar radii")
+                ax.set_ylabel("z-distance in stellar radii")
+
+            bins = 100
+            HC, yedgesC, zedgesC = np.histogram2d(ydata[:, 0][ydata[:, 0] != 0], zdata[:, 0][zdata[:, 0] != 0], range=[[-yboundryC, yboundryC],[-zboundryC, zboundryC]], bins=bins)
+            HC = HC.T
+
+            bin_size = (yedgesC[1] - yedgesC[0]) * (zedgesC[1] - zedgesC[0])
+
+            weight = Params.species1.particles_per_superparticle(1e3) / bin_size / 10000
+
+            ax.set_facecolor('k')
+
+            norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin=0, vmax=0)  # Not needed if first sim_instance is already with particles.
+            cmap = matplotlib.cm.afmhot
+            #cmap.set_bad('k', 1.)
+            im = ax.imshow(HC*weight, interpolation='gaussian', origin='lower', extent=[yedgesC[0], yedgesC[-1], zedgesC[0], zedgesC[-1]], cmap=cmap, norm=norm)
+            if not np.max(H) == 0:
+                # Colorbar
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes('right', size='5%', pad=0.05)
+                cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+            if save:
+                frame_identifier = f"ColumnDensity_YZplane_{orbit_phase}"
+                plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
+            if show_column_density:
+                plt.show()
+            plt.close()
             plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
