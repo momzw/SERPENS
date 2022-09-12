@@ -19,15 +19,14 @@ def run_simulation():
 
     Params = Parameters()
     num_species = Params.num_species
+    moon_exists = Params.int_spec["moon"]
 
-    try:
+    if moon_exists:
         moon_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
         moon_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
-        moon_exists = True
-    except rebound.ParticleNotFound:
+    else:
         planet_P = sim.particles["planet"].P
         planet_a = sim.particles["planet"].a
-        moon_exists = False
 
     for i in range(Params.int_spec["num_sim_advances"]):
 
@@ -60,7 +59,10 @@ def run_simulation():
             # --------------------------------------
             num_lost = 0
             for j in range(i):
-                dt = sim.t - j * Params.int_spec["sim_advance"]
+                if moon_exists:
+                    dt = sim.t - j * Params.int_spec["sim_advance"] * moon_P
+                else:
+                    dt = sim.t - j * Params.int_spec["sim_advance"] * planet_P
                 identifiers = [f"{species.id}_{j}_{x}" for x in range(species.n_th + species.n_sp)]
                 hashes = [rebound.hash(x).value for x in identifiers]
                 for particle in sim.particles[sim.N_active:]:
@@ -71,6 +73,10 @@ def run_simulation():
                             sim.remove(hash=particle.hash)
                             num_lost += 1
             print(f"{num_lost} {species.element} particles lost.")
+
+            #num_per_sup = species.particles_per_superparticle(1e3/Params.num_species)
+            #mass_loss = num_per_sup * species.m * num_lost
+            #print(f"Mass loss averaged over {int(Params.int_spec['sim_advance'] * moon_P)}sec: {np.around(mass_loss/(Params.int_spec['sim_advance'] * moon_P), 4)} kg/s")
 
 
         # Remove particles beyond specified number of semi-major axes

@@ -7,6 +7,7 @@ from init import Parameters
 Params = Parameters()
 therm_Params = Params.therm_spec
 sput_Params = Params.sput_spec
+moon_exists = Params.int_spec["moon"]
 
 # Thermal evaporation parameters
 # ---------------------
@@ -82,7 +83,7 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
-    try:
+    if moon_exists:
         x = sim.particles["moon"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
         y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
         z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
@@ -90,7 +91,7 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
         #x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
         #y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
         #z = 0  # 2D-TEST
-    except rebound.ParticleNotFound:
+    else:
         x = sim.particles["planet"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
         y = sim.particles["planet"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
         z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitude)
@@ -113,9 +114,9 @@ def random_temp(sim, temp_min, temp_max, latitude, longitude):
     :param longitude: float
     :return: temp: float
     """
-    try:
+    if moon_exists:
         longitude_wrt_sun = longitude + np.arctan2(sim.particles["moon"].y, sim.particles["moon"].x)
-    except rebound.ParticleNotFound:
+    else:
         longitude_wrt_sun = longitude + np.arctan2(sim.particles["planet"].y, sim.particles["planet"].x)
 
     if not spherical_symm_ejection:
@@ -203,30 +204,42 @@ def random_vel_sputter(E_i, E_b):
 
     # MODEL 2
     def model_smyth():
-        class _sputter_gen2(rv_continuous):
+        class sputter_gen2(rv_continuous):
             def _pdf(self, x, a, v_b, v_M):
                 def model2func(x, a, v_b, v_M):
                     f_v = 1 / v_b * (x / v_b) ** 3 \
                           * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
-                          * (1 - np.sqrt((x ** 2 + v_b ** 2) / v_M ** 2))
+                          * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
                     return f_v
 
                 def model2func_int(x, a, v_b, v_M):
-                    integral_bracket = 2 * (v_b ** 2 + x ** 2) ** (5 / 2) / ((2 * a - 5) * v_M) \
-                                       - 2 * v_b ** 2 * (v_b ** 2 + x ** 2) ** (3 / 2) / ((2 * a - 3) * v_M) \
-                                       - (v_b ** 2 + x ** 2) ** 2 / (a - 2) \
-                                       + v_b ** 2 * (v_b ** 2 + x ** 2) / (a - 1)
-                    f_v_integrated = 1 / 2 * v_b ** (2 * a - 4) * (v_b ** 2 + x ** 2) ** (-a) * integral_bracket
+                    #integral_bracket = 2 * (v_b ** 2 + x ** 2) ** (5 / 2) / ((2 * a - 5) * v_M) \
+                    #                   - 2 * v_b ** 2 * (v_b ** 2 + x ** 2) ** (3 / 2) / ((2 * a - 3) * v_M) \
+                    #                   - (v_b ** 2 + x ** 2) ** 2 / (a - 2) \
+                    #                   + v_b ** 2 * (v_b ** 2 + x ** 2) / (a - 1)
+                    #f_v_integrated = 1 / 2 * v_b ** (2 * a - 4) * (v_b ** 2 + x ** 2) ** (-a) * integral_bracket
+
+                    integral_bracket = (1 + x**2)**(5/2) * v_b/v_M / (2*a-5) - (1 + x**2)**(3/2) * v_b/v_M / (2*a-3) - x**4 / (2*(a-2)) - a*x**2 / (2*(a-2)*(a-1)) - 1 / (2*(a-2)*(a-1))
+                    #integral_bracket -= (1 + x**2)**(3/2) * v_b/v_M / (2*a-3)
+                    #integral_bracket -= x**4 / (2*(a-2))
+                    #integral_bracket -= a*x**2 / (2*(a-2)*(a-1))
+                    #integral_bracket -= 1 / (2*(a-2)*(a-1))
+                    #integral_bracket *= (1+x**2)**(-a)
+
+                    f_v_integrated = integral_bracket * (1+x**2)**(-a)
+
                     return f_v_integrated
 
-                normalization = 1 / (model2func_int(v_M, a, v_b, v_M) - model2func_int(v_b, a, v_b, v_M))
+                #normalization = 1 / (model2func_int(v_M, a, v_b, v_M) - model2func_int(v_b, a, v_b, v_M))
+                upper_bound = np.sqrt((v_M/v_b)**2 - 1)
+                normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
                 f_pdf = normalization * model2func(x, a, v_b, v_M)
                 return f_pdf
 
         v_b = model_smyth_v_b
         v_M = model_smyth_v_M
         a = model_smyth_a
-        model2_vel_dist = _sputter_gen2(a=v_b, b=v_M, shapes='a, v_b, v_M')
+        model2_vel_dist = sputter_gen2(a=0, b=np.sqrt(v_M**2 - v_b**2), shapes='a, v_b, v_M')
         model2_ran_speed = model2_vel_dist.rvs(a, v_b, v_M)
 
         ran_vel_sputter_model2 = model2_ran_speed * np.array(
@@ -258,13 +271,6 @@ def create_particle(species, process, **kwargs):
     :return: p: rebound particle object.
     """
     sim = rebound.Simulation("archive.bin")
-
-    try:
-        sim.particles["moon"]
-    except rebound.ParticleNotFound:
-        moon_exists = False
-    else:
-        moon_exists = True
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
