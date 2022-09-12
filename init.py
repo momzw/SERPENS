@@ -16,22 +16,27 @@ class Species(SpeciesSpecifics):
         implementedSpecies = {
             "Sodium": 1,
             "Oxygen": 2,
-            "Sulfur": 3
+            "Sulfur": 3,
+            "NaCl": 4
         }
         if element in implementedSpecies:
             if implementedSpecies[element] == 1:
                 super().__init__(23)
                 self.bind = 2.89 * 1.602e-19
                 self.id = 1
-                self.lifetime = 2 * 60 * 60
+                self.lifetime = 3 * 60 * 60
             elif implementedSpecies[element] == 2:
                 super().__init__(16)
                 self.id = 2
                 self.lifetime = 20 * 60 * 60
-            else:
+            elif implementedSpecies[element] == 3:
                 super().__init__(32)
                 self.id = 3
                 self.lifetime = 40 * 60 * 60
+            else:
+                super().__init__(58.44)
+                self.id = 1
+                self.lifetime = 1200 * 60 * 60
         else:
             print(f"The species '{element}' has not been implemented.")
             return
@@ -39,8 +44,8 @@ class Species(SpeciesSpecifics):
         self.n_th = n_th
         self.n_sp = n_sp
 
-    def particles_per_superparticle(self, mass_per_sec):
-        num = mass_per_sec / self.m
+    def particles_per_superparticle(self, mass):
+        num = mass / self.m
         return num / (self.n_th + self.n_sp)
 
     #def lifetime(self):
@@ -56,18 +61,19 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "moon": True,
-        "sim_advance": 1 / 8,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 64,             # Number of times the simulation advances.
+        "moon": False,
+        "sim_advance": 1 / 24,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+        "num_sim_advances": 48,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
         "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
-        "r_max": 2                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
+        "r_max": 4                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
     }
 
     def __init__(self):
-        self.species1 = Species("Sodium", n_th=0, n_sp=500)
-        self.species2 = Species("Oxygen", n_th=0, n_sp=500)
+        #self.species1 = Species("Sodium", n_th=0, n_sp=1000)
+        #self.species2 = Species("Oxygen", n_th=0, n_sp=200)
         #self.species3 = Species("Sulfur", n_th=0, n_sp=500)
+        self.species1 = Species("NaCl", n_th=1000, n_sp=0)
 
         self.num_species = len(locals()['self'].__dict__)
 
@@ -80,9 +86,9 @@ class Parameters:
 
         # Sputtering model and shape parameters
         self.sput_spec = {
-            "sput_model": 'maxwell',    # Valid inputs: maxwell, wurz, smyth.
+            "sput_model": 'smyth',    # Valid inputs: maxwell, wurz, smyth.
 
-            "model_maxwell_mean": 2300,
+            "model_maxwell_mean": 3000,
             "model_maxwell_std": 200,
 
             "model_wurz_inc_part_speed": 5000,
@@ -90,8 +96,8 @@ class Parameters:
             "model_wurz_inc_mass_in_amu": 23,
             "model_wurz_ejected_mass_in_amu": 23,
 
-            "model_smyth_v_b": 1000,    # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
-            "model_smyth_v_M": 40000,   # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
+            "model_smyth_v_b": 4000,
+            "model_smyth_v_M": 60000,
             "model_smyth_a": 7 / 3      # Speed distribution shape parameter
         }
 
@@ -112,6 +118,8 @@ class Parameters:
             return self.species2.method_chain()
         elif id == 3:
             return self.species3.method_chain()
+        elif id == 4:
+            return self.species4.method_chain()
         else:
             return None
 
