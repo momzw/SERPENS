@@ -3,7 +3,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 from create_particle import create_particle
-from init import init3, Parameters
+from init import init3, Parameters, Species
 
 
 def run_simulation():
@@ -21,6 +21,8 @@ def run_simulation():
     num_species = Params.num_species
     moon_exists = Params.int_spec["moon"]
 
+    hash_dict = {}
+
     if moon_exists:
         moon_P = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
         moon_a = sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).a
@@ -32,6 +34,8 @@ def run_simulation():
 
         sim_N_before = sim.N
 
+        # CREATE PARTICLES
+        # ================
         for ns in range(num_species):
             species = Params.get_species(ns+1)
 
@@ -42,54 +46,114 @@ def run_simulation():
             # ------------------------------
             if Params.int_spec["gen_max"] is None or i <= Params.int_spec["gen_max"]:
                 if not (species.n_th == 0 or None):
-                    for j1 in tqdm(range(species.n_th), desc=f"Adding {species.element} particles thermally"):
-                        #p = create_particle("thermal", temp_midnight=90, temp_noon=130)
+                    for j1 in tqdm(range(species.n_th), desc=f"Adding {species.name} particles thermally"):
                         p = create_particle(species, "thermal")
                         identifier = f"{species.id}_{i}_{j1}"
                         p.hash = identifier
                         sim.add(p)
+
+                        hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+
                 if not (species.n_sp == 0 or None):
-                    for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.element} particles via sputtering"):
-                        p = create_particle(species,"sputter")
+                    for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.name} particles via sputtering"):
+                        p = create_particle(species, "sputter")
                         identifier = f"{species.id}_{i}_{j2 + species.n_th}"
                         p.hash = identifier
                         sim.add(p)
 
-            # Remove particles through loss function
-            # --------------------------------------
-            num_lost = 0
-            for j in range(i):
-                if moon_exists:
-                    dt = sim.t - j * Params.int_spec["sim_advance"] * moon_P
-                else:
-                    dt = sim.t - j * Params.int_spec["sim_advance"] * planet_P
-                identifiers = [f"{species.id}_{j}_{x}" for x in range(species.n_th + species.n_sp)]
-                hashes = [rebound.hash(x).value for x in identifiers]
-                for particle in sim.particles[sim.N_active:]:
-                    if particle.hash.value in hashes:
-                        tau = species.lifetime
+                        hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+
+        # LOSS FUNCTION
+        # =============
+        boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
+        num_lost = 0
+        rng = np.random.default_rng()
+
+        # Go through all previous advances:
+        for j in range(i):
+            if moon_exists:
+                dt = sim.t - j * Params.int_spec["sim_advance"] * moon_P
+            else:
+                dt = sim.t - j * Params.int_spec["sim_advance"] * planet_P
+
+            # Check all particles
+            for particle in sim.particles[sim.N_active:]:
+
+                particle_iter = hash_dict[f"{particle.hash.value}"]["i"]
+                species_id = hash_dict[f"{particle.hash.value}"]["id"]
+                species = Params.get_species_by_id(species_id)
+
+                # Take particles created in iteration j (corresponding to dt):
+                if particle_iter == j:
+
+                    # Remove if too far away:
+                    if moon_exists:
+                        particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(sim.particles["planet"].xyz))
+                    else:
+                        particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(sim.particles[0].xyz))
+                    if particle_distance > boundary:
+                        sim.remove(hash=particle.hash)
+                        continue
+
+                    # Remove if chemical reaction happens:
+                    chem_network = species.network()     # tau (float), educts (str), products (str)
+                    if not isinstance(chem_network, int):
+
+                        rng.shuffle(chem_network)   # Mitigate ordering bias
+
+                        # Go through all reactions/lifetimes
+                        for i in range(np.size(chem_network[:,0])):
+                            tau = float(chem_network[:,0][i])
+                            prob_to_exist = np.exp(-dt / tau)
+                            if random.random() > prob_to_exist:
+
+                                # Check all products if they have been implemented.
+                                for i2 in chem_network[:,2][i].split():
+
+                                    # Convert species if a product has been implemented.
+                                    if any([True for k, v in species.implementedSpecies.items() if k == i2]):
+
+                                        to_species = Params.get_species_by_name(i2)
+
+                                        # Take all species ids that are in iteration j:
+                                        temp = "id"
+                                        ids = [val[temp] for key, val in hash_dict.items() if temp in val and val["i"] == j]
+
+                                        # Count number of product-species particles:
+                                        to_species_total = np.count_nonzero(np.asarray(ids) == to_species.id)
+
+                                        # Change particle hash
+                                        new_hash = f"{to_species.id}_{j}_{to_species_total+1}"
+                                        sim.particles[particle.hash].hash = new_hash
+
+                                        # Update library
+                                        hash_dict[f"{particle.hash.value}"] = {"identifier": new_hash, "i": j, "id": to_species.id}
+
+                                    else:
+                                        sim.remove(hash=particle.hash)
+                                num_lost += 1
+                                break
+                    else:
+                        tau = chem_network
                         prob_to_exist = np.exp(-dt / tau)
                         if random.random() > prob_to_exist:
                             sim.remove(hash=particle.hash)
                             num_lost += 1
-            print(f"{num_lost} {species.element} particles lost.")
 
-            #num_per_sup = species.particles_per_superparticle(1e3/Params.num_species)
-            #mass_loss = num_per_sup * species.m * num_lost
-            #print(f"Mass loss averaged over {int(Params.int_spec['sim_advance'] * moon_P)}sec: {np.around(mass_loss/(Params.int_spec['sim_advance'] * moon_P), 4)} kg/s")
-
+        print(f"{num_lost} {species.name} particles lost or transformed.")
 
         # Remove particles beyond specified number of semi-major axes
         # -----------------------------------------------------------
-        boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
-        N = sim.N
-        k = sim.N_active
-        while k < N:
-            if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > boundary:
-                sim.remove(k)
-                N += -1
-            else:
-                k += 1
+        #boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
+        #N = sim.N
+        #k = sim.N_active
+        #while k < N:
+        #    if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > boundary:
+        #        sim.remove(k)
+        #        N += -1
+        #    else:
+        #        k += 1
+
 
         # ADVANCE INTEGRATION
         # ===================
@@ -104,6 +168,7 @@ def run_simulation():
         sim.simulationarchive_snapshot("archive.bin")
 
         print("------------------------------------------------")
+
 
         # SAVE PARTICLES
         # ==============

@@ -69,10 +69,6 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
             ax.set_xlabel("y-distance in planetary radii")
             ax.set_ylabel("z-distance in planetary radii")
 
-        # Show direction to Sun:
-        ax.plot([ps_star_coord1, ps_moon_coord1], [ps_star_coord2, ps_moon_coord2], color='bisque',
-                linestyle=':', linewidth=1, zorder=1)
-
         moon_patch = plt.Circle((ps_moon_coord1, ps_moon_coord2), ps["moon"].r, fc='y', alpha=.7)
         planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), ps["planet"].r, fc='sandybrown')
 
@@ -86,6 +82,10 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
             o = np.array(Io.sample_orbit(primary=sim.particles["planet"]))
             lc = fading_line(o[:, 0], o[:, 1], alpha=0.5, color='yellow')
             ax.add_collection(lc)
+
+            # Show direction to Sun:
+            ax.plot([ps_star_coord1, ps_moon_coord1], [ps_star_coord2, ps_moon_coord2], color='bisque',
+                    linestyle=':', linewidth=1, zorder=1)
 
         for i in range(sim.N_active - 3):
             major_obj = plt.Circle((ps[3 + i].x, ps[3 + i].y), ps[3 + i].r, fc='r', alpha=0.7)

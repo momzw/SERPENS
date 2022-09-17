@@ -1,56 +1,260 @@
 import rebound
+import numpy as np
+
+class Network:
+    def __init__(self, id):
+        if id == 1:
+            self.network = 3 * 60 * 60
+
+        elif id == 2:
+            self.network = 20 * 60 * 60
+
+        elif id == 3:
+            tau1 = 1/1.4e-7
+            reagent1 = "H+"
+            products1 = "O+ H"
+
+            tau2 = 1/3.5e-9
+            reagent2 = "S+"
+            products2 = "O+ S"
+
+            tau3 = 1/1.0e-7
+            reagent3 = "S++"
+            products3 = "O+ S+"
+
+            tau4 = 1/5.1e-6
+            reagent4 = "e"
+            products4 = "O+ 2e"
+
+            tau5 = 1/1.7e-8
+            reagent5 = "y"
+            products5 = "O+ e"
+
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5])
+            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5])
+            products = np.array([products1, products2, products3, products4, products5])
+
+            self.network = np.vstack((lifetimes, reagents, products)).T
+
+        elif id == 4:
+            tau1 = 1/9.2e-10
+            reagent1 = "H+"
+            products1 = "O2+ H"
+
+            tau2 = 1/9.2e-10
+            reagent2 = "H+"
+            products2 = "O+ O H"
+
+            tau3 = 1/7.4e-9
+            reagent3 = "H+"
+            products3 = "O+ O+ H+ 2e"
+
+            tau4 = 1/9.2e-10
+            reagent4 = "H2+"
+            products4 = "O2+ H2"
+
+            tau5 = 1/1.7e-7
+            reagent5 = "O+"
+            products5 = "O2+ O"
+
+            tau6 = 1/1.9e-7
+            reagent6 = "O+"
+            products6 = "O O+ O"
+
+            tau7 = 1/7.7e-8
+            reagent7 = "O+"
+            products7 = "O O+ O+ e"
+
+            tau8 = 1/8.0e-9
+            reagent8 = "O+"
+            products8 = "O O++ O+ 2e"
+
+            tau9 = 1/8.2e-8
+            reagent9 = "O+"
+            products9 = "O+ O+ O+ 2e"
+
+            tau10 = 1/3.9e-8
+            reagent10 = "O+"
+            products10 = "O+ O++ O 2e"
+
+            tau11 = 1/1.2e-7
+            reagent11 = "S++"
+            products11 = "O2+ S+"
+
+            tau12 = 1/3.5e-6
+            reagent12 = "e"
+            products12 = "O O e"
+
+            tau13 = 1/5.4e-6
+            reagent13 = "e"
+            products13 = "O2+ 2e"
+
+            tau14 = 1/2.0e-6
+            reagent14 = "e"
+            products14 = "O+ O 2e"
+
+            tau15 = 1/6.9e-9
+            reagent15 = "e"
+            products15 = "O++ O 3e"
+
+            tau16 = 1/2.0e-7
+            reagent16 = "y"
+            products16 = "O O"
+
+            tau17 = 1/3.0e-8
+            reagent17 = "y"
+            products17 = "O2+ e"
+
+            tau18 = 1/8.5e-8
+            reagent18 = "y"
+            products18 = "O O+ e"
+
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9, tau10, tau11, tau12, tau13, tau14, tau15, tau16, tau17, tau18])
+            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9, reagent10, reagent11, reagent12, reagent13, reagent14, reagent15, reagent16, reagent17, reagent18])
+            products = np.array([products1, products2, products3, products4, products5, products6, products7, products8, products9, products10, products11, products12, products13, products14, products15,products16, products17, products18])
+
+            self.network = np.vstack((lifetimes, reagents, products)).T
+
+        elif id == 5:
+            tau1 = 1 / 5.4e-7
+            reagent1 = "O+"
+            products1 = "H+ O"
+
+            tau2 = 1 / 3.0e-6
+            reagent2 = "e"
+            products2 = "H+ 2e"
+
+            tau3 = 1 / 4.5e-9
+            reagent3 = "y"
+            products3 = "H+ e"
+
+            lifetimes = np.array([tau1, tau2, tau3])
+            reagents = np.array([reagent1, reagent2, reagent3])
+            products = np.array([products1, products2, products3])
+
+            self.network = np.vstack((lifetimes, reagents, products)).T
+
+        elif id == 6:
+            tau1 = 1 / 1.4e-7
+            reagent1 = "H+"
+            products1 = "H H2+"
+
+            tau2 = 1 / 2.7e-7
+            reagent2 = "O+"
+            products2 = "O H2+"
+
+            tau3 = 1 / 1.1e-7
+            reagent3 = "S++"
+            products3 = "S+ H2+"
+
+            tau4 = 1 / 4.1e-6
+            reagent4 = "e"
+            products4 = "2e H2+"
+
+            tau5 = 1 / 2.1e-7
+            reagent5 = "e"
+            products5 = "H+ H 2e"
+
+            tau6 = 1 / 1.6e-6
+            reagent6 = "e"
+            products6 = "H H e"
+
+            tau7 = 1 / 5.1e-9
+            reagent7 = "y"
+            products7 = "H H"
+
+            tau8 = 1 / 3.1e-9
+            reagent8 = "y"
+            products8 = "H2+ e"
+
+            tau9 = 1 / 6.9e-10
+            reagent9 = "y"
+            products9 = "H H+ e"
+
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9])
+            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9])
+            products = np.array([products1, products2, products3, products4, products5, products6, products7, products8, products9])
+
+            self.network = np.vstack((lifetimes, reagents, products)).T
+
+        elif id == 7:
+            self.network = 1200 * 60 * 60
+
 
 class SpeciesSpecifics:
 
-    def __init__(self, mass_number, type="neutral"):
+    def __init__(self, mass_number, id, type="neutral"):
         amu = 1.660539066e-27
         self.type = type
         self.mass_num = mass_number
         self.m = mass_number * amu
+        self.id = id
+
+    def network(self):
+        return Network(self.id).network
 
 
 class Species(SpeciesSpecifics):
 
-    def __init__(self, element, n_th = None, n_sp = None):
-        self.element = element
-        implementedSpecies = {
-            "Sodium": 1,
-            "Oxygen": 2,
-            "Sulfur": 3,
-            "NaCl": 4
+    # How to implement new species:
+    # * Add network/lifetime in <class: Network>
+    # * Add to implementedSpecies in <class: Species>
+
+    def __init__(self, name, n_th = 0, n_sp = 0, mass_per_sec = None):
+        self.implementedSpecies = {
+            "Na": 1,
+            "O": 2,
+            "O2": 3,
+            "S": 4,
+            "H": 5,
+            "H2": 6,
+            "NaCl": 7
         }
-        if element in implementedSpecies:
-            if implementedSpecies[element] == 1:
-                super().__init__(23)
-                self.bind = 2.89 * 1.602e-19
-                self.id = 1
-                self.lifetime = 3 * 60 * 60
-            elif implementedSpecies[element] == 2:
-                super().__init__(16)
-                self.id = 2
-                self.lifetime = 20 * 60 * 60
-            elif implementedSpecies[element] == 3:
-                super().__init__(32)
-                self.id = 3
-                self.lifetime = 40 * 60 * 60
-            else:
-                super().__init__(58.44)
-                self.id = 1
-                self.lifetime = 1200 * 60 * 60
+        if name in self.implementedSpecies:
+            if self.implementedSpecies[name] == 1:
+                self.id = self.implementedSpecies[name]
+                super().__init__(23, self.id)
+
+            elif self.implementedSpecies[name] == 2:
+                self.id = self.implementedSpecies[name]
+                super().__init__(16, self.id)
+
+            elif self.implementedSpecies[name] == 3:
+                self.id = self.implementedSpecies[name]
+                super().__init__(32, self.id)
+
+            elif self.implementedSpecies[name] == 4:
+                self.id = self.implementedSpecies[name]
+                super().__init__(16, self.id)
+
+            elif self.implementedSpecies[name] == 5:
+                self.id = self.implementedSpecies[name]
+                super().__init__(1, self.id)
+
+            elif self.implementedSpecies[name] == 6:
+                self.id = self.implementedSpecies[name]
+                super().__init__(2, self.id)
+
+            elif self.implementedSpecies[name] == 7:
+                self.id = self.implementedSpecies[name]
+                super().__init__(58.44, self.id)
+
         else:
-            print(f"The species '{element}' has not been implemented.")
+            print(f"The species '{name}' has not been implemented.")
             return
 
         self.n_th = n_th
         self.n_sp = n_sp
+        self.mass_per_sec = mass_per_sec
+        self.name = name
 
     def particles_per_superparticle(self, mass):
         num = mass / self.m
-        return num / (self.n_th + self.n_sp)
-
-    #def lifetime(self):
-    #    tau = 17.7/2 * 60 * 60
-    #    return tau
+        if not (self.n_th == 0 and self.n_sp == 0):
+            num_per_sup = num / (self.n_th + self.n_sp)
+        else:
+            num_per_sup = num
+        return num_per_sup
 
     def method_chain(self):
         return self
@@ -61,7 +265,7 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "moon": False,
+        "moon": True,
         "sim_advance": 1 / 24,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
         "num_sim_advances": 48,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
@@ -70,18 +274,19 @@ class Parameters:
     }
 
     def __init__(self):
-        #self.species1 = Species("Sodium", n_th=0, n_sp=1000)
-        #self.species2 = Species("Oxygen", n_th=0, n_sp=200)
-        #self.species3 = Species("Sulfur", n_th=0, n_sp=500)
-        self.species1 = Species("NaCl", n_th=1000, n_sp=0)
+        #self.species1 = Species("Na", n_th=0, n_sp=1000, mass_per_sec=100e3)
+        self.species2 = Species("O", n_th=0, n_sp=0, mass_per_sec = 3)
+        #self.species3 = Species("S", n_th=0, n_sp=500)
+        #self.species2 = Species("NaCl", n_th=1000, n_sp=0, mass_per_sec=1000e3)
+        self.species1 = Species("H", n_th=1000, mass_per_sec=6.69)
 
         self.num_species = len(locals()['self'].__dict__)
 
         # Thermal evaporation parameters
         self.therm_spec = {
-            "source_temp_max": 2703,
-            "source_temp_min": 1609,
-            "spherical_symm_ejection": False,
+            "source_temp_max": 125, #2703,
+            "source_temp_min": 50, #1609,
+            "spherical_symm_ejection": True,
         }
 
         # Sputtering model and shape parameters
@@ -111,17 +316,19 @@ class Parameters:
         s += f"Sputtering model and shape parameters: \n \t {self.sput_spec} \n"
         return s
 
-    def get_species(self, id):
-        if id == 1:
-            return self.species1.method_chain()
-        elif id == 2:
-            return self.species2.method_chain()
-        elif id == 3:
-            return self.species3.method_chain()
-        elif id == 4:
-            return self.species4.method_chain()
-        else:
-            return None
+    def get_species(self, num):
+        return locals()['self'].__dict__[f"species{num}"]
+
+    def get_species_by_name(self, name):
+        for i in range(self.num_species):
+            if locals()['self'].__dict__[f"species{i+1}"].name == name:
+                return locals()['self'].__dict__[f"species{i+1}"]
+
+    def get_species_by_id(self, id):
+        for i in range(self.num_species):
+            if locals()['self'].__dict__[f"species{i + 1}"].id == id:
+                return locals()['self'].__dict__[f"species{i+1}"]
+
 
     # Particle emission position
     # ---------------------
@@ -178,8 +385,12 @@ def init3(additional_majors = False, moon = True):
     # ----------------------------------------------
 
     if moon:
-        sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-        sim.particles["moon"].r = 1821600
+        #sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
+        #sim.particles["moon"].r = 1821600
+
+        sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon")
+        sim.particles["moon"].r = 1560800
+
         sim.N_active = 3
     else:
         sim.N_active = 2
