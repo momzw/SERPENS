@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import os as os
+import json
 import shutil
 from datetime import datetime
 from plotting import plotting
@@ -104,6 +105,9 @@ if __name__ == "__main__":
 
     moon_exists = Params.int_spec["moon"]
 
+    with open("hash_library.json") as f:
+        hash_supdict = json.load(f)
+
     sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
     if save:
         if moon_exists:
@@ -118,13 +122,15 @@ if __name__ == "__main__":
 
     for i, sim_instance in enumerate(sa):
         ps = sim_instance.particles
-
+        """
         hashes_and_species = np.zeros((1,2))    # np.zeros((sim_instance.N - sim_instance.N_active, 2)) !
+        """
         species_names = []
         for ns in range(Params.num_species):
             species = Params.get_species(ns + 1)
             species_names.append(species.name)
-            identifiers = [f"{species.id}_{j}_{x}" for j in range(Params.int_spec["num_sim_advances"]) for x in range(sim_instance.N)]  # range overloaded
+            """
+            identifiers = [f"{species.id}_{j}_{x}" for j in range(Params.int_spec["num_sim_advances"]) for x in range(sim_instance.N)]
             hashes = [rebound.hash(x).value for x in identifiers]
             for particle in sim_instance.particles[sim_instance.N_active:]:
                 if particle.hash.value in hashes:
@@ -133,6 +139,14 @@ if __name__ == "__main__":
         hashes_and_species = np.delete(hashes_and_species, 0, 0)
 
         species_occurences = np.bincount(hashes_and_species[:,1].astype(int))[1:]
+        """
+        if not i == 0:
+            hash_dict_current = hash_supdict[str(i)]
+        else:
+            hash_dict_current = {}
+
+        temp = "id"
+        ids = [val[temp] for key, val in hash_dict_current.items() if temp in val]
 
         xdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
         ydata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))
@@ -148,20 +162,20 @@ if __name__ == "__main__":
         rdata = np.zeros((sim_instance.N - sim_instance.N_active, Params.num_species))  # Distance from primary
 
         for k in range(sim_instance.N_active, sim_instance.N):
-            ps_species = hashes_and_species[:,1][np.where(ps[k].hash.value == hashes_and_species[:,0])][0]
+            ps_species = hash_dict_current[str(ps[k].hash.value)]["id"]
 
-            xdata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].x
-            ydata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].y
-            zdata[int(k - sim_instance.N_active)][int(ps_species-1)] = ps[k].z
+            xdata[int(k - sim_instance.N_active)][ps_species-1] = ps[k].x
+            ydata[int(k - sim_instance.N_active)][ps_species-1] = ps[k].y
+            zdata[int(k - sim_instance.N_active)][ps_species-1] = ps[k].z
 
-            vxdata[int(k - sim_instance.N_active)][int(ps_species - 1)] = ps[k].vx
-            vydata[int(k - sim_instance.N_active)][int(ps_species - 1)] = ps[k].vy
-            vzdata[int(k - sim_instance.N_active)][int(ps_species - 1)] = ps[k].vz
+            vxdata[int(k - sim_instance.N_active)][ps_species - 1] = ps[k].vx
+            vydata[int(k - sim_instance.N_active)][ps_species - 1] = ps[k].vy
+            vzdata[int(k - sim_instance.N_active)][ps_species - 1] = ps[k].vz
 
             if moon_exists:
-                rdata[int(k - sim_instance.N_active)][int(ps_species-1)] = (np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r
+                rdata[int(k - sim_instance.N_active)][ps_species-1] = (np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r
             else:
-                rdata[int(k - sim_instance.N_active)][int(ps_species-1)] = (np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r
+                rdata[int(k - sim_instance.N_active)][ps_species-1] = (np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r
 
         if i % plot_freq == 0:
 
@@ -171,7 +185,7 @@ if __name__ == "__main__":
                 # ====================================
                 subplot_rows = int(np.ceil(Params.num_species/3))
                 subplot_columns = Params.num_species if Params.num_species <= 3 else 3
-                fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 8))
+                fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 15))
                 for k in range(Params.num_species):
                     species = Params.get_species(k + 1)
 
@@ -188,8 +202,9 @@ if __name__ == "__main__":
                     ax_species = axs[k] if Params.num_species > 1 else axs
                     plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=H*weight, xedges=xedges, yedges=yedges,
                              density=True)
-                    if not (species_occurences.size == 0 or species_occurences.size == 1):
-                        ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_occurences[k]}", c='k', size='x-large')
+
+                    species_total = np.count_nonzero(np.asarray(ids) == species.id)
+                    ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_total}", c='k', size='x-large')
                 if moon_exists:
                     fig.suptitle(f"Particle Simulation around Planetary Body \n Number of superparticles {sim_instance.N}", size='xx-large')
                 else:
@@ -297,8 +312,9 @@ if __name__ == "__main__":
                     plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=HC * weight,
                              xedges=yedgesC, yedges=zedgesC,
                              density=True, plane='yz')
-                    if not species_occurences.size == 0:
-                        ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_occurences[k]}", c='k', size='x-large')
+
+                    species_total = np.count_nonzero(np.asarray(ids) == species.id)
+                    ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_total}", c='k', size='x-large')
                 if save:
                     frame_identifier = f"ColumnDensity_LOS_{i}_{orbit_phase}"
                     plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
@@ -376,5 +392,6 @@ if __name__ == "__main__":
                     pass
 
             top_down_column(bins=200)
+            #mayavi_3D_density()
             #los_column_and_velocity_dist(bins = 200)
             #toroidal_hist()

@@ -1,6 +1,7 @@
 import rebound
 import numpy as np
 import random
+import json
 from tqdm import tqdm
 from create_particle import create_particle
 from init import init3, Parameters, Species
@@ -21,6 +22,7 @@ def run_simulation():
     num_species = Params.num_species
     moon_exists = Params.int_spec["moon"]
 
+    hash_supdict = {}
     hash_dict = {}
 
     if moon_exists:
@@ -154,6 +156,7 @@ def run_simulation():
         #    else:
         #        k += 1
 
+        hash_supdict[str(i+1)] = hash_dict.copy()
 
         # ADVANCE INTEGRATION
         # ===================
@@ -172,13 +175,16 @@ def run_simulation():
 
         # SAVE PARTICLES
         # ==============
-        particle_positions = np.zeros((sim.N, 3), dtype="float64")
-        particle_velocities = np.zeros((sim.N, 3), dtype="float64")
-        sim.serialize_particle_data(xyz=particle_positions, vxvyvz=particle_velocities)
+        # particle_positions = np.zeros((sim.N, 3), dtype="float64")
+        # particle_velocities = np.zeros((sim.N, 3), dtype="float64")
+        # sim.serialize_particle_data(xyz=particle_positions, vxvyvz=particle_velocities)
 
-        header = np.array(["x", "y", "z", "vx", "vy", "vz"])
-        data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
-        np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
+        # header = np.array(["x", "y", "z", "vx", "vy", "vz"])
+        # data = np.vstack((header, np.concatenate((particle_positions, particle_velocities), axis=1)))
+        # np.savetxt("particles.txt", data, delimiter="\t", fmt="%-20s")
+
+        with open("hash_library.json", 'w') as f:
+            json.dump(hash_supdict, f)
 
         # Stop if steady state
         # --------------------
