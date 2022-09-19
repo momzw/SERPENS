@@ -4,7 +4,7 @@ import numpy as np
 class Network:
     def __init__(self, id):
         if id == 1:
-            self.network = 3 * 60 * 60
+            self.network = 10 * 60 * 60
 
         elif id == 2:
             self.network = 20 * 60 * 60
@@ -274,24 +274,24 @@ class Parameters:
     }
 
     def __init__(self):
-        #self.species1 = Species("Na", n_th=0, n_sp=1000, mass_per_sec=100e3)
-        self.species2 = Species("O", n_th=0, n_sp=0, mass_per_sec = 3)
+        self.species1 = Species("Na", n_th=0, n_sp=1000, mass_per_sec=10)
+        #self.species2 = Species("O", n_th=0, n_sp=0, mass_per_sec = 3)
         #self.species3 = Species("S", n_th=0, n_sp=500)
         #self.species2 = Species("NaCl", n_th=1000, n_sp=0, mass_per_sec=1000e3)
-        self.species1 = Species("H", n_th=1000, mass_per_sec=6.69)
+        #self.species1 = Species("H", n_th=1000, mass_per_sec=6.69)
 
         self.num_species = len(locals()['self'].__dict__)
 
         # Thermal evaporation parameters
         self.therm_spec = {
-            "source_temp_max": 125, #2703,
-            "source_temp_min": 50, #1609,
+            "source_temp_max": 130, #125, #2703,
+            "source_temp_min": 90, #50, #1609,
             "spherical_symm_ejection": True,
         }
 
         # Sputtering model and shape parameters
         self.sput_spec = {
-            "sput_model": 'smyth',    # Valid inputs: maxwell, wurz, smyth.
+            "sput_model": 'maxwell',    # Valid inputs: maxwell, wurz, smyth.
 
             "model_maxwell_mean": 3000,
             "model_maxwell_std": 200,
@@ -385,11 +385,11 @@ def init3(additional_majors = False, moon = True):
     # ----------------------------------------------
 
     if moon:
-        #sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-        #sim.particles["moon"].r = 1821600
+        sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
+        sim.particles["moon"].r = 1821600
 
-        sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon")
-        sim.particles["moon"].r = 1560800
+        #sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon")
+        #sim.particles["moon"].r = 1560800
 
         sim.N_active = 3
     else:
