@@ -69,6 +69,7 @@ def run_simulation():
         # =============
         boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
         num_lost = 0
+        num_converted = 0
         rng = np.random.default_rng()
 
         # Go through all previous advances:
@@ -94,7 +95,9 @@ def run_simulation():
                     else:
                         particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(sim.particles[0].xyz))
                     if particle_distance > boundary:
-                        sim.remove(hash=particle.hash)
+                        sim.remove(hash=hash_dict[f"{particle.hash.value}"]["identifier"])
+                        #del hash_dict[f"{particle.hash.value}"]
+                        num_lost += 1
                         continue
 
                     # Remove if chemical reaction happens:
@@ -104,18 +107,24 @@ def run_simulation():
                         rng.shuffle(chem_network)   # Mitigate ordering bias
 
                         # Go through all reactions/lifetimes
-                        for i in range(np.size(chem_network[:,0])):
-                            tau = float(chem_network[:,0][i])
+                        for l in range(np.size(chem_network[:,0])):
+                            tau = float(chem_network[:,0][l])
                             prob_to_exist = np.exp(-dt / tau)
                             if random.random() > prob_to_exist:
 
                                 # Check all products if they have been implemented.
-                                for i2 in chem_network[:,2][i].split():
+                                for i2 in chem_network[:,2][l].split():
 
                                     # Convert species if a product has been implemented.
                                     if any([True for k, v in species.implementedSpecies.items() if k == i2]):
 
                                         to_species = Params.get_species_by_name(i2)
+
+                                        if to_species == None:
+                                            sim.remove(hash=hash_dict[f"{particle.hash.value}"]["identifier"])
+                                            # del hash_dict[f"{particle.hash.value}"]
+                                            num_lost += 1
+                                            continue
 
                                         # Take all species ids that are in iteration j:
                                         temp = "id"
@@ -131,18 +140,24 @@ def run_simulation():
                                         # Update library
                                         hash_dict[f"{particle.hash.value}"] = {"identifier": new_hash, "i": j, "id": to_species.id}
 
+                                        num_converted += 1
+
                                     else:
-                                        sim.remove(hash=particle.hash)
-                                num_lost += 1
+                                        sim.remove(hash=hash_dict[f"{particle.hash.value}"]["identifier"])
+                                        #del hash_dict[f"{particle.hash.value}"]
+                                        num_lost += 1
+                                        break
                                 break
                     else:
                         tau = chem_network
                         prob_to_exist = np.exp(-dt / tau)
                         if random.random() > prob_to_exist:
-                            sim.remove(hash=particle.hash)
+                            sim.remove(hash=hash_dict[f"{particle.hash.value}"]["identifier"])
+                            #del hash_dict[f"{particle.hash.value}"]
                             num_lost += 1
 
-        print(f"{num_lost} {species.name} particles lost or transformed.")
+        print(f"{num_lost} particles lost.")
+        print(f"{num_converted} particles were converted.")
 
         # Remove particles beyond specified number of semi-major axes
         # -----------------------------------------------------------
@@ -161,8 +176,7 @@ def run_simulation():
         # ADVANCE INTEGRATION
         # ===================
         print("------------------------------------------------")
-        print("Starting advance {0} ... ".format(i + 1))
-        # sim.integrate(sim.t + Io_P/4)
+        print(f"Starting advance {i} ... ")
         advance = moon_P / sim.dt * Params.int_spec["sim_advance"] if moon_exists else planet_P / sim.dt * Params.int_spec["sim_advance"]
         sim.steps(int(advance))  # Only reliable with specific integrators that leave sim.dt constant (not the default one!)
         print("Advance done! ")
