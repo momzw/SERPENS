@@ -4,7 +4,7 @@ import numpy as np
 class Network:
     def __init__(self, id):
         if id == 1:
-            self.network = 10 * 60 * 60
+            self.network = 6 * 60 * 60
 
         elif id == 2:
             self.network = 20 * 60 * 60
@@ -180,6 +180,66 @@ class Network:
         elif id == 7:
             self.network = 1200 * 60 * 60
 
+        elif id == 8:
+            tau1 = 494 * 60 * 60
+            reagent1 = "O+"
+            products1 = "SO2+ O"
+
+            tau2 = 455473 * 60 * 60
+            reagent2 = "S+"
+            products2 = "SO2+ S"
+
+            tau3 = 390 * 60 * 60
+            reagent3 = "S++"
+            products3 = "SO2+ S+"
+
+            tau4 = 61 * 3600
+            reagent4 = "e"
+            products4 = "SO2+ 2e"
+
+            tau5 = 137 * 3600
+            reagent5 = "e"
+            products5 = "SO+ O 2e"
+
+            tau6 = 8053 * 3600
+            reagent6 = "e"
+            products6 = "O+ SO 2e"
+
+            tau7 = 1123 * 3600
+            reagent7 = "e"
+            products7 = "S+ O2 2e"
+
+            tau8 = 1393 * 3600
+            reagent8 = "e"
+            products8 = "O2+ S 2e"
+
+            tau9 = 1052300 * 3600
+            reagent9 = "e"
+            products9 = "O SO++ 3e"
+
+            tau10 = 4093 * 3600
+            reagent10 = "y"
+            products10 = "SO2+ e"
+
+            tau11 = 45 * 3600
+            reagent11 = "y"
+            products11 = "SO O"
+
+            tau12 = 131 * 3600
+            reagent12 = "y"
+            products12 = "S O2"
+
+            lifetimes = np.array(
+                [tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9, tau10, tau11, tau12])
+            reagents = np.array(
+                [reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9, reagent10,
+                 reagent11, reagent12])
+            products = np.array(
+                [products1, products2, products3, products4, products5, products6, products7, products8, products9,
+                 products10, products11, products12])
+
+            self.network = np.vstack((lifetimes, reagents, products)).T
+
 
 class SpeciesSpecifics:
 
@@ -203,12 +263,13 @@ class Species(SpeciesSpecifics):
     def __init__(self, name, n_th = 0, n_sp = 0, mass_per_sec = None):
         self.implementedSpecies = {
             "Na": 1,
-            "O": 2,
-            "O2": 3,
-            "S": 4,
+            "O": 3,
+            "O2": 4,
+            "S": 2,
             "H": 5,
             "H2": 6,
-            "NaCl": 7
+            "NaCl": 7,
+            "SO2": 8
         }
         if name in self.implementedSpecies:
             if self.implementedSpecies[name] == 1:
@@ -217,15 +278,15 @@ class Species(SpeciesSpecifics):
 
             elif self.implementedSpecies[name] == 2:
                 self.id = self.implementedSpecies[name]
-                super().__init__(16, self.id)
+                super().__init__(32, self.id)
 
             elif self.implementedSpecies[name] == 3:
                 self.id = self.implementedSpecies[name]
-                super().__init__(32, self.id)
+                super().__init__(16, self.id)
 
             elif self.implementedSpecies[name] == 4:
                 self.id = self.implementedSpecies[name]
-                super().__init__(16, self.id)
+                super().__init__(32, self.id)
 
             elif self.implementedSpecies[name] == 5:
                 self.id = self.implementedSpecies[name]
@@ -238,6 +299,9 @@ class Species(SpeciesSpecifics):
             elif self.implementedSpecies[name] == 7:
                 self.id = self.implementedSpecies[name]
                 super().__init__(58.44, self.id)
+            elif self.implementedSpecies[name] == 8:
+                self.id = self.implementedSpecies[name]
+                super().__init__(64, self.id)
 
         else:
             print(f"The species '{name}' has not been implemented.")
@@ -267,25 +331,27 @@ class Parameters:
     int_spec = {
         "moon": True,
         "sim_advance": 1 / 24,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 48,             # Number of times the simulation advances.
+        "num_sim_advances": 64,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
         "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
         "r_max": 4                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
     }
 
     def __init__(self):
-        self.species1 = Species("Na", n_th=0, n_sp=1000, mass_per_sec=10)
-        #self.species2 = Species("O", n_th=0, n_sp=0, mass_per_sec = 3)
-        #self.species3 = Species("S", n_th=0, n_sp=500)
-        #self.species2 = Species("NaCl", n_th=1000, n_sp=0, mass_per_sec=1000e3)
-        #self.species1 = Species("H", n_th=1000, mass_per_sec=6.69)
+        self.species1 = Species("Na", n_th=0, n_sp=800, mass_per_sec=10)
+        #self.species2 = Species("SO2", n_th=0, n_sp=800, mass_per_sec = 1000)
+        #self.species3 = Species("O", n_th=0, n_sp=300, mass_per_sec = 10)
+        #self.species4 = Species("NaCl", n_th=0, n_sp=300, mass_per_sec=14.45)
+        #self.species5 = Species("H", n_th=0, n_sp=300, mass_per_sec=10)
+        #self.species6 = Species("H2", n_th=200, n_sp=300, mass_per_sec=10)
+
 
         self.num_species = len(locals()['self'].__dict__)
 
         # Thermal evaporation parameters
         self.therm_spec = {
-            "source_temp_max": 130, #125, #2703,
-            "source_temp_min": 90, #50, #1609,
+            "source_temp_max": 130, #125, #130, #2703,
+            "source_temp_min": 90, #50, #90, #1609,
             "spherical_symm_ejection": True,
         }
 
@@ -294,7 +360,7 @@ class Parameters:
             "sput_model": 'maxwell',    # Valid inputs: maxwell, wurz, smyth.
 
             "model_maxwell_mean": 3000,
-            "model_maxwell_std": 200,
+            "model_maxwell_std": 100,
 
             "model_wurz_inc_part_speed": 5000,
             "model_wurz_binding_en": 2.89 * 1.602e-19,  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
@@ -303,7 +369,7 @@ class Parameters:
 
             "model_smyth_v_b": 4000,
             "model_smyth_v_M": 60000,
-            "model_smyth_a": 7 / 3      # Speed distribution shape parameter
+            "model_smyth_a": 7/3      # Speed distribution shape parameter
         }
 
     def __str__(self):
@@ -335,7 +401,7 @@ class Parameters:
     # Longitude and latitude distributions may be changed inside the 'create_particle' function.
 
 
-def add_major_objects(sim, hash = None, primary_hash = "planet"):
+def add_major_objects(sim, hash, primary_hash = "planet"):
     sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles[primary_hash], hash=hash)
     sim.particles[hash].r = 1560800
     sim.N_active += 1

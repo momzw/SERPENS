@@ -21,7 +21,7 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
     else:
         moon_exists = True
 
-    if plane=="xy":
+    if plane == "xy":
         ps_star_coord1 = ps[0].x
         ps_star_coord2 = ps[0].y
         ps_planet_coord1 = ps["planet"].x
@@ -29,7 +29,7 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
         if moon_exists:
             ps_moon_coord1 = ps["moon"].x
             ps_moon_coord2 = ps["moon"].y
-    elif plane=="yz":
+    elif plane == "yz":
         ps_star_coord1 = ps[0].y
         ps_star_coord2 = ps[0].z
         ps_planet_coord1 = ps["planet"].y
@@ -47,13 +47,13 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
     if moon_exists:
         # ORIGIN AT PLANET
         # ----------------------
-        lim = 15 * ps["planet"].r
+        lim = 8 * ps["planet"].r
 
         ax.set_xlim([-lim + ps_planet_coord1, lim + ps_planet_coord1])
         ax.set_ylim([-lim + ps_planet_coord2, lim + ps_planet_coord2])
 
-        xlocs = np.linspace(ps_planet_coord1 - 12 * ps["planet"].r, ps_planet_coord1 + 12 * ps["planet"].r, 13)
-        ylocs = np.linspace(ps_planet_coord2 - 12 * ps["planet"].r, ps_planet_coord2 + 12 * ps["planet"].r, 13)
+        xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, 13)
+        ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, 13)
         xlabels = np.around((np.array(xlocs) - ps_planet_coord1) / ps["planet"].r, 2)
         ylabels = np.around((np.array(ylocs) - ps_planet_coord2) / ps["planet"].r, 2)
 
@@ -63,14 +63,15 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
         ax.set_yticklabels([str(y) for y in ylabels])
 
         if plane=='xy':
-            ax.set_xlabel("x-distance in planetary radii")
-            ax.set_ylabel("y-distance in planetary radii")
+            ax.set_xlabel("x-distance in planetary radii", fontsize='x-large')
+            ax.set_ylabel("y-distance in planetary radii", fontsize='x-large')
         elif plane=='yz':
-            ax.set_xlabel("y-distance in planetary radii")
-            ax.set_ylabel("z-distance in planetary radii")
+            ax.set_xlabel("y-distance in planetary radii", fontsize='x-large')
+            ax.set_ylabel("z-distance in planetary radii", fontsize='x-large')
+            ax.set_ylim([-lim/2 + ps_planet_coord2, lim/2 + ps_planet_coord2])
 
-        moon_patch = plt.Circle((ps_moon_coord1, ps_moon_coord2), ps["moon"].r, fc='y', alpha=.7)
-        planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), ps["planet"].r, fc='sandybrown')
+        moon_patch = plt.Circle((ps_moon_coord1, ps_moon_coord2), ps["moon"].r, fc='y', alpha=.7, label="moon")
+        planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), ps["planet"].r, fc='sandybrown', label="planet")
 
         ax.add_patch(moon_patch)
         ax.add_patch(planet_patch)
@@ -98,13 +99,13 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
     else:
         # ORIGIN AT STAR
         # ------------------
-        lim = 15 * ps[0].r
+        lim = 5 * ps[0].r
 
         ax.set_xlim([-lim, lim])
         ax.set_ylim([-lim, lim])
 
-        xlocs = np.linspace(-12 * ps[0].r, 12 * ps[0].r, 13)
-        ylocs = np.linspace(-12 * ps[0].r, 12 * ps[0].r, 13)
+        xlocs = np.linspace(-lim, lim, 13)
+        ylocs = np.linspace(-lim, lim, 13)
         xlabels = np.around(np.array(xlocs) / ps[0].r, 2)
         ylabels = np.around(np.array(ylocs)  / ps[0].r, 2)
 
@@ -114,14 +115,14 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
         ax.set_yticklabels([str(y) for y in ylabels])
 
         if plane=='xy':
-            ax.set_xlabel("x-distance in stellar radii")
-            ax.set_ylabel("y-distance in stellar radii")
+            ax.set_xlabel("x-distance in stellar radii", fontsize='x-large')
+            ax.set_ylabel("y-distance in stellar radii", fontsize='x-large')
         elif plane=='yz':
-            ax.set_xlabel("y-distance in stellar radii")
-            ax.set_ylabel("z-distance in stellar radii")
+            ax.set_xlabel("y-distance in stellar radii", fontsize='x-large')
+            ax.set_ylabel("z-distance in stellar radii", fontsize='x-large')
 
-        planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), ps["planet"].r, fc='sandybrown')
-        star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), ps[0].r, fc='y', zorder=4)
+        planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), ps["planet"].r, fc='sandybrown', label="planet")
+        star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), ps[0].r, fc='y', zorder=4, label="star")
         ax.add_patch(planet_patch)
         ax.add_patch(star_patch)
 

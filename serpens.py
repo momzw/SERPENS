@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import os as os
+import sys
 import json
 import shutil
 from datetime import datetime
@@ -30,12 +31,13 @@ Params = Parameters()
 
 # Plotting
 # ---------------------
-save = False
-save_archive = False
+save = True
+save_archive = True
 plot_freq = 1  # Plot at each *plot_freq* advance
 
-showfig = True
+showfig = False
 showhist = False
+showvel = False
 show_column_density = False
 """
     ===============================================================================================================
@@ -119,6 +121,7 @@ if __name__ == "__main__":
             text_file.write(f"{Params.__str__()}")
         if save_archive:
             shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/output/{path}")
+            shutil.copy2(f"{os.getcwd()}/hash_library.json", f"{os.getcwd()}/output/{path}")
 
     for i, sim_instance in enumerate(sa):
         ps = sim_instance.particles
@@ -163,58 +166,73 @@ if __name__ == "__main__":
 
         for k in range(sim_instance.N_active, sim_instance.N):
             ps_species = hash_dict_current[str(ps[k].hash.value)]["id"]
+            species_num = np.where(np.unique(ids) == ps_species)
 
-            xdata[int(k - sim_instance.N_active)][ps_species-1] = ps[k].x
-            ydata[int(k - sim_instance.N_active)][ps_species-1] = ps[k].y
-            zdata[int(k - sim_instance.N_active)][ps_species-1] = ps[k].z
+            xdata[int(k - sim_instance.N_active)][species_num] = ps[k].x
+            ydata[int(k - sim_instance.N_active)][species_num] = ps[k].y
+            zdata[int(k - sim_instance.N_active)][species_num] = ps[k].z
 
-            vxdata[int(k - sim_instance.N_active)][ps_species - 1] = ps[k].vx
-            vydata[int(k - sim_instance.N_active)][ps_species - 1] = ps[k].vy
-            vzdata[int(k - sim_instance.N_active)][ps_species - 1] = ps[k].vz
+            vxdata[int(k - sim_instance.N_active)][species_num] = ps[k].vx
+            vydata[int(k - sim_instance.N_active)][species_num] = ps[k].vy
+            vzdata[int(k - sim_instance.N_active)][species_num] = ps[k].vz
 
             if moon_exists:
-                rdata[int(k - sim_instance.N_active)][ps_species-1] = (np.sqrt((ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r
+                rdata[int(k - sim_instance.N_active)][species_num] = (np.sqrt(
+                    (ps[k].x - ps["planet"].x) ** 2 + (ps[k].y - ps["planet"].y) ** 2)) / ps["planet"].r
             else:
-                rdata[int(k - sim_instance.N_active)][ps_species-1] = (np.sqrt((ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r
+                rdata[int(k - sim_instance.N_active)][species_num] = (np.sqrt(
+                    (ps[k].x - ps[0].x) ** 2 + (ps[k].y - ps[0].y) ** 2)) / ps[0].r
 
         if i % plot_freq == 0:
-
 
             def top_down_column(bins=160):
                 # IMSHOW TOP DOWN COLUMN DENSITY PLOTS
                 # ====================================
-                subplot_rows = int(np.ceil(Params.num_species/3))
+                subplot_rows = int(np.ceil(Params.num_species / 3))
                 subplot_columns = Params.num_species if Params.num_species <= 3 else 3
-                fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 15))
+                fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(25, 12))
                 for k in range(Params.num_species):
                     species = Params.get_species(k + 1)
 
-                    H, xedges, yedges = getHistogram(sim_instance, xdata[:, k][xdata[:, k] != 0], ydata[:, k][ydata[:, k] != 0], bins=bins)
+                    H, xedges, yedges = getHistogram(sim_instance, xdata[:, k][xdata[:, k] != 0],
+                                                     ydata[:, k][xdata[:, k] != 0], bins=bins)
 
                     bin_size = (xedges[1] - xedges[0]) * (yedges[1] - yedges[0])
 
                     mass_inject_per_advance = species.mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
-                    if not (species.n_th == 0 or species.n_sp == 0):
+                    if not (species.n_th == 0 and species.n_sp == 0):
                         weight = species.particles_per_superparticle(mass_inject_per_advance) / bin_size / 10000
                     else:
                         weight = 1
 
-                    ax_species = axs[k] if Params.num_species > 1 else axs
-                    plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=H*weight, xedges=xedges, yedges=yedges,
+                    ax_species = np.ndarray.flatten(axs)[k] if Params.num_species > 1 else axs
+                    plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=H * weight,
+                             xedges=xedges, yedges=yedges,
                              density=True)
 
                     species_total = np.count_nonzero(np.asarray(ids) == species.id)
-                    ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_total}", c='k', size='x-large')
+                    ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_total}", c='k',
+                                         size='x-large', y=1.05)
+                    ax_species.tick_params(axis='both', labelsize=8)
+                    plt.setp(ax_species.get_xticklabels(), rotation=30, horizontalalignment='right')
+                    ax_species.legend(borderpad = 1.2, fontsize = 'large')
+
                 if moon_exists:
-                    fig.suptitle(f"Particle Simulation around Planetary Body \n Number of superparticles {sim_instance.N}", size='xx-large')
+                    fig.suptitle(
+                        f"Particle Simulation around Planetary Body \n Number of superparticles {sim_instance.N}",
+                        size='xx-large')
                 else:
-                    fig.suptitle(f"Particle Simulation around Stellar Body \n Number of superparticles {sim_instance.N}", size='xx-large')
+                    fig.suptitle(
+                        f"Particle Simulation around Stellar Body \n Number of superparticles {sim_instance.N}",
+                        size='xx-large')
                 plt.tight_layout()
                 if save:
                     if moon_exists:
-                        orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).f * 180/np.pi, 2)
+                        orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(
+                            primary=sim_instance.particles["planet"]).f * 180 / np.pi, 2)
                     else:
-                        orbit_phase = np.around(sim_instance.particles["planet"].calculate_orbit(primary=sim_instance.particles[0]).f * 180/np.pi, 2)
+                        orbit_phase = np.around(sim_instance.particles["planet"].calculate_orbit(
+                            primary=sim_instance.particles[0]).f * 180 / np.pi, 2)
                     frame_identifier = f"ColumnDensity_TopDown_{i}_{orbit_phase}"
                     plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
                 if showfig:
@@ -228,37 +246,45 @@ if __name__ == "__main__":
                 if not i == 0:
                     fig, ax = plt.subplots(figsize=(8, 8))
                     for k in range(Params.num_species):
-                        counts, bin_edges = np.histogram(rdata[:, k][rdata[:, k] != 0], 100, range=(0, 50))  #bins=int(np.sqrt(len(rdata[:,k])))
+                        counts, bin_edges = np.histogram(rdata[:, k][rdata[:, k] != 0], 100,
+                                                         range=(0, 50))  # bins=int(np.sqrt(len(rdata[:,k])))
 
                         vx = vxdata[:, k][vxdata[:, k] != 0]
                         vy = vydata[:, k][vxdata[:, k] != 0]
                         vz = vzdata[:, k][vxdata[:, k] != 0]
 
                         if moon_exists:
-                            speeds = [np.linalg.norm(np.vstack((vx, vy, vz)).T[j, :] - bulk_velocities[2, :]) for j in range(np.size(vx))]
+                            speeds = [np.linalg.norm(np.vstack((vx, vy, vz)).T[j, :] - bulk_velocities[2, :]) for j in
+                                      range(np.size(vx))]
 
                             v_ej = np.mean(speeds)
-                            a_s = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
-                            v_orb = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).v
-                            V_tor = 2 * np.pi ** 2 * a_s**3 * (v_ej / v_orb)**2
+                            a_s = sim_instance.particles["moon"].calculate_orbit(
+                                primary=sim_instance.particles["planet"]).a
+                            v_orb = sim_instance.particles["moon"].calculate_orbit(
+                                primary=sim_instance.particles["planet"]).v
+                            V_tor = 2 * np.pi ** 2 * a_s ** 3 * (v_ej / v_orb) ** 2
 
-                            weights = counts / V_tor
+                            weights = counts / V_tor / 1e6
                         else:
-                            speeds = [np.linalg.norm(np.vstack((vx, vy, vz)).T[j, :] - bulk_velocities[1, :]) for j in range(np.size(vx))]
+                            speeds = [np.linalg.norm(np.vstack((vx, vy, vz)).T[j, :] - bulk_velocities[1, :]) for j in
+                                      range(np.size(vx))]
 
                             v_ej = np.mean(speeds)
                             a_s = sim_instance.particles["planet"].a
                             v_orb = sim_instance.particles["planet"].v
-                            V_tor = 2 * np.pi ** 2 * a_s**3 * (v_ej / v_orb)**2
+                            V_tor = 2 * np.pi ** 2 * a_s ** 3 * (v_ej / v_orb) ** 2
 
-                            weights = counts / V_tor
+                            weights = counts / V_tor / 1e6
 
-                        mass_inject_per_advance = Params.get_species(k+1).mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
-                        weights_phys = weights * Params.get_species(k+1).particles_per_superparticle(mass_inject_per_advance)
+                        mass_inject_per_advance = Params.get_species(k + 1).mass_per_sec * Params.int_spec[
+                            "sim_advance"] * sim_instance.particles["planet"].P
+                        weights_phys = weights * Params.get_species(k + 1).particles_per_superparticle(
+                            mass_inject_per_advance)
 
                         bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
 
-                        ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', label=f"{Params.get_species(k+1).name}", alpha=1)
+                        ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-',
+                                label=f"{Params.get_species(k + 1).name}", alpha=1)
                         ax.scatter(bincenters[weights != 0], weights_phys[weights != 0], marker='x')
 
                     ax.set_yscale("log")
@@ -277,13 +303,13 @@ if __name__ == "__main__":
                     pass
 
 
-            def los_column_and_velocity_dist(bins=100):
+            def los_column_and_velocity_dist(bins=160):
                 # COLUMN DENSITY & VELOCITY DISTRIBUTION
                 # ======================================
                 subplot_rows = int(np.ceil(Params.num_species / 3))
                 subplot_columns = Params.num_species if Params.num_species <= 3 else 3
-                fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(15, 8))
-                fig.suptitle(r"Particle density in 1/cm$^2$", size='xx-large', y=.95)
+                fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(25, 12))
+                fig.suptitle(r"Particle density in 1/cm$^2$", size='xx-large')
 
                 for k in range(Params.num_species):
                     species = Params.get_species(k + 1)
@@ -298,23 +324,28 @@ if __name__ == "__main__":
                         # chapman = 2 * np.pi * sim_instance.particles["moon"].r / H_Io
 
                     else:
-                        zboundaryC = 10 * sim_instance.particles[0].r
+                        zboundaryC = 6 * sim_instance.particles[0].r
                         mass_inject_per_advance = species.mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
-                        orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(
-                            primary=sim_instance.particles["planet"]).f * 180 / np.pi, 2)
+                        orbit_phase = np.around(sim_instance.particles["planet"].f * 180 / np.pi,2)
 
                     HC, yedgesC, zedgesC = getHistogram(sim_instance, ydata[:, k][ydata[:, k] != 0],
-                                                        zdata[:, k][zdata[:, k] != 0], bins=bins, yboundary=zboundaryC, plane='yz')
+                                                        zdata[:, k][ydata[:, k] != 0], bins=bins, yboundary=zboundaryC,
+                                                        plane='yz')
                     bin_size = (yedgesC[1] - yedgesC[0]) * (zedgesC[1] - zedgesC[0])
                     weight = species.particles_per_superparticle(mass_inject_per_advance) / bin_size / 10000
 
-                    ax_species = axs[k] if Params.num_species > 1 else axs
+                    ax_species = np.ndarray.flatten(axs)[k] if Params.num_species > 1 else axs
                     plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=HC * weight,
                              xedges=yedgesC, yedges=zedgesC,
                              density=True, plane='yz')
 
                     species_total = np.count_nonzero(np.asarray(ids) == species.id)
-                    ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_total}", c='k', size='x-large')
+                    ax_species.set_title(f"{species_names[k]} \n Number of superparticles: {species_total}", c='k',
+                                         size='x-large')
+                    ax_species.tick_params(axis='both', labelsize=8)
+                    plt.setp(ax_species.get_xticklabels(), rotation=30, horizontalalignment='right')
+                    ax_species.legend(borderpad=1.2, fontsize='large')
+                plt.tight_layout()
                 if save:
                     frame_identifier = f"ColumnDensity_LOS_{i}_{orbit_phase}"
                     plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
@@ -336,14 +367,14 @@ if __name__ == "__main__":
                         speeds = [np.linalg.norm(bulk_velocities[j, :] - bulk_velocities[1, :]) for j in
                                   range(np.size(bulk_velocities[:, 0]))]
 
-                    plt.hist(speeds[sim_instance.N_active:], 100, range=(0, 200000), density=True)
-                    plt.ylabel("Probability")
-                    plt.xlabel("Velocity in m/s")
+                    plt.hist(speeds[sim_instance.N_active:], 100, range=(0, 20000), density=True)
+                    plt.ylabel("Probability", fontsize='x-large')
+                    plt.xlabel("Velocity in m/s", fontsize='x-large')
                     plt.title("Velocity Distribution")
                     if save:
                         frame_identifier = f"Velocity_Distribution_{i}_{orbit_phase}"
                         plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
-                    if showhist:
+                    if showvel:
                         plt.show()
                     plt.close()
                 else:
@@ -359,9 +390,9 @@ if __name__ == "__main__":
                     def calc_kde(data):
                         return kde(data.T)
 
-                    x = xdata[:,0]
-                    y = ydata[:,0]
-                    z = zdata[:,0]
+                    x = xdata[:, 0]
+                    y = ydata[:, 0]
+                    z = zdata[:, 0]
 
                     xyz = np.vstack([x, y, z])
                     kde = stats.gaussian_kde(xyz)
@@ -391,7 +422,9 @@ if __name__ == "__main__":
                 else:
                     pass
 
+
             top_down_column(bins=200)
-            #mayavi_3D_density()
-            #los_column_and_velocity_dist(bins = 200)
-            #toroidal_hist()
+            # mayavi_3D_density()
+            los_column_and_velocity_dist(bins = 200)
+            toroidal_hist()
+            vel_dist()
