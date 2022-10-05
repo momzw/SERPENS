@@ -21,8 +21,7 @@ sput_model = sput_Params["sput_model"]  # Valid inputs: maxwell, wurz, smyth.
 
 # Sputtering model shape parameters
 # ---------------------
-model_maxwell_mean = sput_Params["model_maxwell_mean"]
-model_maxwell_std = sput_Params["model_maxwell_std"]
+model_maxwell_max = sput_Params["model_maxwell_max"]
 
 model_wurz_inc_part_speed = sput_Params["model_wurz_inc_part_speed"]
 model_wurz_binding_en = sput_Params["model_wurz_binding_en"]  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
@@ -88,17 +87,10 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
         y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
         z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
 
-        #x = sim.particles["moon"].r * np.cos(longitude)  # 2D-TEST
-        #y = sim.particles["moon"].r * np.sin(longitude)  # 2D-TEST
-        #z = 0  # 2D-TEST
     else:
         x = sim.particles["planet"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
         y = sim.particles["planet"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
         z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitude)
-
-        #x = sim.particles["planet"].r * np.cos(longitude)  # 2D-TEST
-        #y = sim.particles["planet"].r * np.sin(longitude)  # 2D-TEST
-        #z = 0  # 2D-TEST
 
     pos = np.array([x, y, z])
 
@@ -141,9 +133,8 @@ def random_vel_thermal(species, temp):
     """
     from scipy.stats import maxwell, norm
     v1 = maxwell.rvs()
-    v2 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
-    v3 = norm.rvs(scale=0.1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
-    #v3 = 0  # 2D
+    v2 = norm.rvs(scale=1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
+    v3 = norm.rvs(scale=1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
 
     k_B = 1.380649e-23
     vel_Na = np.sqrt((k_B * temp) / species.m) * np.array([v1, v2, v3])
@@ -151,39 +142,30 @@ def random_vel_thermal(species, temp):
     return vel_Na
 
 
-def random_vel_sputter(E_i, E_b):
+def random_vel_sputter():
     """
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
-    # TODO: Use kwargs for Wurz model parameters.
-    :param E_i: float. Energy of incoming particles, used in Wurz model.
-    :param E_b: float. Binding energy of atom to be surpassed for ejection, used in Wurz model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
     """
     from scipy.stats import rv_continuous
 
-    class _elevation_gen(rv_continuous):
-        def _pdf(self, x):
-            normalization = 4 / np.pi  # Inverse of integral of cos^2 from 0 to pi/2
-            f_alpha = normalization * np.cos(x) ** 2
-            return f_alpha
-
-    elev_dist = _elevation_gen(a=0, b=np.pi / 2)
-    ran_elev = elev_dist.rvs()
-    ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
-
-    v1 = np.cos(ran_azi) * np.sin(ran_elev)
-    v2 = np.sin(ran_azi) * np.sin(ran_elev)
-    v3 = np.cos(ran_elev)
-    #v1 = 0  # 2D-TEST
-
-    # ___________________________________________________
-
     # MAXWELLIAN MODEL
     def model_maxwell():
         from scipy.stats import maxwell
-        maxwell_ran_speed = maxwell.rvs(loc=model_maxwell_mean, scale=model_maxwell_std)
+
+        scale = model_maxwell_max / np.sqrt(2)
+
+        maxwell_ran_speed = maxwell.rvs(scale=scale)
+
+        ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
+        ran_elev = np.random.default_rng().uniform(0, np.pi / 2)
+
+        v1 = np.cos(ran_azi) * np.sin(ran_elev)
+        v2 = np.sin(ran_azi) * np.sin(ran_elev)
+        v3 = np.cos(ran_elev)
+
         ran_vel_sputter_maxwell = maxwell_ran_speed * np.array(
-            [v3, v2, v1])  # Rotated, s.t. reference direction along x-axis.
+            [v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
         return ran_vel_sputter_maxwell
 
     # MODEL 1
@@ -194,39 +176,48 @@ def random_vel_sputter(E_i, E_b):
                 f_E = normalization * 2 * E_bin * x / ((x + E_bin) ** 3)
                 return f_E
 
+        class _elevation_gen(rv_continuous):
+            def _pdf(self, x):
+                normalization = 4 / np.pi  # Inverse of integral of cos^2 from 0 to pi/2
+                f_alpha = normalization * np.cos(x) ** 2
+                return f_alpha
+
+        E_i = 1/2 * model_wurz_inc_mass_in_amu * model_wurz_inc_part_speed**2
+        E_b = model_wurz_binding_en
+
+        elev_dist = _elevation_gen(a=0, b=np.pi / 2)
         energy_dist = _sputter_gen(a=0, b=E_i, shapes='E_inc, E_bin')
+
         ran_energy = energy_dist.rvs(E_i, E_b)
         u = 1.660539e-27
         m = model_wurz_ejected_mass_in_amu * u
         ran_speed = np.sqrt(2 * ran_energy / m)
-        ran_vel_sputter_model1 = ran_speed * np.array([v3, v2, v1])  # Rotated, s.t. reference direction along x-axis.
+
+        ran_elev = elev_dist.rvs()
+        ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
+
+        v1 = np.cos(ran_azi) * np.sin(ran_elev)
+        v2 = np.sin(ran_azi) * np.sin(ran_elev)
+        v3 = np.cos(ran_elev)
+
+        ran_vel_sputter_model1 = ran_speed * np.array([v3, v2, -v1]) # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
         return ran_vel_sputter_model1
 
     # MODEL 2
     def model_smyth():
         class sputter_gen2(rv_continuous):
-            def _pdf(self, x, a, v_b, v_M):
-                def model2func(x, a, v_b, v_M):
+            def _pdf(self, x, alpha, v_b, v_M):
+                def model2func(x, alpha, v_b, v_M):
                     f_v = 1 / v_b * (x / v_b) ** 3 \
-                          * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
+                          * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** alpha \
                           * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
                     return f_v
 
-                def model2func_int(x, a, v_b, v_M):
-                    #integral_bracket = 2 * (v_b ** 2 + x ** 2) ** (5 / 2) / ((2 * a - 5) * v_M) \
-                    #                   - 2 * v_b ** 2 * (v_b ** 2 + x ** 2) ** (3 / 2) / ((2 * a - 3) * v_M) \
-                    #                   - (v_b ** 2 + x ** 2) ** 2 / (a - 2) \
-                    #                   + v_b ** 2 * (v_b ** 2 + x ** 2) / (a - 1)
-                    #f_v_integrated = 1 / 2 * v_b ** (2 * a - 4) * (v_b ** 2 + x ** 2) ** (-a) * integral_bracket
+                def model2func_int(x, alpha, v_b, v_M):
 
-                    integral_bracket = (1 + x**2)**(5/2) * v_b/v_M / (2*a-5) - (1 + x**2)**(3/2) * v_b/v_M / (2*a-3) - x**4 / (2*(a-2)) - a*x**2 / (2*(a-2)*(a-1)) - 1 / (2*(a-2)*(a-1))
-                    #integral_bracket -= (1 + x**2)**(3/2) * v_b/v_M / (2*a-3)
-                    #integral_bracket -= x**4 / (2*(a-2))
-                    #integral_bracket -= a*x**2 / (2*(a-2)*(a-1))
-                    #integral_bracket -= 1 / (2*(a-2)*(a-1))
-                    #integral_bracket *= (1+x**2)**(-a)
+                    integral_bracket = (1 + x**2)**(5/2) * v_b/v_M / (2*alpha-5) - (1 + x**2)**(3/2) * v_b/v_M / (2*alpha-3) - x**4 / (2*(alpha-2)) - alpha*x**2 / (2*(alpha-2)*(alpha-1)) - 1 / (2*(alpha-2)*(alpha-1))
 
-                    f_v_integrated = integral_bracket * (1+x**2)**(-a)
+                    f_v_integrated = integral_bracket * (1+x**2)**(-alpha)
 
                     return f_v_integrated
 
@@ -239,11 +230,18 @@ def random_vel_sputter(E_i, E_b):
         v_b = model_smyth_v_b
         v_M = model_smyth_v_M
         a = model_smyth_a
-        model2_vel_dist = sputter_gen2(a=0, b=np.sqrt(v_M**2 - v_b**2), shapes='a, v_b, v_M')
-        model2_ran_speed = model2_vel_dist.rvs(a, v_b, v_M)
+        model2_vel_dist = sputter_gen2(a=0.0, b=v_M)
+        model2_ran_speed = model2_vel_dist.rvs(alpha=a, v_b=v_b, v_M=v_M)
+
+        ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
+        ran_elev = np.random.default_rng().uniform(0, np.pi/2)
+
+        v1 = np.cos(ran_azi) * np.sin(ran_elev)
+        v2 = np.sin(ran_azi) * np.sin(ran_elev)
+        v3 = np.cos(ran_elev)
 
         ran_vel_sputter_model2 = model2_ran_speed * np.array(
-            [v3, v2, v1])  # Rotated, s.t. reference direction along x-axis.
+            [v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
         return ran_vel_sputter_model2
 
     # ___________________________________________________
@@ -256,6 +254,48 @@ def random_vel_sputter(E_i, E_b):
             vel = model_wurz()
         else:
             vel = model_smyth()
+
+            """
+            TESTING
+            
+            import matplotlib.pyplot as plt
+            import matplotlib
+            from scipy.integrate import quad
+            matplotlib.use('TkAgg')
+
+            vels = []
+            x_vals = np.linspace(0, model_smyth_v_M, 3000)
+            for i in range(3000):
+                vels.append(np.linalg.norm(model_smyth()))
+
+            a = Params.sput_spec['model_smyth_a']
+            v_M = Params.sput_spec['model_smyth_v_M']
+            v_b = Params.sput_spec['model_smyth_v_b']
+            def model2func(x, a, v_b, v_M):
+                f_v = 1 / v_b * (x / v_b) ** 3 \
+                      * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
+                      * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
+                return f_v
+            def model2func_int(x, a, v_b, v_M):
+                integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
+                        3 / 2) * v_b / v_M / (
+                                           2 * a - 3) - x ** 4 / (2 * (a - 2)) - a * x ** 2 / (
+                                           2 * (a - 2) * (a - 1)) - 1 / (
+                                           2 * (a - 2) * (a - 1))
+
+                f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
+                return f_v_integrated
+            upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
+            normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
+            f_pdf = normalization * model2func(x_vals, a, v_b, v_M)
+
+            plt.figure()
+            plt.hist(vels, density=True, bins=100)
+            plt.plot(x_vals, f_pdf, c='r')
+            plt.show()
+            breakpoint = True
+            """
+
     else:
         raise ValueError("Invalid sputtering model: " % sput_model)
 
@@ -274,13 +314,11 @@ def create_particle(species, process, **kwargs):
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
+        temp_min = kwargs.get("temp_min", source_temp_min)
+        temp_max = kwargs.get("temp_max", source_temp_max)
         if valid_process[process] == 0:
-            temp_min = kwargs.get("temp_midnight", source_temp_min)  # Default value corresponds to Io
-            temp_max = kwargs.get("temp_noon", source_temp_max)  # Default value corresponds to Io
-
             ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                     b_long=2 * np.pi)
-
             ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
             ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)
@@ -297,14 +335,9 @@ def create_particle(species, process, **kwargs):
             #                                        b_long=3 * np.pi / 2 + angle_correction,
             #                                        loc_long=np.pi / 2 + angle_correction)
             ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform")
+            ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
-            u = 1.660539e-27
-            E_inc_def = 1 / 2 * model_wurz_inc_mass_in_amu * u * (model_wurz_inc_part_speed ** 2)
-            E_inc = kwargs.get("E_incoming", E_inc_def)
-            E_bind = kwargs.get("E_bind",
-                                model_wurz_binding_en)  # Default: Binding energy of Na, taken from table 1, in: Kudriavtsev, Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
-
-            ran_vel_not_rotated_in_place = random_vel_sputter(E_inc, E_bind)
+            ran_vel_not_rotated_in_place = random_vel_sputter()
     else:
         raise ValueError("Invalid escaping mechanism encountered in particle creation: " % process)
 
@@ -314,9 +347,6 @@ def create_particle(species, process, **kwargs):
     rot_y = np.array([[np.cos(ran_lat), 0, -np.sin(ran_lat)], [0, 1, 0], [np.sin(ran_lat), 0, np.cos(ran_lat)]])
     rot = rot_y @ rot_z
 
-    #rot = rot_z  # 2D-TEST
-
-    # NOTE: Escape velocity 2550 m/s at surface.
     ran_vel = rot @ ran_vel_not_rotated_in_place
 
     # source position and velocity:

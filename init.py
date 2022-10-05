@@ -359,8 +359,7 @@ class Parameters:
         self.sput_spec = {
             "sput_model": 'maxwell',    # Valid inputs: maxwell, wurz, smyth.
 
-            "model_maxwell_mean": 3000,
-            "model_maxwell_std": 100,
+            "model_maxwell_max": 3000,
 
             "model_wurz_inc_part_speed": 5000,
             "model_wurz_binding_en": 2.89 * 1.602e-19,  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
