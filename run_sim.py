@@ -1,4 +1,5 @@
 import rebound
+import reboundx
 import numpy as np
 import random
 import json
@@ -65,8 +66,9 @@ def run_simulation():
 
                         hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
 
-        # LOSS FUNCTION
-        # =============
+
+        # LOSS FUNCTION & CHEMICAL NETWORK
+        # ================================
         boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
         num_lost = 0
         num_converted = 0
@@ -159,19 +161,18 @@ def run_simulation():
         print(f"{num_lost} particles lost.")
         print(f"{num_converted} particles were converted.")
 
-        # Remove particles beyond specified number of semi-major axes
-        # -----------------------------------------------------------
-        #boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
-        #N = sim.N
-        #k = sim.N_active
-        #while k < N:
-        #    if np.linalg.norm(np.asarray(sim.particles[k].xyz) - np.asarray(sim.particles["planet"].xyz)) > boundary:
-        #        sim.remove(k)
-        #        N += -1
-        #    else:
-        #        k += 1
 
+        # REBOUNDX ADDITIONAL FORCES
+        # ==========================
+        # rebx = reboundx.Extras(sim)
+        # rf = rebx.load_force("radiation_forces")
+        # rebx.add_force(rf)
+        # rf.params["c"] = 3.e8
+
+        # SAVE HASH_DICT
+        # ==============
         hash_supdict[str(i+1)] = hash_dict.copy()
+
 
         # ADVANCE INTEGRATION
         # ===================

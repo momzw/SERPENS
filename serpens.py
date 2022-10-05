@@ -1,6 +1,7 @@
 import rebound
-import matplotlib.pyplot as plt
 import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 import numpy as np
 import os as os
 import sys
@@ -9,8 +10,6 @@ import shutil
 from datetime import datetime
 from plotting import plotting
 from init import Parameters
-
-matplotlib.use('TkAgg')
 
 """
 
@@ -32,8 +31,8 @@ Params = Parameters()
 # Plotting
 # ---------------------
 save = True
-save_archive = True
-plot_freq = 1  # Plot at each *plot_freq* advance
+save_archive = False
+plot_freq = 5  # Plot at each *plot_freq* advance
 
 showfig = False
 showhist = False
@@ -125,24 +124,12 @@ if __name__ == "__main__":
 
     for i, sim_instance in enumerate(sa):
         ps = sim_instance.particles
-        """
-        hashes_and_species = np.zeros((1,2))    # np.zeros((sim_instance.N - sim_instance.N_active, 2)) !
-        """
+
         species_names = []
         for ns in range(Params.num_species):
             species = Params.get_species(ns + 1)
             species_names.append(species.name)
-            """
-            identifiers = [f"{species.id}_{j}_{x}" for j in range(Params.int_spec["num_sim_advances"]) for x in range(sim_instance.N)]
-            hashes = [rebound.hash(x).value for x in identifiers]
-            for particle in sim_instance.particles[sim_instance.N_active:]:
-                if particle.hash.value in hashes:
-                    hash_and_species = np.array([[particle.hash.value, ns+1]])
-                    hashes_and_species = np.concatenate((hashes_and_species, hash_and_species))
-        hashes_and_species = np.delete(hashes_and_species, 0, 0)
 
-        species_occurences = np.bincount(hashes_and_species[:,1].astype(int))[1:]
-        """
         if not i == 0:
             hash_dict_current = hash_supdict[str(i)]
         else:
@@ -367,10 +354,39 @@ if __name__ == "__main__":
                         speeds = [np.linalg.norm(bulk_velocities[j, :] - bulk_velocities[1, :]) for j in
                                   range(np.size(bulk_velocities[:, 0]))]
 
-                    plt.hist(speeds[sim_instance.N_active:], 100, range=(0, 20000), density=True)
+                    scale = Params.sput_spec["model_maxwell_max"] / np.sqrt(2)
+                    def maxwell_func(x):
+                        return np.sqrt(2/np.pi) * (x/scale)**2 * np.exp(-(x/scale)**2 / 2) / scale
+
+                    a = Params.sput_spec['model_smyth_a']
+                    v_M = Params.sput_spec['model_smyth_v_M']
+                    v_b = Params.sput_spec['model_smyth_v_b']
+                    x_vals = np.linspace(0, v_M, 10000)
+                    def sput_func(x, a, v_b, v_M):
+                        f_v = 1 / v_b * (x / v_b) ** 3 \
+                              * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
+                              * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
+                        return f_v
+                    def sput_func_int(x, a, v_b, v_M):
+                        integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
+                                    3 / 2) * v_b / v_M / (
+                                                   2 * a - 3) - x ** 4 / (2 * (a - 2)) - a * x ** 2 / (
+                                                       2 * (a - 2) * (a - 1)) - 1 / (
+                                                   2 * (a - 2) * (a - 1))
+
+                        f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
+                        return f_v_integrated
+                    upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
+                    normalization = 1 / (sput_func_int(upper_bound, a, v_b, v_M) - sput_func_int(0, a, v_b, v_M))
+                    f_pdf = normalization * sput_func(x_vals, a, v_b, v_M)
+
+                    plt.hist(speeds[sim_instance.N_active:], 100, range=(0, v_M), density=True)
+                    plt.plot(x_vals, f_pdf, c='r', label='Smyth')
+                    plt.plot(x_vals, maxwell_func(x_vals), c="b", label="Maxwell")
                     plt.ylabel("Probability", fontsize='x-large')
                     plt.xlabel("Velocity in m/s", fontsize='x-large')
                     plt.title("Velocity Distribution")
+                    plt.legend()
                     if save:
                         frame_identifier = f"Velocity_Distribution_{i}_{orbit_phase}"
                         plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
