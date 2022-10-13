@@ -3,7 +3,17 @@ import reboundx
 import numpy as np
 import random
 import json
+import warnings
+
+import concurrent.futures
+import multiprocess as mp
+from multiprocessing.sharedctypes import Array
+
+import pymp
+#pymp.config.nested = True
+
 from tqdm import tqdm
+from itertools import repeat
 from create_particle import create_particle
 from init import init3, Parameters, Species
 
@@ -17,7 +27,9 @@ def run_simulation():
     Saves a "particles.txt" file with every particles' position and velocity components. File gets overwritten at each advance.
     :return:
     """
-    sim = rebound.Simulation("archive.bin")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sim = rebound.Simulation("archive.bin")
 
     Params = Parameters()
     num_species = Params.num_species
@@ -57,14 +69,33 @@ def run_simulation():
 
                         hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
 
-                if not (species.n_sp == 0 or None):
-                    for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.name} particles via sputtering"):
-                        p = create_particle(species, "sputter")
-                        identifier = f"{species.id}_{i}_{j2 + species.n_th}"
-                        p.hash = identifier
-                        sim.add(p)
 
-                        hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+
+                if not (species.n_sp == 0 or None):
+
+                    def mp_addsput(num):
+                        p = create_particle(species, "sputter")
+                        #identifier = f"{species.id}_{i}_{num + species.n_th}"
+                        #p.hash = identifier
+                        #hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+                        return p.xyz + p.vxyz
+
+                    with mp.Pool() as p:
+                        r = list(tqdm(p.imap(mp_addsput, range(species.n_sp)), total=species.n_sp))
+
+                    for index, coord in enumerate(r):
+                        identifier = f"{species.id}_{i}_{index + species.n_th}"
+                        sim.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5], hash=identifier)
+                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+
+
+                    #with pymp.Parallel() as p:
+                    #    for j2 in tqdm(p.range(species.n_sp), desc=f"Adding {species.name} particles via sputtering"):
+                    #        p = create_particle(species, "sputter")
+                    #        identifier = f"{species.id}_{i}_{j2 + species.n_th}"
+                    #        p.hash = identifier
+                    #        sim.add(p)
+                    #        hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
 
 
         # LOSS FUNCTION & CHEMICAL NETWORK

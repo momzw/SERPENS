@@ -47,7 +47,7 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
     if moon_exists:
         # ORIGIN AT PLANET
         # ----------------------
-        lim = 8 * ps["planet"].r
+        lim = 12 * ps["planet"].r
 
         ax.set_xlim([-lim + ps_planet_coord1, lim + ps_planet_coord1])
         ax.set_ylim([-lim + ps_planet_coord2, lim + ps_planet_coord2])

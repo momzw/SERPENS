@@ -61,59 +61,30 @@ def orbit_sol():
     df.to_excel('temporary.xlsx', index=False, header=False)
 
 
-def compare_vel_dist():
+def pngToGif(max_PNG_index, step, fps):
+    """
+    TOOL TO COMBINE PNG TO GIF
+    """
+    import imageio
+    filenames = [f'plots/sim_{i}.png' for i in range(0, max_PNG_index, step)]
+    # with imageio.get_writer('mygif.gif', mode='I') as writer:
+    #    for filename in filenames:
+    #        image = imageio.imread(filename)
+    #        writer.append_data(image)
 
-    def smyth(x, a):
-
-        v_b = 4000
-        v_M = 60000
-
-        def model2func(x, a, v_b, v_M):
-                f_v = 1 / v_b * (x / v_b) ** 3 \
-                      * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
-                      * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
-                return f_v
-
-        def model2func_int(x, a, v_b, v_M):
-
-            integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (3 / 2) * v_b / v_M / (
-                        2 * a - 3) + x ** 4 / (2 * (a - 2)) - a * x ** 2 / (2 * (a - 2) * (a - 1)) - 1 / (
-                                           2 * (a - 2) * (a - 1))
-
-            f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
-
-            return f_v_integrated
-
-        upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
-        normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
-
-        #per_hand = ((v_M/v_b)**(4-a) - v_b/v_M) / (2*a-5) - (v_M/v_b)**(4-a) / (2*a-4) - ((v_M/v_b)**(2-a) - v_b/v_M) / (2*a-3) + (v_M/v_b)**(2-a) / (2*a-2) + 1/(2*a-4) - 1/(2*a-2)
-        #normalization = 1/per_hand
-
-        f_pdf = normalization * model2func(x, a, v_b, v_M)
-
-        return f_pdf
-
-    def maxwell(x):
-
-        mu = 0
-        a = 1
-        maximum = 4000
-        scale = maximum / np.sqrt(2 * a)
-
-        f = np.sqrt(2/np.pi) * ((x - mu) / scale)**2 * np.exp(- ((x - mu)/scale)**2 / 2) / scale
-        f[x - mu < 0] = 0
-
-        return f
-
-    x_vals = np.linspace(0,70000,10000)
-    plt.figure()
-    plt.plot(x_vals, smyth(x_vals, 7/3), c='r')
-    plt.plot(x_vals, smyth(x_vals, 3), c='m')
-    plt.plot(x_vals, maxwell(x_vals), c='b')
-    plt.hlines(0, 0, 500, color='k')
-    plt.show()
+    images = []
+    for filename in filenames:
+        images.append(imageio.imread(filename))
+    imageio.mimsave('movie.gif', images, fps=fps)
 
 
-compare_vel_dist()
 
+
+
+import pymp
+pymp.config.nested = True
+ex_array = pymp.shared.array((1,), dtype='uint8')
+with pymp.Parallel(4) as p:
+    with pymp.Parallel(2) as p1:
+        with pymp.Parallel(2) as p2:
+            p.print(p1.thread_num, p2.thread_num)

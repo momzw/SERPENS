@@ -1,12 +1,13 @@
 import rebound
 import numpy as np
+import warnings
 from init import Parameters
 
 # ====================================================================================================================================================================
 
 Params = Parameters()
 therm_Params = Params.therm_spec
-sput_Params = Params.sput_spec
+sput_Params = Params.sput_spec_default
 moon_exists = Params.int_spec["moon"]
 
 # Thermal evaporation parameters
@@ -14,23 +15,6 @@ moon_exists = Params.int_spec["moon"]
 source_temp_max = therm_Params["source_temp_max"]
 source_temp_min = therm_Params["source_temp_min"]
 spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
-
-# Sputtering model
-# ---------------------
-sput_model = sput_Params["sput_model"]  # Valid inputs: maxwell, wurz, smyth.
-
-# Sputtering model shape parameters
-# ---------------------
-model_maxwell_max = sput_Params["model_maxwell_max"]
-
-model_wurz_inc_part_speed = sput_Params["model_wurz_inc_part_speed"]
-model_wurz_binding_en = sput_Params["model_wurz_binding_en"]  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
-model_wurz_inc_mass_in_amu = sput_Params["model_wurz_inc_mass_in_amu"]
-model_wurz_ejected_mass_in_amu = sput_Params["model_wurz_ejected_mass_in_amu"]
-
-model_smyth_v_b = sput_Params["model_smyth_v_b"]       # "low cutoff" speed to prevent the slowest nonescaping atoms from dominating the distribution (see Wilson et al. 2002)
-model_smyth_v_M = sput_Params["model_smyth_v_M"]     # Maximum velocity achievable. Proportional to plasma velocity (see Wilson et al. 2002)
-model_smyth_a = sput_Params["model_smyth_a"]       # Speed distribution shape parameter
 
 # ====================================================================================================================================================================
 
@@ -142,16 +126,19 @@ def random_vel_thermal(species, temp):
     return vel_Na
 
 
-def random_vel_sputter():
+def random_vel_sputter(species):
     """
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
     """
     from scipy.stats import rv_continuous
 
+    sput_model = species.sput_spec["sput_model"]
+
     # MAXWELLIAN MODEL
     def model_maxwell():
         from scipy.stats import maxwell
+        model_maxwell_max = species.sput_spec["model_maxwell_max"]
 
         scale = model_maxwell_max / np.sqrt(2)
 
@@ -170,6 +157,12 @@ def random_vel_sputter():
 
     # MODEL 1
     def model_wurz():
+
+        model_wurz_inc_part_speed = species.sput_spec["model_wurz_inc_part_speed"]
+        model_wurz_binding_en = species.sput_spec["model_wurz_binding_en"]
+        model_wurz_inc_mass_in_amu = species.sput_spec["model_wurz_inc_mass_in_amu"]
+        model_wurz_ejected_mass_in_amu = species.sput_spec["model_wurz_ejected_mass_in_amu"]
+
         class _sputter_gen(rv_continuous):
             def _pdf(self, x, E_inc, E_bin):
                 normalization = (E_inc + E_bin) ** 2 / E_inc ** 2
@@ -205,6 +198,11 @@ def random_vel_sputter():
 
     # MODEL 2
     def model_smyth():
+
+        model_smyth_v_b = species.sput_spec["model_smyth_v_b"]
+        model_smyth_v_M = species.sput_spec["model_smyth_v_M"]
+        model_smyth_a = species.sput_spec["model_smyth_a"]
+
         class sputter_gen2(rv_continuous):
             def _pdf(self, x, alpha, v_b, v_M):
                 def model2func(x, alpha, v_b, v_M):
@@ -254,48 +252,6 @@ def random_vel_sputter():
             vel = model_wurz()
         else:
             vel = model_smyth()
-
-            """
-            TESTING
-            
-            import matplotlib.pyplot as plt
-            import matplotlib
-            from scipy.integrate import quad
-            matplotlib.use('TkAgg')
-
-            vels = []
-            x_vals = np.linspace(0, model_smyth_v_M, 3000)
-            for i in range(3000):
-                vels.append(np.linalg.norm(model_smyth()))
-
-            a = Params.sput_spec['model_smyth_a']
-            v_M = Params.sput_spec['model_smyth_v_M']
-            v_b = Params.sput_spec['model_smyth_v_b']
-            def model2func(x, a, v_b, v_M):
-                f_v = 1 / v_b * (x / v_b) ** 3 \
-                      * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
-                      * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
-                return f_v
-            def model2func_int(x, a, v_b, v_M):
-                integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
-                        3 / 2) * v_b / v_M / (
-                                           2 * a - 3) - x ** 4 / (2 * (a - 2)) - a * x ** 2 / (
-                                           2 * (a - 2) * (a - 1)) - 1 / (
-                                           2 * (a - 2) * (a - 1))
-
-                f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
-                return f_v_integrated
-            upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
-            normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
-            f_pdf = normalization * model2func(x_vals, a, v_b, v_M)
-
-            plt.figure()
-            plt.hist(vels, density=True, bins=100)
-            plt.plot(x_vals, f_pdf, c='r')
-            plt.show()
-            breakpoint = True
-            """
-
     else:
         raise ValueError("Invalid sputtering model: " % sput_model)
 
@@ -310,7 +266,9 @@ def create_particle(species, process, **kwargs):
     :param kwargs: kwargs. Parameters forwarded to random generation functions: temp_midnight, temp_noon, E_incoming, E_bind
     :return: p: rebound particle object.
     """
-    sim = rebound.Simulation("archive.bin")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sim = rebound.Simulation("archive.bin")
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process in valid_process:
@@ -337,7 +295,7 @@ def create_particle(species, process, **kwargs):
             ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform")
             ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
-            ran_vel_not_rotated_in_place = random_vel_sputter()
+            ran_vel_not_rotated_in_place = random_vel_sputter(species)
     else:
         raise ValueError("Invalid escaping mechanism encountered in particle creation: " % process)
 

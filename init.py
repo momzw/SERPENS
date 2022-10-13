@@ -260,7 +260,7 @@ class Species(SpeciesSpecifics):
     # * Add network/lifetime in <class: Network>
     # * Add to implementedSpecies in <class: Species>
 
-    def __init__(self, name, n_th = 0, n_sp = 0, mass_per_sec = None):
+    def __init__(self, name = None, n_th = 0, n_sp = 0, mass_per_sec = None, **kwargs):
         self.implementedSpecies = {
             "Na": 1,
             "O": 3,
@@ -299,6 +299,7 @@ class Species(SpeciesSpecifics):
             elif self.implementedSpecies[name] == 7:
                 self.id = self.implementedSpecies[name]
                 super().__init__(58.44, self.id)
+
             elif self.implementedSpecies[name] == 8:
                 self.id = self.implementedSpecies[name]
                 super().__init__(64, self.id)
@@ -311,6 +312,20 @@ class Species(SpeciesSpecifics):
         self.n_sp = n_sp
         self.mass_per_sec = mass_per_sec
         self.name = name
+
+        self.sput_spec= {
+            "sput_model": kwargs.get("sput_model", 'smyth'),
+
+            "model_maxwell_max": kwargs.get("model_maxwell_max", 3000),
+            "model_wurz_inc_part_speed": kwargs.get("model_wurz_inc_part_speed", 5000),
+            "model_wurz_binding_en": kwargs.get("model_wurz_binding_en", 2.89 * 1.602e-19),
+            "model_wurz_inc_mass_in_amu": kwargs.get("model_wurz_inc_mass_in_amu", 23),
+            "model_wurz_ejected_mass_in_amu": kwargs.get("model_wurz_ejected_mass_in_amu", 23),
+
+            "model_smyth_v_b": kwargs.get("model_smyth_v_b", 4000),
+            "model_smyth_v_M": kwargs.get("model_smyth_v_M", 60000),
+            "model_smyth_a": kwargs.get("model_smyth_a", 7 / 3)
+        }
 
     def particles_per_superparticle(self, mass):
         num = mass / self.m
@@ -337,27 +352,23 @@ class Parameters:
         "r_max": 4                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
     }
 
-    def __init__(self):
-        self.species1 = Species("Na", n_th=0, n_sp=800, mass_per_sec=10)
-        #self.species2 = Species("SO2", n_th=0, n_sp=800, mass_per_sec = 1000)
-        #self.species3 = Species("O", n_th=0, n_sp=300, mass_per_sec = 10)
-        #self.species4 = Species("NaCl", n_th=0, n_sp=300, mass_per_sec=14.45)
-        #self.species5 = Species("H", n_th=0, n_sp=300, mass_per_sec=10)
-        #self.species6 = Species("H2", n_th=200, n_sp=300, mass_per_sec=10)
+    # Thermal evaporation parameters
+    therm_spec = {
+        "source_temp_max": 130,  # 125, #2703,
+        "source_temp_min": 90,  # 50, #1609,
+        "spherical_symm_ejection": True,
+    }
 
+    def __init__(self):
+        self.species1 = Species("O", n_th=0, n_sp=2*585, mass_per_sec=5.845, model_smyth_v_b = 2500)
+        self.species2 = Species("O2", n_th=0, n_sp=2*1435, mass_per_sec=14.35, model_smyth_v_b = 4700)
+        self.species3 = Species("H2", n_th=0, n_sp=2*669, mass_per_sec=6.69, model_smyth_v_b = 1000)
 
         self.num_species = len(locals()['self'].__dict__)
 
-        # Thermal evaporation parameters
-        self.therm_spec = {
-            "source_temp_max": 130, #125, #130, #2703,
-            "source_temp_min": 90, #50, #90, #1609,
-            "spherical_symm_ejection": True,
-        }
-
         # Sputtering model and shape parameters
-        self.sput_spec = {
-            "sput_model": 'maxwell',    # Valid inputs: maxwell, wurz, smyth.
+        self.sput_spec_default = {
+            "sput_model": 'smyth',    # Valid inputs: maxwell, wurz, smyth.
 
             "model_maxwell_max": 3000,
 
@@ -378,7 +389,7 @@ class Parameters:
             species = locals()['self'].__dict__
             s += "\t" + str(vars(species[f"species{i}"])) + "\n"
         s += f"Thermal evaporation parameters: \n \t {self.therm_spec} \n"
-        s += f"Sputtering model and shape parameters: \n \t {self.sput_spec} \n"
+        s += f"Sputtering model and shape parameters: \n \t {self.sput_spec_default} \n"
         return s
 
     def get_species(self, num):
@@ -450,11 +461,11 @@ def init3(additional_majors = False, moon = True):
     # ----------------------------------------------
 
     if moon:
-        sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-        sim.particles["moon"].r = 1821600
+        #sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
+        #sim.particles["moon"].r = 1821600
 
-        #sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon")
-        #sim.particles["moon"].r = 1560800
+        sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon")
+        sim.particles["moon"].r = 1560800
 
         sim.N_active = 3
     else:
@@ -474,7 +485,9 @@ def init3(additional_majors = False, moon = True):
     # => sim.ri_whfast.safe_mode = 0
 
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
+    print("======================================")
     print("Initialized new simulation instance.")
+    print("======================================")
 
     return
 

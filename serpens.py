@@ -32,7 +32,7 @@ Params = Parameters()
 # ---------------------
 save = True
 save_archive = False
-plot_freq = 5  # Plot at each *plot_freq* advance
+plot_freq = 2  # Plot at each *plot_freq* advance
 
 showfig = False
 showhist = False
@@ -84,22 +84,6 @@ def getHistogram(sim, xdata, ydata, bins, xboundary="default", yboundary="defaul
     H = H.T
     return H, xedges, yedges
 
-
-def pngToGif(max_PNG_index, step):
-    """
-    TOOL TO COMBINE PNG TO GIF
-    """
-    import imageio
-    filenames = [f'plots/sim_{i}.png' for i in range(0, max_PNG_index, step)]
-    # with imageio.get_writer('mygif.gif', mode='I') as writer:
-    #    for filename in filenames:
-    #        image = imageio.imread(filename)
-    #        writer.append_data(image)
-
-    images = []
-    for filename in filenames:
-        images.append(imageio.imread(filename))
-    imageio.mimsave('movie.gif', images, fps=1)
 
 
 if __name__ == "__main__":
@@ -354,13 +338,13 @@ if __name__ == "__main__":
                         speeds = [np.linalg.norm(bulk_velocities[j, :] - bulk_velocities[1, :]) for j in
                                   range(np.size(bulk_velocities[:, 0]))]
 
-                    scale = Params.sput_spec["model_maxwell_max"] / np.sqrt(2)
+                    scale = Params.sput_spec_default["model_maxwell_max"] / np.sqrt(2)
                     def maxwell_func(x):
                         return np.sqrt(2/np.pi) * (x/scale)**2 * np.exp(-(x/scale)**2 / 2) / scale
 
-                    a = Params.sput_spec['model_smyth_a']
-                    v_M = Params.sput_spec['model_smyth_v_M']
-                    v_b = Params.sput_spec['model_smyth_v_b']
+                    a = Params.sput_spec_default['model_smyth_a']
+                    v_M = Params.sput_spec_default['model_smyth_v_M']
+                    v_b = Params.sput_spec_default['model_smyth_v_b']
                     x_vals = np.linspace(0, v_M, 10000)
                     def sput_func(x, a, v_b, v_M):
                         f_v = 1 / v_b * (x / v_b) ** 3 \
