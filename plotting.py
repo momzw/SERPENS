@@ -10,7 +10,7 @@ matplotlib.use('TkAgg')
 
 
 def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
-    ax.set_aspect("equal")
+    #ax.set_aspect("equal")
 
     ps = sim.particles
 
@@ -47,7 +47,7 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
     if moon_exists:
         # ORIGIN AT PLANET
         # ----------------------
-        lim = 12 * ps["planet"].r
+        lim = 35 * ps["planet"].r
 
         ax.set_xlim([-lim + ps_planet_coord1, lim + ps_planet_coord1])
         ax.set_ylim([-lim + ps_planet_coord2, lim + ps_planet_coord2])
@@ -89,17 +89,17 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
                     linestyle=':', linewidth=1, zorder=1)
 
         for i in range(sim.N_active - 3):
-            major_obj = plt.Circle((ps[3 + i].x, ps[3 + i].y), ps[3 + i].r, fc='r', alpha=0.7)
+            major_obj = plt.Circle((ps[3 + i].x, ps[3 + i].y), ps[3 + i].r, alpha=0.7)
             ax.add_patch(major_obj)
             ax.scatter(ps[3 + i].x, ps[3 + i].y, s=10, fc='r', zorder=2)
             o_add = np.array(ps[3 + i].sample_orbit(primary=ps["planet"]))
-            lc_add = fading_line(o_add[:, 0], o_add[:, 1], alpha=0.5, color='red')
+            lc_add = fading_line(o_add[:, 0], o_add[:, 1], alpha=0.5)
             ax.add_collection(lc_add)
 
     else:
         # ORIGIN AT STAR
         # ------------------
-        lim = 5 * ps[0].r
+        lim = 10 * ps[0].r
 
         ax.set_xlim([-lim, lim])
         ax.set_ylim([-lim, lim])
@@ -158,7 +158,7 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
             norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin = 0, vmax = 0) # Not needed if first sim_instance is already with particles.
             cmap = matplotlib.cm.afmhot
             cmap.set_bad('k', 1.)
-            im = ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
+            im = ax.imshow(H, interpolation='spline16', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
 
             if not np.max(H) == 0:
                 # Colorbar

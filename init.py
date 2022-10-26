@@ -1,186 +1,335 @@
 import rebound
+import reboundx
 import numpy as np
 
 class Network:
     def __init__(self, id):
+        u = 1.6726e-27
+        e = 1.602e-19
         if id == 1:
-            self.network = 6 * 60 * 60
+            # Na
+            self._network = 6 * 60 * 60
 
         elif id == 2:
-            self.network = 20 * 60 * 60
+            # S
+            self._network = 20 * 60 * 60
 
         elif id == 3:
-            tau1 = 1/1.4e-7
+            # O
+
+            # Charge-Exchange with protons at 50keV
+            tau1 = 1 / 4.5e-6
             reagent1 = "H+"
             products1 = "O+ H"
+            delv1 = np.sqrt(2 * 50e3 * e / u)
 
-            tau2 = 1/3.5e-9
-            reagent2 = "S+"
-            products2 = "O+ S"
+            # Charge-Exchange with protons at 60keV
+            tau2 = 1 / 4.0e-6
+            reagent2 = "H+"
+            products2 = "O+ H"
+            delv2 = np.sqrt(2 * 60e3 * e / u)
 
-            tau3 = 1/1.0e-7
-            reagent3 = "S++"
-            products3 = "O+ S+"
+            # Charge-Exchange with protons at 70keV
+            tau3 = 1 / 3.5e-7
+            reagent3 = "H+"
+            products3 = "O+ H"
+            delv3 = np.sqrt(2 * 70e3 * e / u)
 
-            tau4 = 1/5.1e-6
-            reagent4 = "e"
-            products4 = "O+ 2e"
+            # Charge-Exchange with protons at 80keV
+            tau4 = 1 / 3.0e-7
+            reagent4 = "H+"
+            products4 = "O+ H"
+            delv4 = np.sqrt(2 * 80e3 * e / u)
 
-            tau5 = 1/1.7e-8
-            reagent5 = "y"
-            products5 = "O+ e"
+            tau5 = 1 / 3.5e-9
+            reagent5 = "S+"
+            products5 = "O+ S"
+            delv5 = 0
 
-            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5])
-            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5])
-            products = np.array([products1, products2, products3, products4, products5])
+            tau6 = 1 / 1.0e-7
+            reagent6 = "S++"
+            products6 = "O+ S+"
+            delv6 = 0
 
-            self.network = np.vstack((lifetimes, reagents, products)).T
+            tau7 = 1 / 5.1e-6
+            reagent7 = "e"
+            products7 = "O+ 2e"
+            delv7 = 0
+
+            tau8 = 1 / 1.7e-8
+            reagent8 = "y"
+            products8 = "O+ e"
+            delv8 = 0
+
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8])
+            velocities = np.array([delv1, delv2, delv3, delv4, delv5, delv6, delv7, delv8])
+            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8])
+            products = np.array(
+                [products1, products2, products3, products4, products5, products6, products7, products8])
+
+            self._network = np.vstack((lifetimes, reagents, products, velocities)).T
 
         elif id == 4:
-            tau1 = 1/9.2e-10
-            reagent1 = "H+"
-            products1 = "O2+ H"
+            # O2
 
-            tau2 = 1/9.2e-10
-            reagent2 = "H+"
-            products2 = "O+ O H"
+            # Charge-Exchange with protons at 50keV
+            t1 = 1 / 5.5e-6
+            reag1 = "H+"
+            prod1 = "O2+ H"
+            dv1 = np.sqrt(2 * 50e3 * e / u)
 
-            tau3 = 1/7.4e-9
-            reagent3 = "H+"
-            products3 = "O+ O+ H+ 2e"
+            # Charge-Exchange with protons at 60keV
+            t19 = 1 / 5.25e-6
+            reag19 = "H+"
+            prod19 = "O2+ H"
+            dv19 = np.sqrt(2 * 60e3 * e / u)
 
-            tau4 = 1/9.2e-10
-            reagent4 = "H2+"
-            products4 = "O2+ H2"
+            # Charge-Exchange with protons at 70keV
+            t20 = 1 / 5.0e-6
+            reag20 = "H+"
+            prod20 = "O2+ H"
+            dv20 = np.sqrt(2 * 70e3 * e / u)
 
-            tau5 = 1/1.7e-7
-            reagent5 = "O+"
-            products5 = "O2+ O"
+            # Charge-Exchange with protons at 80keV
+            t21 = 1 / 4.75e-6
+            reag21 = "H+"
+            prod21 = "O2+ H"
+            dv21 = np.sqrt(2 * 80e3 * e / u)
 
-            tau6 = 1/1.9e-7
-            reagent6 = "O+"
-            products6 = "O O+ O"
+            t2 = 1 / 9.2e-10
+            reag2 = "H+"
+            prod2 = "O+ O H"
+            dv2 = 0
 
-            tau7 = 1/7.7e-8
-            reagent7 = "O+"
-            products7 = "O O+ O+ e"
+            t3 = 1 / 7.4e-9
+            reag3 = "H+"
+            prod3 = "O+ O+ H+ 2e"
+            dv3 = 0
 
-            tau8 = 1/8.0e-9
-            reagent8 = "O+"
-            products8 = "O O++ O+ 2e"
+            t4 = 1 / 9.2e-10
+            reag4 = "H2+"
+            prod4 = "O2+ H2"
+            dv4 = 0
 
-            tau9 = 1/8.2e-8
-            reagent9 = "O+"
-            products9 = "O+ O+ O+ 2e"
+            t5 = 1 / 1.7e-7
+            reag5 = "O+"
+            prod5 = "O2+ O"
+            dv5 = 0
 
-            tau10 = 1/3.9e-8
-            reagent10 = "O+"
-            products10 = "O+ O++ O 2e"
+            t6 = 1 / 1.9e-7
+            reag6 = "O+"
+            prod6 = "O O+ O"
+            dv6 = 0
 
-            tau11 = 1/1.2e-7
-            reagent11 = "S++"
-            products11 = "O2+ S+"
+            t7 = 1 / 7.7e-8
+            reag7 = "O+"
+            prod7 = "O O+ O+ e"
+            dv7 = 0
 
-            tau12 = 1/3.5e-6
-            reagent12 = "e"
-            products12 = "O O e"
+            t8 = 1 / 8.0e-9
+            reag8 = "O+"
+            prod8 = "O O++ O+ 2e"
+            dv8 = 0
 
-            tau13 = 1/5.4e-6
-            reagent13 = "e"
-            products13 = "O2+ 2e"
+            t9 = 1 / 8.2e-8
+            reag9 = "O+"
+            prod9 = "O+ O+ O+ 2e"
+            dv9 = 0
 
-            tau14 = 1/2.0e-6
-            reagent14 = "e"
-            products14 = "O+ O 2e"
+            t10 = 1 / 3.9e-8
+            reag10 = "O+"
+            prod10 = "O+ O++ O 2e"
+            dv10 = 0
 
-            tau15 = 1/6.9e-9
-            reagent15 = "e"
-            products15 = "O++ O 3e"
+            t11 = 1 / 1.2e-7
+            reag11 = "S++"
+            prod11 = "O2+ S+"
+            dv11 = 0
 
-            tau16 = 1/2.0e-7
-            reagent16 = "y"
-            products16 = "O O"
+            t12 = 1 / 3.5e-6
+            reag12 = "e"
+            prod12 = "O O e"
+            dv12 = 0
 
-            tau17 = 1/3.0e-8
-            reagent17 = "y"
-            products17 = "O2+ e"
+            t13 = 1 / 5.4e-6
+            reag13 = "e"
+            prod13 = "O2+ 2e"
+            dv13 = 0
 
-            tau18 = 1/8.5e-8
-            reagent18 = "y"
-            products18 = "O O+ e"
+            t14 = 1 / 2.0e-6
+            reag14 = "e"
+            prod14 = "O+ O 2e"
+            dv14 = 0
 
-            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9, tau10, tau11, tau12, tau13, tau14, tau15, tau16, tau17, tau18])
-            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9, reagent10, reagent11, reagent12, reagent13, reagent14, reagent15, reagent16, reagent17, reagent18])
-            products = np.array([products1, products2, products3, products4, products5, products6, products7, products8, products9, products10, products11, products12, products13, products14, products15,products16, products17, products18])
+            t15 = 1 / 6.9e-9
+            reag15 = "e"
+            prod15 = "O++ O 3e"
+            dv15 = 0
 
-            self.network = np.vstack((lifetimes, reagents, products)).T
+            t16 = 1 / 2.0e-7
+            reag16 = "y"
+            prod16 = "O O"
+            dv16 = 0
+
+            t17 = 1 / 3.0e-8
+            reag17 = "y"
+            prod17 = "O2+ e"
+            dv17 = 0
+
+            t18 = 1 / 8.5e-8
+            reag18 = "y"
+            prod18 = "O O+ e"
+            dv18 = 0
+
+            lifetimes = np.array(
+                [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21])
+            reagents = np.array(
+                [reag1, reag2, reag3, reag4, reag5, reag6, reag7, reag8, reag9, reag10, reag11, reag12, reag13, reag14,
+                 reag15, reag16, reag17, reag18, reag19, reag20, reag21])
+            products = np.array(
+                [prod1, prod2, prod3, prod4, prod5, prod6, prod7, prod8, prod9, prod10, prod11, prod12, prod13, prod14,
+                 prod15, prod16, prod17, prod18, prod19, prod20, prod21])
+            delvs = np.array(
+                [dv1, dv2, dv3, dv3, dv4, dv6, dv7, dv8, dv9, dv10, dv11, dv12, dv13, dv14, dv15, dv16, dv17, dv18,
+                 dv19, dv20, dv21])
+
+            self._network = np.vstack((lifetimes, reagents, products, delvs)).T
 
         elif id == 5:
+            # H
+
+            # Charge-Exchange with protons at 50keV
+            tau4 = 1 / 2.0e-6
+            reagent4 = "H+"
+            products4 = "H+ H"
+            delv4 = np.sqrt(2 * 50e3 * e / u)
+
+            # Charge-Exchange with protons at 60keV
+            tau5 = 1 / 9.975e-7
+            reagent5 = "H+"
+            products5 = "H+ H"
+            delv5 = np.sqrt(2 * 60e3 * e / u)
+
+            # Charge-Exchange with protons at 70keV
+            tau6 = 1 / 9e-7
+            reagent6 = "H+"
+            products6 = "H+ H"
+            delv6 = np.sqrt(2 * 70e3 * e / u)
+
+            # Charge-Exchange with protons at 80keV
+            tau7 = 1 / 6e-7
+            reagent7 = "H+"
+            products7 = "H+ H"
+            delv7 = np.sqrt(2 * 80e3 * e / u)
+
             tau1 = 1 / 5.4e-7
             reagent1 = "O+"
             products1 = "H+ O"
+            delv1 = 0
 
             tau2 = 1 / 3.0e-6
             reagent2 = "e"
             products2 = "H+ 2e"
+            delv2 = 0
 
             tau3 = 1 / 4.5e-9
             reagent3 = "y"
             products3 = "H+ e"
+            delv3 = 0
 
-            lifetimes = np.array([tau1, tau2, tau3])
-            reagents = np.array([reagent1, reagent2, reagent3])
-            products = np.array([products1, products2, products3])
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7])
+            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7])
+            products = np.array([products1, products2, products3, products4, products5, products6, products7])
+            velocities = np.array([delv1, delv2, delv3, delv4, delv5, delv5, delv6, delv7])
 
-            self.network = np.vstack((lifetimes, reagents, products)).T
+            self._network = np.vstack((lifetimes, reagents, products, velocities)).T
 
         elif id == 6:
-            tau1 = 1 / 1.4e-7
+            # H2
+
+            # Charge-Exchange with protons at 50keV
+            tau1 = 1 / 4.0e-6
             reagent1 = "H+"
             products1 = "H H2+"
+            delv1 = np.sqrt(2 * 50e3 * e / u)
+
+            # Charge-Exchange with protons at 60keV
+            tau10 = 1 / 3.0e-6
+            reagent10 = "H+"
+            products10 = "H H2+"
+            delv10 = np.sqrt(2 * 60e3 * e / u)
+
+            # Charge-Exchange with protons at 70keV
+            tau11 = 1 / 2.0e-6
+            reagent11 = "H+"
+            products11 = "H H2+"
+            delv11 = np.sqrt(2 * 70e3 * e / u)
+
+            # Charge-Exchange with protons at 80keV
+            tau12 = 1 / 1.0e-6
+            reagent12 = "H+"
+            products12 = "H H2+"
+            delv12 = np.sqrt(2 * 80e3 * e / u)
 
             tau2 = 1 / 2.7e-7
             reagent2 = "O+"
             products2 = "O H2+"
+            delv2 = 0
 
             tau3 = 1 / 1.1e-7
             reagent3 = "S++"
             products3 = "S+ H2+"
+            delv3 = 0
 
             tau4 = 1 / 4.1e-6
             reagent4 = "e"
             products4 = "2e H2+"
+            delv4 = 0
 
             tau5 = 1 / 2.1e-7
             reagent5 = "e"
             products5 = "H+ H 2e"
+            delv5 = 0
 
             tau6 = 1 / 1.6e-6
             reagent6 = "e"
             products6 = "H H e"
+            delv6 = 0
 
             tau7 = 1 / 5.1e-9
             reagent7 = "y"
             products7 = "H H"
+            delv7 = 0
 
             tau8 = 1 / 3.1e-9
             reagent8 = "y"
             products8 = "H2+ e"
+            delv8 = 0
 
             tau9 = 1 / 6.9e-10
             reagent9 = "y"
             products9 = "H H+ e"
+            delv9 = 0
 
-            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9])
-            reagents = np.array([reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9])
-            products = np.array([products1, products2, products3, products4, products5, products6, products7, products8, products9])
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9, tau10, tau11, tau12])
+            reagents = np.array(
+                [reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9, reagent10,
+                 reagent11, reagent12])
+            products = np.array(
+                [products1, products2, products3, products4, products5, products6, products7, products8, products9,
+                 products10, products11, products12])
+            velocities = np.array(
+                [delv1, delv2, delv3, delv4, delv5, delv6, delv7, delv8, delv9, delv10, delv11, delv12])
 
-            self.network = np.vstack((lifetimes, reagents, products)).T
+            self._network = np.vstack((lifetimes, reagents, products, velocities)).T
 
         elif id == 7:
-            self.network = 1200 * 60 * 60
+            # NaCl
+            self._network = 60 * 60 * 24 * 5
 
         elif id == 8:
+            # SO2
+
             tau1 = 494 * 60 * 60
             reagent1 = "O+"
             products1 = "SO2+ O"
@@ -238,7 +387,52 @@ class Network:
                 [products1, products2, products3, products4, products5, products6, products7, products8, products9,
                  products10, products11, products12])
 
-            self.network = np.vstack((lifetimes, reagents, products)).T
+            self._network = np.vstack((lifetimes, reagents, products)).T
+
+        elif id == 9:
+            # O+
+
+            # Charge-Exchange with protons at 50keV
+            t1 = 1 / 3.0e-7
+            reag1 = "H+"
+            prod1 = "H"
+            dv1 = np.sqrt(2 * 50e3 * e / (16 * u))
+
+            # Charge-Exchange with protons at 60keV
+            t2 = 1 / 2.8e-7
+            reag2 = "H+"
+            prod2 = "H"
+            dv2 = np.sqrt(2 * 60e3 * e / (16 * u))
+
+            # Charge-Exchange with protons at 70keV
+            t3 = 1 / 2.0e-7
+            reag3 = "H+"
+            prod3 = "H"
+            dv3 = np.sqrt(2 * 70e3 * e / (16 * u))
+
+            # Charge-Exchange with protons at 80keV
+            t4 = 1 / 1.0e-7
+            reag4 = "H+"
+            prod4 = "H"
+            dv4 = np.sqrt(2 * 80e3 * e / (16 * u))
+
+            lifetimes = np.array([t1, t2, t3, t4])
+            reagents = np.array([reag1, reag2, reag3, reag4])
+            products = np.array([prod1, prod2, prod3, prod4])
+            delvs = np.array([dv1, dv2, dv3, dv4])
+
+            self._network = np.vstack((lifetimes, reagents, products, delvs)).T
+
+    @property
+    def network(self):
+        return self._network
+
+    @network.setter
+    def network(self, tau):
+        if isinstance(tau, (float, int)):
+            self._network = tau
+        else:
+            print("Could not set network lifetime")
 
 
 class SpeciesSpecifics:
@@ -249,9 +443,7 @@ class SpeciesSpecifics:
         self.mass_num = mass_number
         self.m = mass_number * amu
         self.id = id
-
-    def network(self):
-        return Network(self.id).network
+        self.network = Network(self.id).network
 
 
 class Species(SpeciesSpecifics):
@@ -260,7 +452,7 @@ class Species(SpeciesSpecifics):
     # * Add network/lifetime in <class: Network>
     # * Add to implementedSpecies in <class: Species>
 
-    def __init__(self, name = None, n_th = 0, n_sp = 0, mass_per_sec = None, **kwargs):
+    def __init__(self, name = None, n_th = 0, n_sp = 0, mass_per_sec = None, duplicate = None, **kwargs):
         self.implementedSpecies = {
             "Na": 1,
             "O": 3,
@@ -269,7 +461,8 @@ class Species(SpeciesSpecifics):
             "H": 5,
             "H2": 6,
             "NaCl": 7,
-            "SO2": 8
+            "SO2": 8,
+            "O+": 9
         }
         if name in self.implementedSpecies:
             if self.implementedSpecies[name] == 1:
@@ -304,14 +497,32 @@ class Species(SpeciesSpecifics):
                 self.id = self.implementedSpecies[name]
                 super().__init__(64, self.id)
 
+            elif self.implementedSpecies[name] == 9:
+                self.id = self.implementedSpecies[name]
+                super().__init__(16, self.id)
+
         else:
             print(f"The species '{name}' has not been implemented.")
             return
+
+
+        if duplicate is not None:
+            self.id = self.id * 10 + duplicate
+        self.duplicate = duplicate
+
 
         self.n_th = n_th
         self.n_sp = n_sp
         self.mass_per_sec = mass_per_sec
         self.name = name
+
+        self.beta = kwargs.get("beta", 0)
+
+        tau = kwargs.get("lifetime", None)
+        if tau is not None:
+            self.network = tau
+
+        self.description = kwargs.get("description", self.name)
 
         self.sput_spec= {
             "sput_model": kwargs.get("sput_model", 'smyth'),
@@ -340,29 +551,42 @@ class Species(SpeciesSpecifics):
 
 
 class Parameters:
+    # TODO: Think about positions <-> species (id) ?
 
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "moon": True,
-        "sim_advance": 1 / 24,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 64,             # Number of times the simulation advances.
+        "moon": False,
+        "sim_advance": 1 / 16,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+        "num_sim_advances": 5 * 16,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
-        "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
-        "r_max": 4                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
+        "gen_max": 32,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
+        "r_max": 4,                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
+        "random_walk": False
     }
 
     # Thermal evaporation parameters
     therm_spec = {
-        "source_temp_max": 130,  # 125, #2703,
-        "source_temp_min": 90,  # 50, #1609,
+        "source_temp_max": 125,  # 125, #2703, 130
+        "source_temp_min": 50,  # 50, #1609, 90
         "spherical_symm_ejection": True,
     }
 
     def __init__(self):
-        self.species1 = Species("O", n_th=0, n_sp=2*585, mass_per_sec=5.845, model_smyth_v_b = 2500)
-        self.species2 = Species("O2", n_th=0, n_sp=2*1435, mass_per_sec=14.35, model_smyth_v_b = 4700)
-        self.species3 = Species("H2", n_th=0, n_sp=2*669, mass_per_sec=6.69, model_smyth_v_b = 1000)
+        #self.species1 = Species("O", n_th=0, n_sp=146, mass_per_sec=5.845, model_smyth_v_b = 2500)      #585
+        #self.species2 = Species("O2", n_th=0, n_sp=358, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435
+        #self.species3 = Species("H2", n_th=0, n_sp=177, mass_per_sec=6.69, model_smyth_v_b = 1200)      #669
+        #self.species4 = Species("H", n_th=0, n_sp=0)
+        #self.species5 = Species("O+", n_th=0, n_sp=0)
+
+        self.species1 = Species("NaCl", description="NaCl-30km/s-1min", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, lifetime=60)
+        self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
+        self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
+        self.species4 = Species("NaCl", description="NaCl-15km/s-5d", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=15000, duplicate=3)
+        self.species5 = Species("NaCl", description="NaCl-40km/s-5d", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=40000, duplicate=4)
+        self.species6 = Species("NaCl", description="NaCl-30km/s-5d-RAD", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=5, beta=0.1)
+        self.species7 = Species("NaCl", description="NaCl-30km/s-5d-LRAD", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=6, beta=1)
+
 
         self.num_species = len(locals()['self'].__dict__)
 
@@ -378,7 +602,7 @@ class Parameters:
             "model_wurz_ejected_mass_in_amu": 23,
 
             "model_smyth_v_b": 4000,
-            "model_smyth_v_M": 60000,
+            "model_smyth_v_M": 98000,
             "model_smyth_a": 7/3      # Speed distribution shape parameter
         }
 
@@ -411,10 +635,16 @@ class Parameters:
     # Longitude and latitude distributions may be changed inside the 'create_particle' function.
 
 
-def add_major_objects(sim, hash, primary_hash = "planet"):
-    sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles[primary_hash], hash=hash)
-    sim.particles[hash].r = 1560800
-    sim.N_active += 1
+def add_major_objects(sim, primary_hash = "planet"):
+    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="io")
+    #sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles[primary_hash], hash="europa")
+    sim.add(m=1.4819e23, a=1.07e9, e=0.001, inc=0.0031, primary=sim.particles[primary_hash], hash="ganymede")
+    sim.add(m=1.0759e23, a=1.88e9, e=0.007, inc=0.0033, primary=sim.particles[primary_hash], hash="callisto")
+    sim.particles["io"].r = 1821600
+    #sim.particles["europa"].r = 1560800
+    sim.particles["ganymede"].r = 2631200
+    sim.particles["callisto"].r = 2410300
+    sim.N_active += 3
 
 
 def init3(additional_majors = False, moon = True):
@@ -426,6 +656,7 @@ def init3(additional_majors = False, moon = True):
     sim = rebound.Simulation()
     # sim.automateSimulationArchive("archive.bin", walltime=60)
     sim.integrator = "whfast" # Fast and unbiased symplectic Wisdom-Holman integrator. Suitability not yet assessed.
+    sim.ri_whfast.kernel = "lazy"
     sim.collision = "direct" # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
     sim.collision_resolve = "merge"
 
@@ -472,7 +703,7 @@ def init3(additional_majors = False, moon = True):
         sim.N_active = 2
 
     if additional_majors:
-        add_major_objects(sim, hash="europa")
+        add_major_objects(sim)
 
     sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
