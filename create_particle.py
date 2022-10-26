@@ -7,7 +7,6 @@ from init import Parameters
 
 Params = Parameters()
 therm_Params = Params.therm_spec
-sput_Params = Params.sput_spec_default
 moon_exists = Params.int_spec["moon"]
 
 # Thermal evaporation parameters
