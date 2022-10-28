@@ -44,11 +44,11 @@ Params = Parameters()
 
 # Plotting
 # ---------------------
-save = True
-save_archive = True
-plot_freq = 4  # Plot at each *plot_freq* advance
+save = False
+save_archive = False
+plot_freq = 2  # Plot at each *plot_freq* advance
 
-showfig = False
+showfig = True
 showhist = False
 showvel = False
 show_column_density = False
@@ -128,8 +128,9 @@ if __name__ == "__main__":
         else:
             path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_planetsource"
         os.makedirs(f'output/{path}/plots')
-        with open(f"output/{path}/Parameters.txt", "w") as text_file:
-            text_file.write(f"{Params.__str__()}")
+        os.replace('Parameters.txt', f'output/{path}/Parameters.txt')
+        #with open(f"output/{path}/Parameters.txt", "w") as text_file:
+        #    text_file.write(f"{Params.__str__()}")
         if save_archive:
             shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/output/{path}")
             shutil.copy2(f"{os.getcwd()}/hash_library.json", f"{os.getcwd()}/output/{path}")
