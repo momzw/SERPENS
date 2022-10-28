@@ -1,6 +1,10 @@
 /plots/
 /output/
 /particles.txt
+/Parameters.txt
 /archive.bin
 *.gif
 /hash_library.json
+*.mp4
+*.xlsx
+/temporary.txt

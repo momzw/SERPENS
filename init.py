@@ -1,6 +1,7 @@
 import rebound
 import reboundx
 import numpy as np
+import os
 
 class Network:
     def __init__(self, id):
@@ -557,10 +558,10 @@ class Parameters:
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
         "moon": False,
-        "sim_advance": 1 / 16,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 5 * 16,             # Number of times the simulation advances.
+        "sim_advance": 1 / 40,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+        "num_sim_advances": 5 * 40,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
-        "gen_max": 32,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
+        "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
         "r_max": 4,                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
         "random_walk": False
     }
@@ -573,19 +574,27 @@ class Parameters:
     }
 
     def __init__(self):
-        #self.species1 = Species("O", n_th=0, n_sp=146, mass_per_sec=5.845, model_smyth_v_b = 2500)      #585
-        #self.species2 = Species("O2", n_th=0, n_sp=358, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435
-        #self.species3 = Species("H2", n_th=0, n_sp=177, mass_per_sec=6.69, model_smyth_v_b = 1200)      #669
+        #elf.species1 = Species("O", n_th=0, n_sp=146, mass_per_sec=5.845, model_smyth_v_b = 2500, lifetime=2.26*86400)      #585
+        #elf.species2 = Species("O2", n_th=0, n_sp=358, mass_per_sec=14.35, model_smyth_v_b = 4700, lifetime=3.3*86400)    #1435
+        #elf.species3 = Species("H2", n_th=0, n_sp=177, mass_per_sec=6.69, model_smyth_v_b = 1200, lifetime=7*86400)      #669
         #self.species4 = Species("H", n_th=0, n_sp=0)
         #self.species5 = Species("O+", n_th=0, n_sp=0)
 
-        self.species1 = Species("NaCl", description="NaCl-30km/s-1min", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, lifetime=60)
-        self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
-        self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
-        self.species4 = Species("NaCl", description="NaCl-15km/s-5d", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=15000, duplicate=3)
-        self.species5 = Species("NaCl", description="NaCl-40km/s-5d", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=40000, duplicate=4)
-        self.species6 = Species("NaCl", description="NaCl-30km/s-5d-RAD", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=5, beta=0.1)
-        self.species7 = Species("NaCl", description="NaCl-30km/s-5d-LRAD", n_th=0, n_sp=400, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=6, beta=1)
+        self.species1 = Species("NaCl", description="NaCl-30km/s-20d", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=30000, lifetime=20*86400)
+        self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
+        self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
+        self.species4 = Species("NaCl", description="NaCl-10km/s-5d", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=10000, duplicate=3)
+        self.species5 = Species("NaCl", description="NaCl-50km/s-5d", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=50000, duplicate=4)
+        self.species6 = Species("NaCl", description="NaCl-30km/s-5d-RAD", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=5, beta=0.1)
+        self.species7 = Species("NaCl", description="NaCl-30km/s-5d-LRAD", n_th=0, n_sp=500, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=6, beta=1)
+
+        #self.species1 = Species("O2", n_th=0, n_sp=700, mass_per_sec=14.35, model_smyth_v_b=4700)
+        #self.species2 = Species("O2", description="O2-100d", n_th=0, n_sp=700, mass_per_sec=14.35, model_smyth_v_b=4700, lifetime=100*86400, duplicate=1)
+        #self.species3 = Species("O2", description="O2-50d", n_th=0, n_sp=400, mass_per_sec=14.35, model_smyth_v_b=4700, lifetime=50*86400, duplicate=2)
+        #self.species4 = Species("O2", description="O2-20d", n_th=0, n_sp=400, mass_per_sec=14.35, model_smyth_v_b=4700, lifetime=20*86400, duplicate=3)
+        #self.species5 = Species("O2", description="O2-10d", n_th=0, n_sp=400, mass_per_sec=14.35, model_smyth_v_b=4700, lifetime=10*86400, duplicate=4)
+        #self.species6 = Species("O2", description="O2-3.d", n_th=0, n_sp=400, mass_per_sec=14.35, model_smyth_v_b=4700, lifetime=3.3*86400,duplicate=5)
+
 
 
         self.num_species = len(locals()['self'].__dict__)
@@ -716,6 +725,11 @@ def init3(additional_majors = False, moon = True):
     # => sim.ri_whfast.safe_mode = 0
 
     sim.simulationarchive_snapshot("archive.bin", deletefile=True)
+
+    Params = Parameters()
+    with open(f"Parameters.txt", "w") as text_file:
+        text_file.write(f"{Params.__str__()}")
+
     print("======================================")
     print("Initialized new simulation instance.")
     print("======================================")

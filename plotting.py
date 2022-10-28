@@ -91,7 +91,7 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
         for i in range(sim.N_active - 3):
             major_obj = plt.Circle((ps[3 + i].x, ps[3 + i].y), ps[3 + i].r, alpha=0.7)
             ax.add_patch(major_obj)
-            ax.scatter(ps[3 + i].x, ps[3 + i].y, s=10, fc='r', zorder=2)
+            ax.scatter(ps[3 + i].x, ps[3 + i].y, s=10, fc='g', zorder=2)
             o_add = np.array(ps[3 + i].sample_orbit(primary=ps["planet"]))
             lc_add = fading_line(o_add[:, 0], o_add[:, 1], alpha=0.5)
             ax.add_collection(lc_add)
