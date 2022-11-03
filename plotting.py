@@ -54,8 +54,8 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
 
         xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, 13)
         ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, 13)
-        xlabels = np.around((np.array(xlocs) - ps_planet_coord1) / ps["planet"].r, 2)
-        ylabels = np.around((np.array(ylocs) - ps_planet_coord2) / ps["planet"].r, 2)
+        xlabels = np.around((np.array(xlocs) - ps_planet_coord1) / ps["planet"].r, 1)
+        ylabels = np.around((np.array(ylocs) - ps_planet_coord2) / ps["planet"].r, 1)
 
         ax.set_xticks(xlocs)
         ax.set_xticklabels([str(x) for x in xlabels])
@@ -158,12 +158,13 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
             norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin = 0, vmax = 0) # Not needed if first sim_instance is already with particles.
             cmap = matplotlib.cm.afmhot
             cmap.set_bad('k', 1.)
-            im = ax.imshow(H, interpolation='spline16', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
+            im = ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
 
             if not np.max(H) == 0:
                 # Colorbar
                 divider = make_axes_locatable(ax)
                 cax = divider.append_axes('right', size='5%', pad=0.05)
+                cax.tick_params(axis='both', which='major', labelsize=8)
                 fig.colorbar(im, cax=cax, orientation='vertical')
 
         else:

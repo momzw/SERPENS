@@ -43,7 +43,7 @@ def run_simulation():
         set_pointers(sim)
 
         deep_copies = []
-        for proc in range(mp.cpu_count()):
+        for _ in range(mp.cpu_count()):
             dc = sim.copy()
             set_pointers(dc)
             deep_copies.append(dc)
@@ -124,12 +124,9 @@ def run_simulation():
 
                     print(f"\t Adding sputtered {species.name}---{species.description}:")
 
-                    def mp_addsput(num):
+                    def mp_addsput(_):
                         p = create_particle(species, "sputter")
                         return p.xyz + p.vxyz
-
-                    #with mp.Pool() as p:
-                    #    r = list(tqdm(p.imap(mp_addsput, range(species.n_sp)), total=species.n_sp))
 
                     with mp.Pool() as p:
                         r = p.map(mp_addsput, range(species.n_sp))
@@ -142,20 +139,6 @@ def run_simulation():
                         sim.particles[identifier].params["beta"] = species.beta
 
                         hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
-
-
-                    #pymp.config.nested = True
-                    ##print(f"Adding {species.name}...")
-                    #with pymp.Parallel(4) as p:
-                    #   for j2 in p.range(species.n_sp):
-                    #        p = create_particle(species, "sputter")
-                    #        identifier = f"{species.id}_{i}_{j2 + species.n_th}"
-                    #        p.hash = identifier
-                    #        sim.add(p)
-                    #        hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
-                    #
-                    #        if Params.int_spec["random_walk"]:
-                    #            sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
 
                     #for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.name} particles via sputtering"):
                     #    p = create_particle(species, "sputter")
@@ -187,9 +170,9 @@ def run_simulation():
             species = Params.get_species_by_id(species_id)
 
             if moon_exists:
-                dt = sim.t - particle_iter * Params.int_spec["sim_advance"] * moon_P
+                dt = deep_copies[0].t - int(particle_iter * Params.int_spec["sim_advance"] * moon_P)
             else:
-                dt = sim.t - particle_iter * Params.int_spec["sim_advance"] * planet_P
+                dt = deep_copies[0].t - int(particle_iter * Params.int_spec["sim_advance"] * planet_P)
 
             if species.duplicate is not None:
                 species_id = int(str(species_id)[0])
@@ -202,10 +185,6 @@ def run_simulation():
                 particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(sim.particles[0].xyz))
             if particle_distance > boundary:
                 toberemoved.append(particle.hash)
-                #sim.remove(hash=particle.hash)
-                #del hash_dict[f"{particle.hash.value}"]
-                num_lost += 1
-                #print(f"Particle {particle.hash.value} lost")
                 continue
 
             # Remove if chemical reaction happens:
@@ -230,9 +209,6 @@ def run_simulation():
 
                                 if to_species == None:
                                     toberemoved.append(particle.hash)
-                                    # sim.remove(hash=hash_dict[f"{particle.hash.value}"]["identifier"])
-                                    # del hash_dict[f"{particle.hash.value}"]
-                                    num_lost += 1
                                     continue
 
                                 # Change particle velocity if velocity delta has been implemented:
@@ -261,9 +237,6 @@ def run_simulation():
 
                             else:
                                 toberemoved.append(particle.hash)
-                                #sim.remove(hash=hash_dict[f"{particle.hash.value}"]["identifier"])
-                                #del hash_dict[f"{particle.hash.value}"]
-                                num_lost += 1
                                 break
                         break
             else:
@@ -271,16 +244,101 @@ def run_simulation():
                 prob_to_exist = np.exp(-dt / tau)
                 if random.random() > prob_to_exist:
                     toberemoved.append(particle.hash)
-                    del hash_dict[f"{particle.hash.value}"]
-                    num_lost += 1
 
         for r in range(len(toberemoved)):
-            sim.remove(hash=toberemoved[r])
-            #del hash_dict[f"{toberemoved[r].value}"]
+            try:
+                sim.remove(hash=toberemoved[r])
+                #del hash_dict[f"{toberemoved[r].value}"]           WHY DOESN'T THIS WORK????
+                num_lost += 1
+            except:
+                pass
 
         print(f"{num_lost} particles lost.")
         print(f"{num_converted} particles were converted.")
         print("------------------------------------------------")
+
+
+        # WIP PARTICLE INTERPOLATION
+        # ================================
+
+        if not i < 2 and Params.int_spec["particle_interpolation"]:
+            print("Particle interpolation...")
+            counter = 0
+            for iter in range(2, 3):
+                lfkey = "identifier"
+                new_part_idf = [val[lfkey] for key, val in hash_dict.items() if lfkey in val and val["i"] == iter - 1]
+                adv_part_idf = [val[lfkey] for key, val in hash_dict.items() if lfkey in val and val["i"] == iter - 2]
+
+                particle_hashes = []
+                new_part = []
+                adv_part = []
+                new_part_species = []
+                adv_part_species = []
+                for x in range(sim.N_active, sim.N):
+                    particle_hashes.append(sim.particles[x].hash.value)
+                for idf in adv_part_idf:
+                    if rebound.hash(idf).value in particle_hashes:
+                        adv_part.append(sim.particles[idf])
+                        adv_part_species.append(idf[0])
+                for idf in new_part_idf:
+                    if rebound.hash(idf).value in particle_hashes:
+                        new_part.append(sim.particles[idf])
+                        new_part_species.append(idf[0])
+
+                #new_part = [sim.particles[idf] for idf in new_part_idf if rebound.hash(idf).value in particle_hashes]
+                #adv_part = [sim.particles[idf] for idf in adv_part_idf if rebound.hash(idf).value in particle_hashes]
+                #
+                #new_part_species = [idf[0] for idf in new_part_idf if rebound.hash(idf).value in particle_hashes]
+                #adv_part_species = [idf[0] for idf in adv_part_idf if rebound.hash(idf).value in particle_hashes]
+
+                species_ids = np.unique(adv_part_species)
+
+                for id in species_ids:
+                    new_part_by_species = []
+                    adv_part_by_species = []
+                    for ind, spec in enumerate(new_part_species):
+                        if spec == id:
+                            new_part_by_species.append(new_part[ind])
+                    for ind, spec in enumerate(adv_part_species):
+                        if spec == id:
+                            adv_part_by_species.append(adv_part[ind])
+
+                    #new_part_by_species = [part for ind, part in enumerate(new_part) if new_part_species[ind] == id]
+                    #adv_part_by_species = [part for ind, part in enumerate(adv_part) if adv_part_species[ind] == id]
+
+                    inter_num = (len(new_part_by_species) + len(adv_part_by_species)) / 2
+
+                    for k in range(int(inter_num)):
+                        # REBOUND Operators bugged...
+                        # Manually combining positions and velocities for new particles.
+                        choice_new = random.choice(range(len(new_part_by_species)))
+                        choice_adv = random.choice(range(len(adv_part_by_species)))
+                        rand_new_xyz = np.asarray(new_part_by_species[choice_new].xyz)
+                        rand_new_vxyz = np.asarray(new_part_by_species[choice_new].vxyz)
+                        rand_adv_xyz = np.asarray(adv_part_by_species[choice_adv].xyz)
+                        rand_adv_vxyz = np.asarray(adv_part_by_species[choice_adv].vxyz)
+                        inter_xyz = (rand_new_xyz + rand_adv_xyz) / 2
+                        inter_vxyz = (rand_new_vxyz + rand_adv_vxyz) / 2
+
+                        inter_part = rebound.Particle(x=inter_xyz[0],y=inter_xyz[1],z=inter_xyz[2],vx=inter_vxyz[0], vy=inter_vxyz[1], vz=inter_vxyz[2])
+
+                        if np.linalg.norm(np.asarray(inter_part.xyz) - np.asarray(sim.particles[1].xyz)) < np.linalg.norm(rand_new_xyz - np.asarray(sim.particles[1].xyz)):
+                            continue
+
+                        identifier = f"{int(id)}_{iter / 2}_{k}"
+                        inter_part.hash = identifier
+
+                        sim.add(inter_part)
+
+                        # sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
+                        sim.particles[identifier].params["beta"] = Params.get_species_by_id(int(id)).beta
+
+                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier, "i": iter / 2,
+                                                                                "id": int(id)}
+                        counter += 1
+
+            print(f"{counter} particles added through interpolation")
+
 
         # SAVE HASH_DICT
         # ==============
@@ -316,21 +374,23 @@ def run_simulation():
 
         print("#######################################################")
         print(f"Starting advance {i} ... ")
-
         start_time = time.time()
         cpus = multiprocessing.cpu_count()
 
         def advance_sim(dc_index):
             adv = moon_P * Params.int_spec["sim_advance"] if moon_exists else planet_P * Params.int_spec["sim_advance"]
+            dc = deep_copies[dc_index]
+            dc.dt = adv/10
             dc.integrate(int(adv*(i+1)))
             dc.simulationarchive_snapshot(f"proc/archiveProcess{dc_index}.bin", deletefile=True)
 
-        lst = range(sim_N_before, sim.N)
+        lst = list(range(sim_N_before, sim.N))
         split = np.array_split(lst, cpus)
         processes = []
         for proc in range(cpus):
             dc = deep_copies[proc]
-            dc.add([sim.particles[i] for i in np.ndarray.tolist(split[proc])])
+            for x in split[proc]:
+                dc.add(sim.particles[int(x)])
             p = multiprocessing.Process(target=advance_sim, args=(proc,))
             p.start()
             processes.append(p)
@@ -346,11 +406,13 @@ def run_simulation():
         del sim.particles
 
         print("\t Transfering particle data...")
-        sim.add([deep_copies[0].particles[i] for i in range(deep_copies[0].N_active)])
+        for act in range(deep_copies[0].N_active):
+            sim.add(deep_copies[0].particles[act])
         sim.N_active = deep_copies[0].N_active
         for proc in range(len(deep_copies)):
             dc = deep_copies[proc]
-            sim.add([dc.particles[i] for i in range(dc.N_active, dc.N)])
+            for particle in dc.particles[dc.N_active:]:
+                sim.add(particle)
 
         sim.simulationarchive_snapshot("archive.bin")
 
@@ -362,8 +424,10 @@ def run_simulation():
 
         # SAVE HASH
         # ==============
+        print("Saving hashes...")
         with open("hash_library.json", 'w') as f:
             json.dump(hash_supdict, f)
+        print("\t ... done!")
 
         # Stop if steady state
         # --------------------

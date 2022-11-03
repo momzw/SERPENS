@@ -3,9 +3,9 @@
 #SBATCH --job-name="smc"
 #SBATCH --mail-type=end,fail
 #SBATCH --mail-user="moritz.meyerzuwestram@unibe.ch"
-#SBATCH --cpus-per-task=25
+#SBATCH --cpus-per-task=20
 #SBATCH --time=08:00:00
-#SBATCH --mem-per-cpu=6G
+#SBATCH --mem-per-cpu=3G
 
 module load Python
 module load Workspace_Home
