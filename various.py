@@ -85,8 +85,6 @@ def orbit_sol():
                         all_phases.append(((2 * np.pi / T[i] * ti + 0.67 * 2 * np.pi) % (2 * np.pi)) / (2 * np.pi))
                     coll_phases.append(all_phases)
 
-
-
     pericenters = np.asarray([f"w = {np.round(sol_w[j],3)}" for j in range(np.size(sol_w))])
     header = ["date", "BJD", "delta_t [s]"]
     for j in range(np.size(sol_a)):
