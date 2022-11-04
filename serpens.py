@@ -47,11 +47,11 @@ Params = Parameters()
 save = False
 save_archive = False
 save_particles = False
-plot_freq = 3  # Plot at each *plot_freq* advance
+plot_freq = 15  # Plot at each *plot_freq* advance
 
 showfig = True
 showhist = False
-showvel = False
+showvel = True
 show_column_density = False
 """
     ===============================================================================================================
@@ -143,8 +143,6 @@ def getHistogram(sim, xdata, ydata, bins, xboundary="default", yboundary="defaul
                 [-yboundary, yboundary]], bins=bins)
             H = H.T
             return H, xedges, yedges
-
-
 
 
 if __name__ == "__main__":
@@ -438,7 +436,7 @@ if __name__ == "__main__":
                 if not i == 0:
 
                     subplot_rows = Params.num_species
-                    fig, axs = plt.subplots(subplot_rows, 1, figsize=(25, 12))
+                    fig, axs = plt.subplots(subplot_rows, 1, figsize=(15, 10))
                     fig.suptitle(r"Particle density in 1/cm$^2$", size='xx-large')
 
                     def maxwell_func(x):
@@ -449,6 +447,7 @@ if __name__ == "__main__":
                               * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
                               * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
                         return f_v
+
                     def sput_func_int(x, a, v_b, v_M):
                         integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
                                     3 / 2) * v_b / v_M / (
@@ -476,7 +475,7 @@ if __name__ == "__main__":
                         a = species.sput_spec['model_smyth_a']
                         v_M = species.sput_spec['model_smyth_v_M']
                         v_b = species.sput_spec['model_smyth_v_b']
-                        x_vals = np.linspace(0, v_M, 10000)
+                        x_vals = np.linspace(0, np.sqrt(v_M**2 - v_b**2), 10000)
 
 
                         upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
@@ -484,7 +483,7 @@ if __name__ == "__main__":
                         f_pdf = normalization * sput_func(x_vals, a, v_b, v_M)
 
                         ax_species = axs[k] if Params.num_species > 1 else axs
-                        ax_species.hist(speeds[sim_instance.N_active:], 100, range=(0, v_M), density=True)
+                        ax_species.hist(speeds[sim_instance.N_active:], 100, range=(0, np.sqrt(v_M**2 - v_b**2)), density=True)
                         ax_species.plot(x_vals, f_pdf, c='r', label='Smyth')
                         ax_species.plot(x_vals, maxwell_func(x_vals), c="b", label="Maxwell")
 
@@ -505,7 +504,6 @@ if __name__ == "__main__":
                     plt.close()
                 else:
                     pass
-
 
             if save_particles:
                 with open(f"output/{path}/particle_pos.txt", "w") as text_file:
