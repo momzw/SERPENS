@@ -3,6 +3,8 @@ import numpy as np
 import warnings
 from init import Parameters
 
+import time
+
 # ====================================================================================================================================================================
 
 Params = Parameters()
@@ -19,7 +21,7 @@ spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
 
 
 
-def random_pos(sim, lat_dist, long_dist, **kwargs):
+def random_pos(sim, lat_dist, long_dist, num = 1, **kwargs):
     """
     This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
     :param lat_dist: str. Valid are "truncnorm" and "uniform".
@@ -31,6 +33,8 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
     # Coordinates:
     # Inertial system Cartesian coordinates. x-axis points from star away, y in direction of orbit.
     valid_dist = {"truncnorm": 0, "uniform": 1}
+    latitudes = np.zeros(num)
+    longitudes = np.zeros(num)
     if lat_dist in valid_dist:
         if valid_dist[lat_dist] == 0:
             from scipy.stats import truncnorm
@@ -39,11 +43,13 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
             center = kwargs.get("loc_lat", 0)
             std = kwargs.get("std_lat", 1)
             a, b = (lower - center) / std, (upper - center) / std
-            latitude = truncnorm.rvs(a, b, loc=center, size=1)[0]
+            for i in range(num):
+                latitudes[i] = truncnorm.rvs(a, b, loc=center, size=1)[0]
         else:
             lower = kwargs.get("a_lat", -np.pi / 2)
             upper = kwargs.get("b_lat", np.pi / 2)
-            latitude = np.random.default_rng().uniform(lower, upper)
+            for i in range(num):
+                latitudes[i] = np.random.default_rng().uniform(lower, upper)
     else:
         raise ValueError("Invalid latitude distribution encountered in positional calculation: " % lat_dist)
 
@@ -55,29 +61,31 @@ def random_pos(sim, lat_dist, long_dist, **kwargs):
             center = kwargs.get("loc_long", 0)
             std = kwargs.get("std_long", 1)
             a, b = (lower - center) / std, (upper - center) / std
-            longitude = truncnorm.rvs(a, b, loc=center, size=1)[0]
+            for i in range(num):
+                longitudes[i] = truncnorm.rvs(a, b, loc=center, size=1)[0]
         else:
             lower = kwargs.get("a_long", -np.pi)
             upper = kwargs.get("b_long", np.pi)
-            longitude = np.random.default_rng().uniform(lower, upper)
+            for i in range(num):
+                longitudes[i] = np.random.default_rng().uniform(lower, upper)
     else:
         raise ValueError("Invalid longitude distribution encountered in positional calculation: " % long_dist)
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
     if moon_exists:
-        x = sim.particles["moon"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
-        y = sim.particles["moon"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
-        z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitude)
+        x = sim.particles["moon"].r * np.cos(longitudes) * np.sin(np.pi / 2 - latitudes)
+        y = sim.particles["moon"].r * np.sin(longitudes) * np.sin(np.pi / 2 - latitudes)
+        z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitudes)
 
     else:
-        x = sim.particles["planet"].r * np.cos(longitude) * np.sin(np.pi / 2 - latitude)
-        y = sim.particles["planet"].r * np.sin(longitude) * np.sin(np.pi / 2 - latitude)
-        z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitude)
+        x = sim.particles["planet"].r * np.cos(longitudes) * np.sin(np.pi / 2 - latitudes)
+        y = sim.particles["planet"].r * np.sin(longitudes) * np.sin(np.pi / 2 - latitudes)
+        z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitudes)
 
-    pos = np.array([x, y, z])
+    pos = np.array([x, y, z]).T
 
-    return pos, latitude, longitude
+    return pos, latitudes, longitudes
 
 
 def random_temp(sim, temp_min, temp_max, latitude, longitude):
@@ -99,8 +107,7 @@ def random_temp(sim, temp_min, temp_max, latitude, longitude):
         # Need to change temperature-longitude dependence.
         # (refer Wurz, P., 2002, "Monte-Carlo simulation of Mercury's exosphere"; -np.pi / 2 < longitude_wrt_sun < np.pi / 2)
         if np.pi / 2 < longitude_wrt_sun < 3 * np.pi / 2:
-            temp = temp_min + (temp_max - temp_min) * (np.abs(np.cos(longitude_wrt_sun)) * np.cos(latitude)) ** (
-                    1 / 4)
+            temp = temp_min + (temp_max - temp_min) * (np.abs(np.cos(longitude_wrt_sun)) * np.cos(latitude)) ** (1 / 4)
         else:
             temp = temp_min
     else:
@@ -125,7 +132,7 @@ def random_vel_thermal(species, temp):
     return vel_Na
 
 
-def random_vel_sputter(species):
+def random_vel_sputter(species, num = 1):
     """
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
@@ -134,6 +141,8 @@ def random_vel_sputter(species):
 
     sput_model = species.sput_spec["sput_model"]
 
+    # ___________________________________________________
+
     # MAXWELLIAN MODEL
     def model_maxwell():
         from scipy.stats import maxwell
@@ -141,17 +150,19 @@ def random_vel_sputter(species):
 
         scale = model_maxwell_max / np.sqrt(2)
 
-        maxwell_ran_speed = maxwell.rvs(scale=scale)
+        ran_vel_sputter_maxwell = np.zeros((num, 3))
+        for i in range(num):
+            maxwell_ran_speed = maxwell.rvs(scale=scale)
 
-        ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
-        ran_elev = np.random.default_rng().uniform(0, np.pi / 2)
+            ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
+            ran_elev = np.random.default_rng().uniform(0, np.pi / 2)
 
-        v1 = np.cos(ran_azi) * np.sin(ran_elev)
-        v2 = np.sin(ran_azi) * np.sin(ran_elev)
-        v3 = np.cos(ran_elev)
+            v1 = np.cos(ran_azi) * np.sin(ran_elev)
+            v2 = np.sin(ran_azi) * np.sin(ran_elev)
+            v3 = np.cos(ran_elev)
 
-        ran_vel_sputter_maxwell = maxwell_ran_speed * np.array(
-            [v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
+            ran_vel_sputter_maxwell[i] = maxwell_ran_speed * np.array(
+                [v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
         return ran_vel_sputter_maxwell
 
     # MODEL 1
@@ -161,6 +172,8 @@ def random_vel_sputter(species):
         model_wurz_binding_en = species.sput_spec["model_wurz_binding_en"]
         model_wurz_inc_mass_in_amu = species.sput_spec["model_wurz_inc_mass_in_amu"]
         model_wurz_ejected_mass_in_amu = species.sput_spec["model_wurz_ejected_mass_in_amu"]
+        u = 1.660539e-27
+        m = model_wurz_ejected_mass_in_amu * u
 
         class _sputter_gen(rv_continuous):
             def _pdf(self, x, E_inc, E_bin):
@@ -180,66 +193,100 @@ def random_vel_sputter(species):
         elev_dist = _elevation_gen(a=0, b=np.pi / 2)
         energy_dist = _sputter_gen(a=0, b=E_i, shapes='E_inc, E_bin')
 
-        ran_energy = energy_dist.rvs(E_i, E_b)
-        u = 1.660539e-27
-        m = model_wurz_ejected_mass_in_amu * u
-        ran_speed = np.sqrt(2 * ran_energy / m)
+        ran_vel_sputter_wurz = np.zero((num,3))
+        for i in range(num):
+            ran_energy = energy_dist.rvs(E_i, E_b)
 
-        ran_elev = elev_dist.rvs()
-        ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
+            ran_speed = np.sqrt(2 * ran_energy / m)
+            ran_elev = elev_dist.rvs()
+            ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
 
-        v1 = np.cos(ran_azi) * np.sin(ran_elev)
-        v2 = np.sin(ran_azi) * np.sin(ran_elev)
-        v3 = np.cos(ran_elev)
+            v1 = np.cos(ran_azi) * np.sin(ran_elev)
+            v2 = np.sin(ran_azi) * np.sin(ran_elev)
+            v3 = np.cos(ran_elev)
 
-        ran_vel_sputter_model1 = ran_speed * np.array([v3, v2, -v1]) # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
-        return ran_vel_sputter_model1
+            ran_vel_sputter_wurz[i] = ran_speed * np.array([v3, v2, -v1]) # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
+        return ran_vel_sputter_wurz
 
     # MODEL 2
     def model_smyth():
 
-        model_smyth_v_b = species.sput_spec["model_smyth_v_b"]
-        model_smyth_v_M = species.sput_spec["model_smyth_v_M"]
-        model_smyth_a = species.sput_spec["model_smyth_a"]
+        v_b = species.sput_spec["model_smyth_v_b"]
+        v_M = species.sput_spec["model_smyth_v_M"]
+        a = species.sput_spec["model_smyth_a"]
 
-        class sputter_gen2(rv_continuous):
-            def _pdf(self, x, alpha, v_b, v_M):
-                def model2func(x, alpha, v_b, v_M):
+        #class sputter_gen2(rv_continuous):
+        #    def _pdf(self, x, alpha, v_b, v_M):
+        #        def model2func(x, alpha, v_b, v_M):
+        #            f_v = 1 / v_b * (x / v_b) ** 3 \
+        #                  * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** alpha \
+        #                  * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
+        #            return f_v
+        #
+        #        def model2func_int(x, alpha, v_b, v_M):
+        #
+        #            integral_bracket = (1 + x**2)**(5/2) * v_b/v_M / (2*alpha-5) - (1 + x**2)**(3/2) * v_b/v_M / (2*alpha-3) - x**4 / (2*(alpha-2)) - alpha*x**2 / (2*(alpha-2)*(alpha-1)) - 1 / (2*(alpha-2)*(alpha-1))
+        #
+        #            f_v_integrated = integral_bracket * (1+x**2)**(-alpha)
+        #
+        #            return f_v_integrated
+        #
+        #        #normalization = 1 / (model2func_int(v_M, a, v_b, v_M) - model2func_int(v_b, a, v_b, v_M))
+        #        upper_bound = np.sqrt((v_M/v_b)**2 - 1)
+        #        normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
+        #        f_pdf = normalization * model2func(x, a, v_b, v_M)
+        #        return f_pdf
+        #
+        #model2_vel_dist = sputter_gen2(a=0.0, b=np.sqrt(v_M**2 - v_b**2))
+        #model2_ran_speed = model2_vel_dist.rvs(alpha=a, v_b=v_b, v_M=v_M)
+
+        def rejection_method():
+            from scipy.optimize import fmin
+
+            def phi_neg(x):
+
+                def phi(x):
                     f_v = 1 / v_b * (x / v_b) ** 3 \
-                          * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** alpha \
+                          * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
                           * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
                     return f_v
 
-                def model2func_int(x, alpha, v_b, v_M):
+                def phi_int(x):
+                    integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
+                                3 / 2) * v_b / v_M / (2 * a - 3) - x ** 4 / (2 * (a - 2)) - a * x ** 2 / (
+                                                   2 * (a - 2) * (a - 1)) - 1 / (2 * (a - 2) * (a - 1))
 
-                    integral_bracket = (1 + x**2)**(5/2) * v_b/v_M / (2*alpha-5) - (1 + x**2)**(3/2) * v_b/v_M / (2*alpha-3) - x**4 / (2*(alpha-2)) - alpha*x**2 / (2*(alpha-2)*(alpha-1)) - 1 / (2*(alpha-2)*(alpha-1))
-
-                    f_v_integrated = integral_bracket * (1+x**2)**(-alpha)
-
+                    f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
                     return f_v_integrated
 
-                #normalization = 1 / (model2func_int(v_M, a, v_b, v_M) - model2func_int(v_b, a, v_b, v_M))
-                upper_bound = np.sqrt((v_M/v_b)**2 - 1)
-                normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
-                f_pdf = normalization * model2func(x, a, v_b, v_M)
-                return f_pdf
+                upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
+                normalization = 1 / (phi_int(upper_bound) - phi_int(0))
+                f_pdf = normalization * phi(x)
+                return -f_pdf
 
-        v_b = model_smyth_v_b
-        v_M = model_smyth_v_M
-        a = model_smyth_a
-        model2_vel_dist = sputter_gen2(a=0.0, b=v_M)
-        model2_ran_speed = model2_vel_dist.rvs(alpha=a, v_b=v_b, v_M=v_M)
+            vmax = fmin(phi_neg, v_b, full_output=True, disp=False)
+            height = -vmax[1]
 
-        ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
-        ran_elev = np.random.default_rng().uniform(0, np.pi/2)
+            v_rv = np.zeros((num,3))
+            for i in range(num):
+                while True:
+                    x_rv = np.random.uniform(0, np.sqrt(v_M**2 - v_b**2))
+                    y_rv = np.random.uniform(0, height)
+                    if y_rv < -phi_neg(x_rv):
+                        break
 
-        v1 = np.cos(ran_azi) * np.sin(ran_elev)
-        v2 = np.sin(ran_azi) * np.sin(ran_elev)
-        v3 = np.cos(ran_elev)
+                ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
+                ran_elev = np.random.default_rng().uniform(0, np.pi / 2)
 
-        ran_vel_sputter_model2 = model2_ran_speed * np.array(
-            [v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
-        return ran_vel_sputter_model2
+                v1 = np.cos(ran_azi) * np.sin(ran_elev)
+                v2 = np.sin(ran_azi) * np.sin(ran_elev)
+                v3 = np.cos(ran_elev)
+
+                v_rv[i] = x_rv * np.array([v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
+            return v_rv
+
+        ran_vel_sputter_smyth = rejection_method()
+        return ran_vel_sputter_smyth
 
     # ___________________________________________________
 
@@ -257,7 +304,7 @@ def random_vel_sputter(species):
     return vel
 
 
-def create_particle(species, process, **kwargs):
+def create_particle(species, process, num = 1, **kwargs):
     """
     Generates a REBOUND particle with random velocity at random position from process given by function argument.
     See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
@@ -265,57 +312,65 @@ def create_particle(species, process, **kwargs):
     :param kwargs: kwargs. Parameters forwarded to random generation functions: temp_midnight, temp_noon, E_incoming, E_bind
     :return: p: rebound particle object.
     """
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         sim = rebound.Simulation("archive.bin")
 
     valid_process = {"thermal": 0, "sputter": 1}
-    if process in valid_process:
-        temp_min = kwargs.get("temp_min", source_temp_min)
-        temp_max = kwargs.get("temp_max", source_temp_max)
-        if valid_process[process] == 0:
-            ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
-                                                    b_long=2 * np.pi)
-            ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
-
-            ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)
-
-        else:
-            if moon_exists:
-                angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
-                                              (sim.particles["moon"].x - sim.particles["planet"].x))
-            else:
-                angle_correction = np.arctan2(sim.particles["planet"].y,sim.particles["planet"].x)
-
-            #ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
-            #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
-            #                                        b_long=3 * np.pi / 2 + angle_correction,
-            #                                        loc_long=np.pi / 2 + angle_correction)
-            ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform")
-            ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
-
-            ran_vel_not_rotated_in_place = random_vel_sputter(species)
-    else:
+    if process not in valid_process:
         raise ValueError("Invalid escaping mechanism encountered in particle creation: " % process)
 
-    # Rotation matrix in order to get velocity vector aligned with surface-normal.
-    # Counterclockwise along z-axis (local longitude). Clockwise along y-axis (local latitude).
-    rot_z = np.array([[np.cos(ran_long), -np.sin(ran_long), 0], [np.sin(ran_long), np.cos(ran_long), 0], [0, 0, 1]])
-    rot_y = np.array([[np.cos(ran_lat), 0, -np.sin(ran_lat)], [0, 1, 0], [np.sin(ran_lat), 0, np.cos(ran_lat)]])
-    rot = rot_y @ rot_z
+    temp_min = kwargs.get("temp_min", source_temp_min)
+    temp_max = kwargs.get("temp_max", source_temp_max)
 
-    ran_vel = rot @ ran_vel_not_rotated_in_place
+    out = np.zeros((num, 6), dtype="float64")
 
-    # source position and velocity:
-    if moon_exists:
-        source_x, source_y, source_z = sim.particles["moon"].x, sim.particles["moon"].y, sim.particles["moon"].z
-        source_vx, source_vy, source_vz = sim.particles["moon"].vx, sim.particles["moon"].vy, sim.particles["moon"].vz
+
+    if valid_process[process] == 0:
+        ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
+                                                b_long=2 * np.pi, num = num)
+        ran_temp = np.zeros(num)
+        ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
+
+        ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)
+
     else:
-        source_x, source_y, source_z = sim.particles["planet"].x, sim.particles["planet"].y, sim.particles["planet"].z
-        source_vx, source_vy, source_vz = sim.particles["planet"].vx, sim.particles["planet"].vy, sim.particles["planet"].vz
 
-    p = rebound.Particle()
-    p.x, p.y, p.z = ran_pos[0] + source_x, ran_pos[1] + source_y, ran_pos[2] + source_z
-    p.vx, p.vy, p.vz = ran_vel[0] + source_vx, ran_vel[1] + source_vy, ran_vel[2] + source_vz
+        #if moon_exists:
+        #    angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
+        #                                  (sim.particles["moon"].x - sim.particles["planet"].x))
+        #else:
+        #    angle_correction = np.arctan2(sim.particles["planet"].y,sim.particles["planet"].x)
+        #
+        #ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
+        #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
+        #                                        b_long=3 * np.pi / 2 + angle_correction,
+        #                                        loc_long=np.pi / 2 + angle_correction)
 
-    return p
+        ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform", num = num)
+        #ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
+
+        ran_vel_not_rotated_in_place = random_vel_sputter(species, num = num)
+
+    for part in range(num):
+        # Rotation matrix in order to get velocity vector aligned with surface-normal.
+        # Counterclockwise along z-axis (local longitude). Clockwise along y-axis (local latitude).
+        rot_z = np.array([[np.cos(ran_long[part]), -np.sin(ran_long[part]), 0], [np.sin(ran_long[part]), np.cos(ran_long[part]), 0], [0, 0, 1]])
+        rot_y = np.array([[np.cos(ran_lat[part]), 0, -np.sin(ran_lat)[part]], [0, 1, 0], [np.sin(ran_lat[part]), 0, np.cos(ran_lat[part])]])
+        rot = rot_y @ rot_z
+
+        ran_vel = rot @ ran_vel_not_rotated_in_place[part]
+
+        # source position and velocity:
+        if moon_exists:
+            source_x, source_y, source_z = sim.particles["moon"].x, sim.particles["moon"].y, sim.particles["moon"].z
+            source_vx, source_vy, source_vz = sim.particles["moon"].vx, sim.particles["moon"].vy, sim.particles["moon"].vz
+        else:
+            source_x, source_y, source_z = sim.particles["planet"].x, sim.particles["planet"].y, sim.particles["planet"].z
+            source_vx, source_vy, source_vz = sim.particles["planet"].vx, sim.particles["planet"].vy, sim.particles["planet"].vz
+
+        out[part][:3] = np.array([ran_pos[part][0] + source_x, ran_pos[part][1] + source_y, ran_pos[part][2] + source_z])
+        out[part][3:] = np.array([ran_vel[0] + source_vx, ran_vel[1] + source_vy, ran_vel[2] + source_vz])
+
+    return out

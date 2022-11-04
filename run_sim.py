@@ -12,7 +12,7 @@ import multiprocessing
 from tqdm import tqdm
 
 from create_particle import create_particle
-from init import init3, Parameters, Species
+from init import init3, Parameters
 
 import time
 
@@ -38,7 +38,8 @@ def run_simulation():
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        sim = rebound.Simulation("archive.bin")
+        sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
+        sim = sa[-1]
         #sim.automateSimulationArchive("archive.bin", walltime=120)
         set_pointers(sim)
 
@@ -111,25 +112,32 @@ def run_simulation():
                 if not (species.n_th == 0 or None):
                     for j1 in tqdm(range(species.n_th), desc=f"Adding {species.name} particles thermally"):
 
-                        print("Thermal creation is not up-to-date!")
+                        print("NOT FULLY IMPLEMENTED IN CREATE_PARTICLE")
+
+                        print(f"\t Adding thermal {species.name}---{species.description}:")
 
                         p = create_particle(species, "thermal")
                         identifier = f"{species.id}_{i}_{j1}"
                         p.hash = identifier
                         sim.add(p)
 
+                        # sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
+                        sim.particles[identifier].params["beta"] = species.beta
+
                         hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
 
                 if not (species.n_sp == 0 or None):
 
                     print(f"\t Adding sputtered {species.name}---{species.description}:")
+                    per_create = int(species.n_sp / multiprocessing.cpu_count())
 
                     def mp_addsput(_):
-                        p = create_particle(species, "sputter")
-                        return p.xyz + p.vxyz
+                        p = create_particle(species, "sputter", num=per_create)
+                        return p
 
-                    with mp.Pool() as p:
-                        r = p.map(mp_addsput, range(species.n_sp))
+                    with mp.Pool(multiprocessing.cpu_count()) as p:
+                        r = p.map(mp_addsput, range(multiprocessing.cpu_count()))
+                        r = np.asarray(r).reshape(np.shape(r)[0]*np.shape(r)[1],6)
 
                     for index, coord in enumerate(r):
                         identifier = f"{species.id}_{i}_{index + species.n_th}"
@@ -208,7 +216,6 @@ def run_simulation():
                                 to_species = Params.get_species_by_name(i2)
 
                                 if to_species == None:
-                                    toberemoved.append(particle.hash)
                                     continue
 
                                 # Change particle velocity if velocity delta has been implemented:
@@ -248,10 +255,17 @@ def run_simulation():
         for r in range(len(toberemoved)):
             try:
                 sim.remove(hash=toberemoved[r])
-                #del hash_dict[f"{toberemoved[r].value}"]           WHY DOESN'T THIS WORK????
-                num_lost += 1
             except:
                 pass
+
+            for dc in deep_copies:
+                try:
+                    dc.remove(hash=toberemoved[r])
+                except:
+                    pass
+
+            del hash_dict[f"{toberemoved[r].value}"]
+            num_lost += 1
 
         print(f"{num_lost} particles lost.")
         print(f"{num_converted} particles were converted.")
@@ -285,12 +299,6 @@ def run_simulation():
                         new_part.append(sim.particles[idf])
                         new_part_species.append(idf[0])
 
-                #new_part = [sim.particles[idf] for idf in new_part_idf if rebound.hash(idf).value in particle_hashes]
-                #adv_part = [sim.particles[idf] for idf in adv_part_idf if rebound.hash(idf).value in particle_hashes]
-                #
-                #new_part_species = [idf[0] for idf in new_part_idf if rebound.hash(idf).value in particle_hashes]
-                #adv_part_species = [idf[0] for idf in adv_part_idf if rebound.hash(idf).value in particle_hashes]
-
                 species_ids = np.unique(adv_part_species)
 
                 for id in species_ids:
@@ -302,9 +310,6 @@ def run_simulation():
                     for ind, spec in enumerate(adv_part_species):
                         if spec == id:
                             adv_part_by_species.append(adv_part[ind])
-
-                    #new_part_by_species = [part for ind, part in enumerate(new_part) if new_part_species[ind] == id]
-                    #adv_part_by_species = [part for ind, part in enumerate(adv_part) if adv_part_species[ind] == id]
 
                     inter_num = (len(new_part_by_species) + len(adv_part_by_species)) / 2
 
@@ -381,7 +386,7 @@ def run_simulation():
             adv = moon_P * Params.int_spec["sim_advance"] if moon_exists else planet_P * Params.int_spec["sim_advance"]
             dc = deep_copies[dc_index]
             dc.dt = adv/10
-            dc.integrate(int(adv*(i+1)))
+            dc.integrate(int(adv*(i+1)), exact_finish_time=0)
             dc.simulationarchive_snapshot(f"proc/archiveProcess{dc_index}.bin", deletefile=True)
 
         lst = list(range(sim_N_before, sim.N))
@@ -424,10 +429,23 @@ def run_simulation():
 
         # SAVE HASH
         # ==============
-        print("Saving hashes...")
-        with open("hash_library.json", 'w') as f:
-            json.dump(hash_supdict, f)
-        print("\t ... done!")
+        save_only_at_end = False
+
+        if not save_only_at_end:
+            print("Saving hashes...")
+            start_time = time.time()
+            with open("hash_library.json", 'w') as f:
+                json.dump(hash_supdict, f)
+            print("\t ... done!")
+            print(f"\t (Time needed for saving: {time.time() - start_time})")
+        else:
+            if i == Params.int_spec["num_sim_advances"] - 1:
+                print("Saving hashes...")
+                start_time = time.time()
+                with open("hash_library.json", 'w') as f:
+                    json.dump(hash_supdict, f)
+                print("\t ... done!")
+                print(f"\t (Time needed for saving: {time.time() - start_time})")
 
         # Stop if steady state
         # --------------------
