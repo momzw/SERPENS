@@ -326,7 +326,6 @@ def create_particle(species, process, num = 1, **kwargs):
 
     out = np.zeros((num, 6), dtype="float64")
 
-
     if valid_process[process] == 0:
         ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                 b_long=2 * np.pi, num = num)
