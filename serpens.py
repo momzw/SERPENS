@@ -15,6 +15,9 @@ import multiprocessing as mp
 import concurrent.futures
 from tqdm import tqdm
 
+import ijson
+import pickle
+
 from datetime import datetime
 from plotting import plotting
 from init import Parameters
@@ -47,11 +50,11 @@ Params = Parameters()
 save = False
 save_archive = False
 save_particles = False
-plot_freq = 15  # Plot at each *plot_freq* advance
+plot_freq = 4  # Plot at each *plot_freq* advance
 
 showfig = True
 showhist = False
-showvel = True
+showvel = False
 show_column_density = False
 """
     ===============================================================================================================
@@ -149,11 +152,9 @@ if __name__ == "__main__":
 
     moon_exists = Params.int_spec["moon"]
 
-    with open("hash_library.json") as f:
-        hash_supdict = json.load(f)
-
     sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
     if save:
+        print("Copying and saving...")
         if moon_exists:
             path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_moonsource"
         else:
@@ -163,9 +164,51 @@ if __name__ == "__main__":
         #with open(f"output/{path}/Parameters.txt", "w") as text_file:
         #    text_file.write(f"{Params.__str__()}")
         if save_archive:
+            print("\t archive...")
             shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/output/{path}")
+            print("\t hash library...")
             shutil.copy2(f"{os.getcwd()}/hash_library.json", f"{os.getcwd()}/output/{path}")
+            print("\t ...done!")
 
+    # Use for SMALL FILES:
+    # ===================
+    #with open("hash_library.json", 'rb') as f:
+    #    hash_supdict = json.load(f)
+
+    # Use for LARGE FILES:
+    # ===================
+    #print("Collecting hash library:")
+    #hash_supdict = {}
+    #hash_dict = {}
+    #flag = 0
+    #index = plot_freq
+    #with open("hash_library.json", 'rb') as f:
+    #    parser = ijson.parse(f)
+    #    for prefix, event, value in parser:
+    #        # print((prefix, event, value))
+    #        if (prefix, event) == (f'{index}', 'map_key'):
+    #            particle_hash = value
+    #            flag = 1
+    #        elif flag == 1:
+    #            if (prefix, event) == (f'{index}.{particle_hash}.identifier', 'string'):
+    #                ident = value
+    #            elif (prefix, event) == (f'{index}.{particle_hash}.i', 'number'):
+    #                iter = value
+    #            elif (prefix, event) == (f'{index}.{particle_hash}.id', 'number'):
+    #                id = value
+    #            elif (prefix, event) == (f'{index}.{particle_hash}', 'end_map'):
+    #                hash_dict[f"{particle_hash}"] = {'identifier': ident, 'i': iter, 'id': id}
+    #                flag = 0
+    #        if (prefix, event) == (f'{index}', 'end_map'):
+    #            hash_supdict[f'{index}'] = hash_dict.copy()
+    #            print(f"\t ...collected snapshot {index}")
+    #            index += plot_freq
+    #print("\t ...done")
+
+    # PICKLE:
+    # ===================
+    with open('hash_library.pickle', 'rb') as handle:
+        hash_supdict = pickle.load(handle)
 
     for i, sim_instance in enumerate(sa):
 
@@ -187,8 +230,12 @@ if __name__ == "__main__":
                 species = Params.get_species(ns + 1)
                 species_names.append(species.description)
 
+
             if not i == 0:
+
+                #hash_supdict = {}
                 hash_dict_current = hash_supdict[str(i)]
+
             else:
                 hash_dict_current = {}
 
@@ -512,7 +559,7 @@ if __name__ == "__main__":
                     np.savetxt(text_file, particle_velocities)
 
 
-            top_down_column(bins=400)
+            top_down_column(bins=100)
             # mayavi_3D_density()
             los_column_and_velocity_dist(bins=200)
             #toroidal_hist()

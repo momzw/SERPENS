@@ -10,6 +10,7 @@ import multiprocess as mp
 import multiprocessing
 
 from tqdm import tqdm
+import pickle
 
 from create_particle import create_particle
 from init import init3, Parameters
@@ -429,23 +430,27 @@ def run_simulation():
 
         # SAVE HASH
         # ==============
-        save_only_at_end = False
+        #save_only_at_end = True
+        #
+        #if not save_only_at_end:
+        #    print("Saving hashes...")
+        #    start_time = time.time()
+        #    with open("hash_library.json", 'w') as f:
+        #        json.dump(hash_supdict, f)
+        #    print("\t ... done!")
+        #    print(f"\t (Time needed for saving: {time.time() - start_time})")
+        #else:
+        #    if i == Params.int_spec["num_sim_advances"] - 1:
+        #        print("Saving hashes...")
+        #        start_time = time.time()
+        #        with open("hash_library.json", 'w') as f:
+        #            json.dump(hash_supdict, f)
+        #        print("\t ... done!")
+        #        print(f"\t (Time needed for saving: {time.time() - start_time})")
+        #
+        with open("hash_library.pickle", 'wb') as f:
+            pickle.dump(hash_supdict, f, pickle.HIGHEST_PROTOCOL)
 
-        if not save_only_at_end:
-            print("Saving hashes...")
-            start_time = time.time()
-            with open("hash_library.json", 'w') as f:
-                json.dump(hash_supdict, f)
-            print("\t ... done!")
-            print(f"\t (Time needed for saving: {time.time() - start_time})")
-        else:
-            if i == Params.int_spec["num_sim_advances"] - 1:
-                print("Saving hashes...")
-                start_time = time.time()
-                with open("hash_library.json", 'w') as f:
-                    json.dump(hash_supdict, f)
-                print("\t ... done!")
-                print(f"\t (Time needed for saving: {time.time() - start_time})")
 
         # Stop if steady state
         # --------------------
