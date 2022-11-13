@@ -109,9 +109,9 @@ def random_temp(sim, temp_min, temp_max, latitude, longitude):
         if np.pi / 2 < longitude_wrt_sun < 3 * np.pi / 2:
             temp = temp_min + (temp_max - temp_min) * (np.abs(np.cos(longitude_wrt_sun)) * np.cos(latitude)) ** (1 / 4)
         else:
-            temp = temp_min
+            temp = np.repeat(temp_min, len(latitude))
     else:
-        temp = (temp_max + temp_min) / 2
+        temp = np.repeat((temp_max + temp_min) / 2, len(latitude))
     return temp
 
 
@@ -122,14 +122,16 @@ def random_vel_thermal(species, temp):
     :return: vel_Na: ndarray
     """
     from scipy.stats import maxwell, norm
-    v1 = maxwell.rvs()
-    v2 = norm.rvs(scale=1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
-    v3 = norm.rvs(scale=1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
-
     k_B = 1.380649e-23
-    vel_Na = np.sqrt((k_B * temp) / species.m) * np.array([v1, v2, v3])
+    vel = np.zeros((len(temp), 3))
+    for i in range(len(temp)):
+        scale = np.sqrt((k_B * temp[i]) / species.m)
+        v1 = maxwell.rvs(scale=scale)
+        v2 = norm.rvs(scale=1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
+        v3 = norm.rvs(scale=1)  # Maxwellian only has positive values. For hemispheric coverage we need Gaussian (or other dist)
+        vel[i] = np.array([v1, v2, v3])
 
-    return vel_Na
+    return vel
 
 
 def random_vel_sputter(species, num = 1):
@@ -329,7 +331,6 @@ def create_particle(species, process, num = 1, **kwargs):
     if valid_process[process] == 0:
         ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                 b_long=2 * np.pi, num = num)
-        ran_temp = np.zeros(num)
         ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
         ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)

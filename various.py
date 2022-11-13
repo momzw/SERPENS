@@ -48,7 +48,7 @@ def orbit_sol():
     sol_w = []
     coll_phases = []
 
-    e = 0.
+    e = 0
     for i in tqdm(range(np.size(a)), "Checking a and w"):
         m1 = ((2*np.pi/T[i] * dt[1] + 0.67 * 2 * np.pi) % (2*np.pi))
         m2 = ((2*np.pi/T[i] * dt[2] + 0.67 * 2 * np.pi) % (2*np.pi))
@@ -122,4 +122,4 @@ def pngToGif(path, fps):
 
 
 
-pngToGif('output/20102022--10-14_moonsource/plots/', fps=2)
+orbit_sol()

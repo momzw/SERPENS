@@ -67,38 +67,12 @@ def run_simulation():
         planet_P = sim.particles["planet"].P
         planet_a = sim.particles["planet"].a
 
-
-    #def add_particle(id, physprocess, advance):
-    #    species = Params.get_species_by_id(id)
-    #
-    #    if (species.n_th == 0 or None) and (species.n_sp == 0 or None):
-    #        return
-    #    elif Params.int_spec["gen_max"] is not None or advance > Params.int_spec["gen_max"]:
-    #        return
-    #    elif physprocess not in ['thermal', 'sputter']:
-    #        return
-    #
-    #    p = create_particle(species, physprocess)
-    #    return p.xyz + p.vxyz
-
-
     for i in range(Params.int_spec["num_sim_advances"]):
 
         sim_N_before = sim.N
 
         # CREATE PARTICLES
         # ================
-
-        #species_ids = [Params.get_species(s+1).id for s in range(Params.num_species)]
-        #species_n = [Params.get_species(s+1).n_th + Params.get_species(s+1).n_sp for s in range(Params.num_species)]
-        #
-        #use_pool = any([n>1000 for n in species_n])
-        #
-        #if use_pool:
-        #    inputs = [()]
-        #    with mp.Pool() as p:
-        #        r = p.starmap(add_particle, range(species.n_sp)), total=species.n_sp))
-
         addst = time.time()
         print("Creating particles: ")
         for ns in range(num_species):
@@ -111,21 +85,28 @@ def run_simulation():
             # ------------------------------
             if Params.int_spec["gen_max"] is None or i < Params.int_spec["gen_max"]:
                 if not (species.n_th == 0 or None):
-                    for j1 in tqdm(range(species.n_th), desc=f"Adding {species.name} particles thermally"):
 
-                        print("NOT FULLY IMPLEMENTED IN CREATE_PARTICLE")
+                    print(f"\t Adding thermal {species.name}---{species.description}:")
+                    per_create = int(species.n_th / multiprocessing.cpu_count())
 
-                        print(f"\t Adding thermal {species.name}---{species.description}:")
+                    def mp_therm(_):
+                        p = create_particle(species, "thermal", num=per_create)
+                        return p
 
-                        p = create_particle(species, "thermal")
-                        identifier = f"{species.id}_{i}_{j1}"
-                        p.hash = identifier
-                        sim.add(p)
+                    with mp.Pool(multiprocessing.cpu_count()) as p:
+                        r = p.map(mp_therm, range(multiprocessing.cpu_count()))
+                        r = np.asarray(r).reshape(np.shape(r)[0] * np.shape(r)[1], 6)
+
+                    for index, coord in enumerate(r):
+                        identifier = f"{species.id}_{i}_{index}"
+                        sim.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5],
+                                hash=identifier)
 
                         # sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
                         sim.particles[identifier].params["beta"] = species.beta
 
-                        hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier, "i": i,
+                                                                                "id": species.id}
 
                 if not (species.n_sp == 0 or None):
 
@@ -228,8 +209,7 @@ def run_simulation():
                                         particle.vxyz(delv * orbit_vel_vec_normalized)
 
                                 # Take all species ids that are in iteration j:
-                                temp = "id"
-                                ids = [val[temp] for key, val in hash_dict.items() if temp in val and val["i"] == particle_iter]
+                                ids = [val["id"] for key, val in hash_dict.items() if "id" in val and val["i"] == particle_iter]
 
                                 # Count number of product-species particles:
                                 to_species_total = np.count_nonzero(np.asarray(ids) == to_species.id)
@@ -265,7 +245,12 @@ def run_simulation():
                 except:
                     pass
 
-            del hash_dict[f"{toberemoved[r].value}"]
+            # Currently necessary if particles get converted:
+            try:
+                del hash_dict[f"{toberemoved[r].value}"]
+            except:
+                pass
+
             num_lost += 1
 
         print(f"{num_lost} particles lost.")
@@ -471,5 +456,5 @@ def run_simulation():
 
 if __name__ == "__main__":
     Params = Parameters()
-    init3(moon = Params.int_spec["moon"], additional_majors=False)
+    init3(moon = Params.int_spec["moon"], additional_majors=True)
     run_simulation()

@@ -170,11 +170,12 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
         else:
             print("Error: Trying to plot density without passing necessary kwargs \"histogram\", \"xedges\", \"yedges\"")
     else:
+        ax.set_aspect("equal")
         for particle in ps[sim.N_active:]:
             if plane=="xy":
-                ax.scatter(particle.x, particle.y, s=.2, facecolor='white', alpha=.3)
+                ax.scatter(particle.x, particle.y, s=.25, facecolor='white', alpha=.3)
             elif plane=="yz":
-                ax.scatter(particle.y, particle.z, s=.2, facecolor='white', alpha=.3)
+                ax.scatter(particle.y, particle.z, s=.25, facecolor='white', alpha=.3)
 
     return ax
 
