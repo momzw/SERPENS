@@ -21,7 +21,7 @@ spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
 
 
 
-def random_pos(sim, lat_dist, long_dist, num = 1, **kwargs):
+def random_pos(source_r, lat_dist, long_dist, num = 1, **kwargs):
     """
     This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
     :param lat_dist: str. Valid are "truncnorm" and "uniform".
@@ -73,22 +73,17 @@ def random_pos(sim, lat_dist, long_dist, num = 1, **kwargs):
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
-    if moon_exists:
-        x = sim.particles["moon"].r * np.cos(longitudes) * np.sin(np.pi / 2 - latitudes)
-        y = sim.particles["moon"].r * np.sin(longitudes) * np.sin(np.pi / 2 - latitudes)
-        z = sim.particles["moon"].r * np.cos(np.pi / 2 - latitudes)
 
-    else:
-        x = sim.particles["planet"].r * np.cos(longitudes) * np.sin(np.pi / 2 - latitudes)
-        y = sim.particles["planet"].r * np.sin(longitudes) * np.sin(np.pi / 2 - latitudes)
-        z = sim.particles["planet"].r * np.cos(np.pi / 2 - latitudes)
+    x = source_r * np.cos(longitudes) * np.sin(np.pi / 2 - latitudes)
+    y = source_r * np.sin(longitudes) * np.sin(np.pi / 2 - latitudes)
+    z = source_r * np.cos(np.pi / 2 - latitudes)
 
     pos = np.array([x, y, z]).T
 
     return pos, latitudes, longitudes
 
 
-def random_temp(sim, temp_min, temp_max, latitude, longitude):
+def random_temp(source, temp_min, temp_max, latitude, longitude):
     """
     Returns a random temperature depending on implemented model.
     :param temp_min: float. Lowest temperature on the moon
@@ -97,10 +92,8 @@ def random_temp(sim, temp_min, temp_max, latitude, longitude):
     :param longitude: float
     :return: temp: float
     """
-    if moon_exists:
-        longitude_wrt_sun = longitude + np.arctan2(sim.particles["moon"].y, sim.particles["moon"].x)
-    else:
-        longitude_wrt_sun = longitude + np.arctan2(sim.particles["planet"].y, sim.particles["planet"].x)
+
+    longitude_wrt_sun = longitude + np.arctan2(source[0][1], source[0][0])
 
     if not spherical_symm_ejection:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
@@ -306,7 +299,7 @@ def random_vel_sputter(species, num = 1):
     return vel
 
 
-def create_particle(species, process, num = 1, **kwargs):
+def create_particle(species, process, source, source_r, num = 1, **kwargs):
     """
     Generates a REBOUND particle with random velocity at random position from process given by function argument.
     See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
@@ -315,9 +308,9 @@ def create_particle(species, process, num = 1, **kwargs):
     :return: p: rebound particle object.
     """
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        sim = rebound.Simulation("archive.bin")
+    #with warnings.catch_warnings():
+    #    warnings.simplefilter("ignore")
+    #    sim = rebound.Simulation("archive.bin")
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process not in valid_process:
@@ -329,17 +322,17 @@ def create_particle(species, process, num = 1, **kwargs):
     out = np.zeros((num, 6), dtype="float64")
 
     if valid_process[process] == 0:
-        ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="truncnorm", long_dist="uniform", a_long=0,
+        ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="truncnorm", long_dist="uniform", a_long=0,
                                                 b_long=2 * np.pi, num = num)
-        ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
+        ran_temp = random_temp(source, temp_min, temp_max, ran_lat, ran_long)
 
         ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)
 
     else:
 
         #if moon_exists:
-        #    angle_correction = np.arctan2((sim.particles["moon"].y - sim.particles["planet"].y),
-        #                                  (sim.particles["moon"].x - sim.particles["planet"].x))
+        #    angle_correction = np.arctan2((sim.particles["moon"].y - planet.y),
+        #                                  (sim.particles["moon"].x - planet.x))
         #else:
         #    angle_correction = np.arctan2(sim.particles["planet"].y,sim.particles["planet"].x)
         #
@@ -348,7 +341,7 @@ def create_particle(species, process, num = 1, **kwargs):
         #                                        b_long=3 * np.pi / 2 + angle_correction,
         #                                        loc_long=np.pi / 2 + angle_correction)
 
-        ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="uniform", num = num)
+        ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="uniform", long_dist="uniform", num = num)
         #ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
         ran_vel_not_rotated_in_place = random_vel_sputter(species, num = num)
@@ -362,15 +355,7 @@ def create_particle(species, process, num = 1, **kwargs):
 
         ran_vel = rot @ ran_vel_not_rotated_in_place[part]
 
-        # source position and velocity:
-        if moon_exists:
-            source_x, source_y, source_z = sim.particles["moon"].x, sim.particles["moon"].y, sim.particles["moon"].z
-            source_vx, source_vy, source_vz = sim.particles["moon"].vx, sim.particles["moon"].vy, sim.particles["moon"].vz
-        else:
-            source_x, source_y, source_z = sim.particles["planet"].x, sim.particles["planet"].y, sim.particles["planet"].z
-            source_vx, source_vy, source_vz = sim.particles["planet"].vx, sim.particles["planet"].vy, sim.particles["planet"].vz
-
-        out[part][:3] = np.array([ran_pos[part][0] + source_x, ran_pos[part][1] + source_y, ran_pos[part][2] + source_z])
-        out[part][3:] = np.array([ran_vel[0] + source_vx, ran_vel[1] + source_vy, ran_vel[2] + source_vz])
+        out[part][:3] = np.array([ran_pos[part][0] + source[0][0], ran_pos[part][1] + source[0][1], ran_pos[part][2] + source[0][2]])
+        out[part][3:] = np.array([ran_vel[0] + source[1][0], ran_vel[1] + source[1][1], ran_vel[2] + source[1][2]])
 
     return out

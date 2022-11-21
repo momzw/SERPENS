@@ -155,20 +155,38 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
             H = kwargs.get("histogram")
             xedges = kwargs.get("xedges")
             yedges = kwargs.get("yedges")
-            norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin = 0, vmax = 0) # Not needed if first sim_instance is already with particles.
+
+            norm_min = kwargs.get("norm_min", None)
+            if norm_min is not None:
+                norm = colors.LogNorm(vmin=norm_min) if not np.max(H) == 0 else colors.Normalize(vmin=0,vmax=0)  # Not needed if first sim_instance is already with particles.
+            else:
+                norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin=0, vmax=0)
             cmap = matplotlib.cm.afmhot
             cmap.set_bad('k', 1.)
             im = ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], cmap=cmap, norm=norm)
 
-            if not np.max(H) == 0:
-                # Colorbar
-                divider = make_axes_locatable(ax)
-                cax = divider.append_axes('right', size='5%', pad=0.05)
-                cax.tick_params(axis='both', which='major', labelsize=8)
-                fig.colorbar(im, cax=cax, orientation='vertical')
+            #if not np.max(H) == 0:
+            #    # Colorbar
+            #    divider = make_axes_locatable(ax)
+            #    cax = divider.append_axes('right', size='5%', pad=0.05)
+            #    cax.tick_params(axis='both', which='major', labelsize=8)
+            #    ticks = np.logspace(np.log10(np.max(H))-5, np.log10(np.max(H)), 8)
+            #    if np.log10(np.max(H)) > 4:
+            #        cb = fig.colorbar(im, cax=cax, orientation='vertical', format='%.2E', ticks=ticks)
+            #    else:
+            #        cb = fig.colorbar(im, cax=cax, orientation='vertical', format='%.2f', ticks=ticks)
+            #    plt.minorticks_off()
+
+        elif "DTFE" in kwargs and "x" in kwargs and "y" in kwargs:
+            x = kwargs.get('x')
+            y = kwargs.get('y')
+            dens = kwargs.get('DTFE')
+            scat = ax.scatter(x, y, c=dens, cmap=plt.cm.afmhot, marker='.', norm=colors.LogNorm(), s=1.5)
+            plt.colorbar(scat, format='%.2f')
+
 
         else:
-            print("Error: Trying to plot density without passing necessary kwargs \"histogram\", \"xedges\", \"yedges\"")
+            print("Error: Trying to plot density without passing necessary kwargs.")
     else:
         ax.set_aspect("equal")
         for particle in ps[sim.N_active:]:

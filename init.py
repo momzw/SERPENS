@@ -5,6 +5,7 @@ import os
 
 class Network:
     def __init__(self, id):
+        self._species_weights = None
         u = 1.6726e-27
         e = 1.602e-19
         if id == 1:
@@ -436,6 +437,7 @@ class Network:
             print("Could not set network lifetime")
 
 
+
 class SpeciesSpecifics:
 
     def __init__(self, mass_number, id, type="neutral"):
@@ -445,7 +447,6 @@ class SpeciesSpecifics:
         self.m = mass_number * amu
         self.id = id
         self.network = Network(self.id).network
-
 
 class Species(SpeciesSpecifics):
 
@@ -557,9 +558,9 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "moon": True,
+        "moon": False,
         "sim_advance": 1 / 80,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 80,             # Number of times the simulation advances.
+        "num_sim_advances": 160,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
         "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
         "r_max": 4,                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
@@ -575,13 +576,13 @@ class Parameters:
     }
 
     def __init__(self):
-        self.species1 = Species("O", n_th=0, n_sp=2000, mass_per_sec=5.845, model_smyth_v_b = 2500, odel_smyth_v_M = 10000, lifetime=2.26*86400)      #585    lifetime=2.26*86400
-        self.species2 = Species("O2", n_th=0, n_sp=2000, mass_per_sec=14.35, model_smyth_v_b = 4700, model_smyth_v_M = 10000, lifetime=3.3*86400)    #1435    lifetime=3.3*86400
-        self.species3 = Species("H2", n_th=0, n_sp=4000, mass_per_sec=6.69, model_smyth_v_b = 1200, model_smyth_v_M = 10000,lifetime=7*86400)      #669    lifetime=7*86400
+        #self.species1 = Species("O", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b = 2500, odel_smyth_v_M = 10000)      #585    lifetime=2.26*86400
+        #self.species1 = Species("O2", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435    lifetime=3.3*86400
+        #self.species1 = Species("H2", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b = 1200)      #669    lifetime=7*86400
         #self.species4 = Species("H", n_th=0, n_sp=0, mass_per_sec=3)
         #self.species5 = Species("O+", n_th=0, n_sp=0)
 
-        #self.species1 = Species("SO2", description="SO2-30km/s", n_th=0, n_sp=2000, mass_per_sec=1000, model_smyth_v_b=30000, beta=0)
+        self.species1 = Species("SO2", description="SO2-30km/s", n_th=0, n_sp=500, mass_per_sec=1000e3, model_smyth_v_b=30000, beta=.1, lifetime=360)
         #self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
         #self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
         #self.species4 = Species("NaCl", description="NaCl-10km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=10000, duplicate=3)
@@ -629,6 +630,12 @@ class Parameters:
             if locals()['self'].__dict__[f"species{i + 1}"].id == id:
                 return locals()['self'].__dict__[f"species{i+1}"]
 
+    def get_implement_index(self, id, name = None):
+        for i in range(self.num_species):
+            if locals()['self'].__dict__[f"species{i + 1}"].id == id:
+                return i
+            elif locals()['self'].__dict__[f"species{i + 1}"].name == name:
+                return i
 
     # Particle emission position
     # ---------------------

@@ -73,8 +73,10 @@ def run_simulation():
 
         # CREATE PARTICLES
         # ================
-        addst = time.time()
+        st = time.time()
         print("Creating particles: ")
+        source_state = np.array([sim.particles["moon"].xyz, sim.particles["moon"].vxyz]) if moon_exists else np.array([sim.particles["planet"].xyz, sim.particles["planet"].vxyz])
+        source_r = sim.particles["moon"].r if moon_exists else sim.particles["planet"].r
         for ns in range(num_species):
             species = Params.get_species(ns+1)
 
@@ -90,7 +92,7 @@ def run_simulation():
                     per_create = int(species.n_th / multiprocessing.cpu_count())
 
                     def mp_therm(_):
-                        p = create_particle(species, "thermal", num=per_create)
+                        p = create_particle(species, "thermal", source=source_state, source_r = source_r, num=per_create)
                         return p
 
                     with mp.Pool(multiprocessing.cpu_count()) as p:
@@ -105,8 +107,11 @@ def run_simulation():
                         # sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
                         sim.particles[identifier].params["beta"] = species.beta
 
-                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier, "i": i,
-                                                                                "id": species.id}
+                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier,
+                                                                                "i": i,
+                                                                                "id": species.id,
+                                                                                "weight": 1,
+                                                                                "products_weight": np.zeros(Params.num_species)}
 
                 if not (species.n_sp == 0 or None):
 
@@ -114,7 +119,7 @@ def run_simulation():
                     per_create = int(species.n_sp / multiprocessing.cpu_count())
 
                     def mp_addsput(_):
-                        p = create_particle(species, "sputter", num=per_create)
+                        p = create_particle(species, "sputter", source=source_state, source_r = source_r, num=per_create)
                         return p
 
                     with mp.Pool(multiprocessing.cpu_count()) as p:
@@ -128,7 +133,11 @@ def run_simulation():
                         #sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
                         sim.particles[identifier].params["beta"] = species.beta
 
-                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
+                        hash_dict[str(sim.particles[identifier].hash.value)] = {"identifier": identifier,
+                                                                                "i": i,
+                                                                                "id": species.id,
+                                                                                "weight": 1.,
+                                                                                "product_weights": np.zeros(Params.num_species)}
 
                     #for j2 in tqdm(range(species.n_sp), desc=f"Adding {species.name} particles via sputtering"):
                     #    p = create_particle(species, "sputter")
@@ -139,23 +148,23 @@ def run_simulation():
                     #    sim.particles[identifier].params["beta"] = species.beta
                     #    hash_dict[str(p.hash.value)] = {"identifier": identifier, "i": i, "id": species.id}
 
-        print(f"Time needed for adding particles: {time.time() - addst}")
+        print(f"Time needed for adding particles: {time.time() - st}")
         print("------------------------------------------------")
-
 
         # LOSS FUNCTION & CHEMICAL NETWORK
         # ================================
         print("Checking losses")
+        st = time.time()
         boundary = Params.int_spec["r_max"] * moon_a if moon_exists else Params.int_spec["r_max"] * planet_a
         num_lost = 0
         num_converted = 0
-        rng = np.random.default_rng()
 
-        # Check all particles
+        ## Check all particles
         toberemoved = []
         for particle in sim.particles[sim.N_active:]:
 
             particle_iter = hash_dict[f"{particle.hash.value}"]["i"]
+            particle_weight = hash_dict[f"{particle.hash.value}"]["weight"]
             species_id = hash_dict[f"{particle.hash.value}"]["id"]
             species = Params.get_species_by_id(species_id)
 
@@ -179,27 +188,72 @@ def run_simulation():
 
             # Remove if chemical reaction happens:
             chem_network = species.network     # tau (float), educts (str), products (str), velocities (float)
+
+            if moon_exists:
+                mass_inject_per_advance = species.mass_per_sec * Params.int_spec["sim_advance"] * sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
+                delt = Params.int_spec["sim_advance"] * sim.particles["moon"].calculate_orbit(primary=sim.particles["planet"]).P
+            else:
+                mass_inject_per_advance = species.mass_per_sec * Params.int_spec["sim_advance"] * sim.particles["planet"].P
+                delt = Params.int_spec["sim_advance"] * sim.particles["planet"].P
+            pps = species.particles_per_superparticle(mass_inject_per_advance)
+
             if not isinstance(chem_network, (int,float)):
 
-                rng.shuffle(chem_network)   # Mitigate ordering bias
+                #rng.shuffle(chem_network)   # Mitigate ordering bias
 
                 # Go through all reactions/lifetimes
                 for l in range(np.size(chem_network[:,0])):
                     tau = float(chem_network[:,0][l])
-                    prob_to_exist = np.exp(-dt / tau)
-                    if random.random() > prob_to_exist:
 
+                    product_weight = particle_weight * (1 - np.exp(-delt / tau))
+                    particle_weight = particle_weight * np.exp(-delt / tau)
+                    if particle_weight < 1 / pps:
+                        toberemoved.append(particle.hash)
+
+                    """
+                    # Check all products if they have been implemented.
+                    for i2 in chem_network[:, 2][l].split():
+        
+                        # Convert species if a product has been implemented.
+                        if any([True for k, v in species.implementedSpecies.items() if k == i2]):
+                            to_species = Params.get_species_by_name(i2)
+        
+                            if to_species == None:
+                                continue
+        
+                            to_species_implement_index = Params.get_implement_index(to_species.id)
+                            hash_dict[f"{particle.hash.value}"]["product_weights"][to_species_implement_index] += product_weight
+                            total_product_weight = hash_dict[f"{particle.hash.value}"]["product_weights"][to_species_implement_index]
+                            if np.max(hash_dict[f"{particle.hash.value}"]["product_weights"]) == total_product_weight:
+        
+                                # Take all species ids that are in iteration j:
+                                ids = [val["id"] for key, val in hash_dict.items() if
+                                       "id" in val and val["i"] == particle_iter]
+        
+                                # Count number of product-species particles:
+                                to_species_total = np.count_nonzero(np.asarray(ids) == to_species.id)
+        
+                                # Change particle hash
+                                new_hash = f"{to_species.id}_{particle_iter}_{to_species_total + 1}"
+                                sim.particles[particle.hash].hash = new_hash
+        
+                                # Update library
+                                hash_dict[f"{particle.hash.value}"] = {"identifier": new_hash, "i": particle_iter, "id": to_species.id}
+                    """
+                    """
+                    if random.random() > prob_to_exist:
+        
                         # Check all products if they have been implemented.
                         for i2 in chem_network[:,2][l].split():
-
+        
                             # Convert species if a product has been implemented.
                             if any([True for k, v in species.implementedSpecies.items() if k == i2]):
-
+        
                                 to_species = Params.get_species_by_name(i2)
-
+        
                                 if to_species == None:
                                     continue
-
+        
                                 # Change particle velocity if velocity delta has been implemented:
                                 if chem_network.shape[1] == 4:
                                     if not float(chem_network[:,3][l]) == 0:
@@ -207,54 +261,56 @@ def run_simulation():
                                         orbit_vel_vec = sim.particles["moon"].vxyz if moon_exists else sim.particles["planet"].vxyz
                                         orbit_vel_vec_normalized = 1/np.linalg.norm(orbit_vel_vec) * np.asarray(orbit_vel_vec)
                                         particle.vxyz(delv * orbit_vel_vec_normalized)
-
+        
                                 # Take all species ids that are in iteration j:
                                 ids = [val["id"] for key, val in hash_dict.items() if "id" in val and val["i"] == particle_iter]
-
+        
                                 # Count number of product-species particles:
                                 to_species_total = np.count_nonzero(np.asarray(ids) == to_species.id)
-
+        
                                 # Change particle hash
                                 new_hash = f"{to_species.id}_{particle_iter}_{to_species_total+1}"
                                 sim.particles[particle.hash].hash = new_hash
-
+        
                                 # Update library
                                 hash_dict[f"{particle.hash.value}"] = {"identifier": new_hash, "i": particle_iter, "id": to_species.id}
-
+        
                                 num_converted += 1
-
+        
                             else:
                                 toberemoved.append(particle.hash)
                                 break
                         break
+                    """
             else:
                 tau = chem_network
-                prob_to_exist = np.exp(-dt / tau)
-                if random.random() > prob_to_exist:
-                    toberemoved.append(particle.hash)
 
-        for r in range(len(toberemoved)):
-            try:
-                sim.remove(hash=toberemoved[r])
-            except:
-                pass
+                particle_weight = particle_weight * np.exp(-delt / tau)
+                #if particle_weight * pps < 1:
+                #    toberemoved.append(particle.hash)
 
-            for dc in deep_copies:
-                try:
-                    dc.remove(hash=toberemoved[r])
-                except:
-                    pass
+            hash_dict[f"{particle.hash.value}"].update({'weight': particle_weight})
+
+        #for r in range(len(toberemoved)):
+        #    sim.remove(hash=toberemoved[r])
+        #    for dc in deep_copies:
+        #        try:
+        #            dc.remove(hash=toberemoved[r])
+        #        except:
+        #            pass
 
             # Currently necessary if particles get converted:
-            try:
-                del hash_dict[f"{toberemoved[r].value}"]
-            except:
-                pass
+            #try:
+            #    del hash_dict[f"{toberemoved[r].value}"]
+            #except:
+            #    print("Couldn't delete hash dict entry.")
+            #    pass
 
-            num_lost += 1
+            #num_lost += 1
 
         print(f"{num_lost} particles lost.")
         print(f"{num_converted} particles were converted.")
+        print(f"Time needed: {time.time() - st}")
         print("------------------------------------------------")
 
 
@@ -331,11 +387,6 @@ def run_simulation():
             print(f"{counter} particles added through interpolation")
 
 
-        # SAVE HASH_DICT
-        # ==============
-        hash_supdict[str(i+1)] = hash_dict.copy()
-
-
         # ADVANCE INTEGRATION
         # ===================
 
@@ -403,7 +454,25 @@ def run_simulation():
         for proc in range(len(deep_copies)):
             dc = deep_copies[proc]
             for particle in dc.particles[dc.N_active:]:
-                sim.add(particle)
+
+                w = hash_dict[f"{particle.hash.value}"]['weight']
+                if moon_exists:
+                    particle_distance = np.linalg.norm(
+                        np.asarray(particle.xyz) - np.asarray(sim.particles["planet"].xyz))
+                else:
+                    particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(sim.particles[0].xyz))
+
+                if particle_distance > boundary:
+                    #print(particle.hash.value)
+                    dc.remove(hash=particle.hash)
+                    #del hash_dict[f"{particle.hash.value}"]
+                elif w * pps < 1:
+                    #print(particle.hash.value)
+                    dc.remove(hash=particle.hash)
+                    #del hash_dict[f"{particle.hash.value}"]
+                else:
+                    sim.add(particle)
+
 
         sim.simulationarchive_snapshot("archive.bin")
 
@@ -433,6 +502,11 @@ def run_simulation():
         #        print("\t ... done!")
         #        print(f"\t (Time needed for saving: {time.time() - start_time})")
         #
+
+
+        # SAVE HASH_DICT
+        # ==============
+        hash_supdict[str(i+1)] = hash_dict
         with open("hash_library.pickle", 'wb') as f:
             pickle.dump(hash_supdict, f, pickle.HIGHEST_PROTOCOL)
 
@@ -456,5 +530,5 @@ def run_simulation():
 
 if __name__ == "__main__":
     Params = Parameters()
-    init3(moon = Params.int_spec["moon"], additional_majors=True)
+    init3(moon = Params.int_spec["moon"], additional_majors=False)
     run_simulation()

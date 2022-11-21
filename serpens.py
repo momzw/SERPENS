@@ -11,15 +11,20 @@ import numpy as np
 import os as os
 import shutil
 
-
 import pickle
 
 from datetime import datetime
 from plotting import plotting
 from init import Parameters
+from visualize import Visualize
 
 from sklearn.neighbors import KernelDensity
 from sklearn.model_selection import GridSearchCV, LeaveOneOut
+import KDEpy
+from KDEpy.bw_selection import improved_sheather_jones
+
+import DTFE
+import DTFE3D
 
 """
 
@@ -61,7 +66,7 @@ skip_first = True
 """
 
 
-def getHistogram(sim, xdata, ydata, bins, xboundary="default", yboundary="default", plane='xy', mask=False, density=False, **kwargs):
+def getHistogram(sim, xdata, ydata, weights, bins, xboundary="default", yboundary="default", plane='xy', mask=False, density=False, **kwargs):
     """
     Calculates a 2d histogram essentially defining a density distribution.
     :param sim: rebound simulation object.
@@ -88,14 +93,14 @@ def getHistogram(sim, xdata, ydata, bins, xboundary="default", yboundary="defaul
         if plane == 'xy':
             H, xedges, yedges = np.histogram2d(xdata, ydata, range=[
                 [-xboundary + sim.particles["planet"].x, xboundary + sim.particles["planet"].x],
-                [-yboundary + sim.particles["planet"].y, yboundary + sim.particles["planet"].y]], bins=bins)
+                [-yboundary + sim.particles["planet"].y, yboundary + sim.particles["planet"].y]], bins=bins)        # weights=weights
             H = H.T
             return H, xedges, yedges
 
         elif plane == 'yz':
             H, xedges, yedges = np.histogram2d(xdata, ydata, range=[
                 [-xboundary + sim.particles["planet"].y, xboundary + sim.particles["planet"].y],
-                [-yboundary + sim.particles["planet"].z, yboundary + sim.particles["planet"].z]], bins=bins)
+                [-yboundary + sim.particles["planet"].z, yboundary + sim.particles["planet"].z]], bins=bins, weights=weights)
             H = H.T
             return H, xedges, yedges
 
@@ -109,7 +114,7 @@ def getHistogram(sim, xdata, ydata, bins, xboundary="default", yboundary="defaul
             H3d, edges3d = np.histogramdd(np.vstack((xdata, ydata, zdata)).T, bins=(bins, bins, bins), range=[
                 [-xboundary + sim.particles["planet"].x, xboundary + sim.particles["planet"].x],
                 [-yboundary + sim.particles["planet"].y, yboundary + sim.particles["planet"].y],
-                [-zboundary + sim.particles["planet"].z, zboundary + sim.particles["planet"].z]])
+                [-zboundary + sim.particles["planet"].z, zboundary + sim.particles["planet"].z]], weights=weights)
             return H3d, edges3d
 
         else:
@@ -137,13 +142,13 @@ def getHistogram(sim, xdata, ydata, bins, xboundary="default", yboundary="defaul
             H3d, edges3d = np.histogramdd(np.vstack((xdata, ydata, zdata)).T, bins=(bins, bins, bins), range=[
                 [-xboundary, xboundary],
                 [-yboundary, yboundary],
-                [-zboundary, zboundary]], density=density)
+                [-zboundary, zboundary]], density=density, weights=weights)
             return H3d, edges3d
 
         else:
             H, xedges, yedges = np.histogram2d(xdata, ydata, range=[
                 [-xboundary, xboundary],
-                [-yboundary, yboundary]], bins=bins, density=density)
+                [-yboundary, yboundary]], bins=bins, density=density, weights=weights)
             H = H.T
             return H, xedges, yedges
 
@@ -243,25 +248,33 @@ if __name__ == "__main__":
         particle_velocities = np.zeros((sim_instance.N, 3), dtype="float64")
         particle_hashes = np.zeros(sim_instance.N, dtype="uint32")
         particle_species = np.zeros(sim_instance.N, dtype="int")
+        particle_weights = np.zeros(sim_instance.N, dtype="float64")
         sim_instance.serialize_particle_data(xyz=particle_positions, vxvyvz=particle_velocities,
                                              hash=particle_hashes)
 
         for k1 in range(sim_instance.N_active, sim_instance.N):
             particle_species[k1] = hash_dict_current[str(particle_hashes[k1])]["id"]
+            particle_iter = hash_dict_current[str(particle_hashes[k1])]["i"]
+
+            if moon_exists:
+                particle_time = (i - particle_iter) * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
+            else:
+                particle_time = (i - particle_iter) * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
+            chem_network = Params.get_species_by_id(particle_species[k1]).network
+            reaction_rate = 0
+            if not isinstance(chem_network, (int, float)):
+                for l in range(np.size(chem_network[:, 0])):
+                    reaction_rate += 1/float(chem_network[:,0][l])
+            else:
+                reaction_rate = 1/chem_network
+            particle_weights[k1] = np.exp(-particle_time * reaction_rate)
+
+            #particle_weights[k1] = hash_dict_current[str(particle_hashes[k1])]["weight"]
+
 
         def top_down_column(bins=160):
             # IMSHOW TOP DOWN COLUMN DENSITY PLOTS
             # ====================================
-            subplot_rows = int(np.ceil(Params.num_species / 3))
-            subplot_columns = Params.num_species if Params.num_species <= 3 else 3
-            #fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(12, 12), sharex='all', sharey='all', squeeze=True)
-            fig = plt.figure(figsize=(15, 15))
-            gs1 = gridspec.GridSpec(subplot_rows, subplot_columns)
-            gs1.update(wspace=0.12, hspace=0.1)
-            axs = [plt.subplot(gs1[f]) for f in range(subplot_rows*subplot_columns)]
-            for ax_num in range(len(axs)):
-                if ax_num >= Params.num_species:
-                    axs[ax_num].remove()
 
             for k in range(Params.num_species):
                 species = Params.get_species(k + 1)
@@ -270,10 +283,12 @@ if __name__ == "__main__":
                 ydata = particle_positions[:, 1][np.where(particle_species == species.id)]
                 zdata = particle_positions[:, 2][np.where(particle_species == species.id)]
 
-                H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, bins=bins, mask=False)
+                weights = particle_weights[np.where(particle_species == species.id)]
+
+                H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, weights, bins=bins, mask=False)
                 bin_size = (xedges[1] - xedges[0]) * (yedges[1] - yedges[0])
 
-                H3d, edges3d = getHistogram(sim_instance, xdata, ydata, bins=bins, mask=False, plane='3d', zdata=zdata)
+                H3d, edges3d = getHistogram(sim_instance, xdata, ydata, weights, bins=bins, mask=False, plane='3d', zdata=zdata)
                 bin_volume = (edges3d[0][1] - edges3d[0][0]) * (edges3d[1][1] - edges3d[1][0]) * (edges3d[2][1] - edges3d[2][0])
 
                 if moon_exists:
@@ -287,147 +302,189 @@ if __name__ == "__main__":
                     weight3d = 1 / bin_volume * species.particles_per_superparticle(mass_inject_per_advance) / 1e6
                 else:
                     weight = 1
+                    weight3d = 1
 
+                # ============================================================================================
 
-                # ==========================================================================================
+                def kde(x, y, weights, module, z=None, bandwidth='default', bins=100j, zbins=10j, kernel='gaussian', draw_contour=False, estimate_bandwidth=False, **kwargs):
 
-                def kde(x, y, z=None, bandwidth='default', bins=100j, zbins=10j, kernel='gaussian', draw_contour=False, estimate_bandwidth=True, **kwargs):
-                    # Kernel Density Estimation using SKLEARN
-                    # ~~~~~~~~~~~~~~~~~
-                    if z is None:
+                    if module == 'sklearn':
+                        # Kernel Density Estimation using SKLEARN
+                        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                        if z is None:
+
+                            if moon_exists:
+                                a = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
+                                boundary = Params.int_spec["r_max"] * a
+                                bw = 2 * a * np.sin(2 * np.pi * Params.int_spec["sim_advance"]) if bandwidth == 'default' else bandwidth
+                                xx, yy = np.mgrid[
+                                         (-boundary + sim_instance.particles["planet"].x):(boundary + sim_instance.particles["planet"].x):bins,
+                                         (-boundary + sim_instance.particles["planet"].y):(boundary + sim_instance.particles["planet"].y):bins]
+                            else:
+                                a = sim_instance.particles["planet"].a
+                                boundary = Params.int_spec["r_max"] * a
+                                bw = 2 * a * np.sin(2 * np.pi * Params.int_spec["sim_advance"]) if bandwidth == 'default' else bandwidth
+                                xx, yy = np.mgrid[-boundary:boundary:bins, -boundary:boundary:bins]
+
+                            data = np.vstack([y, x]).T
+                            xy_sample = np.vstack([yy.ravel(), xx.ravel()]).T
+
+                            kernel_density = KernelDensity(kernel=kernel, bandwidth=bw).fit(data, sample_weight=weights)
+                            #print("Pulling KDE probabilities")
+                            Z = np.exp(kernel_density.score_samples(xy_sample).reshape(xx.shape))
+                            #print("\t Done!")
+
+                            bin_size = (xx[:,0][1] - xx[:,0][0]) * (yy[0,:][1] - yy[0,:][0])
+                            N_c = len(x) * Z * bin_size
+                            N_per_cm2 = N_c * species.particles_per_superparticle(mass_inject_per_advance) / (bin_size * 1e4)
+
+                            if draw_contour:
+                                ax = kwargs.get('ax', None)
+                                fill = kwargs.get('contour_fill', False)
+                                norm = colors.LogNorm()
+                                lvls = np.logspace(np.log10(np.max(Z)) - 5, np.log10(np.max(Z)), 8)
+                                if fill:
+                                    ax.contourf(xx, yy, Z, cmap=matplotlib.cm.afmhot, levels=lvls, norm=norm)
+                                ax.contour(xx, yy, Z, colors='w', alpha=0.25, norm=norm, levels=lvls)
+
+                            return Z, N_per_cm2, xx, yy
+
+                        else:
+                            if not z.shape == x.shape:
+                                raise ValueError("z-shape is not equal to x-shape. Cannot pass 3D data.")
+                            data3d = np.vstack([zdata, ydata, xdata]).T
+                            if moon_exists:
+                                a = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
+                                boundary = Params.int_spec["r_max"] * a
+
+                                if estimate_bandwidth:
+                                    print("Estimating bandwidth. This may take a while...")
+                                    bandwidths = 2 * np.pi * Params.int_spec["sim_advance"] * a * 10 ** np.linspace(-2, 3, 100)
+                                    grid = GridSearchCV(KernelDensity(kernel=kernel), {'bandwidth': bandwidths}, n_jobs=-1)
+                                    grid.fit(data3d)
+                                    bw = grid.best_estimator_.bandwidth
+                                    print(f"\t Best bandwidth: {bw}")
+                                else:
+                                    bw = 2 * a * np.sin(2 * np.pi * Params.int_spec["sim_advance"]) if bandwidth == 'default' else bandwidth
+
+                                xxx, yyy, zzz = np.mgrid[
+                                                (-boundary + sim_instance.particles["planet"].x):(boundary + sim_instance.particles["planet"].x):bins,
+                                                (-boundary + sim_instance.particles["planet"].y):(boundary + sim_instance.particles["planet"].y):bins,
+                                                (-boundary + sim_instance.particles["planet"].z)/2:(boundary + sim_instance.particles["planet"].z)/2:zbins]
+
+                                #xmin, xmax = np.min(xdata), np.max(xdata)
+                                #ymin, ymax = np.min(ydata), np.max(ydata)
+                                #zmin, zmax = np.min(zdata), np.max(zdata)
+                                #xxx, yyy, zzz = np.mgrid[xmin:xmax:bins, ymin:ymax:bins, zmin:zmax:zbins]
+                            else:
+                                a = sim_instance.particles["planet"].a
+                                boundary = Params.int_spec["r_max"] * a
+                                bw = 2 * a * np.sin(2 * np.pi * Params.int_spec["sim_advance"]) if bandwidth == 'default' else bandwidth
+                                xxx, yyy, zzz = np.mgrid[-boundary:boundary:bins, -boundary:boundary:bins, -boundary/2:boundary/2:zbins]
+
+                            xyz_sample = np.vstack([zzz.ravel(), yyy.ravel(), xxx.ravel()]).T
+
+                            kde3d = KernelDensity(kernel=kernel, bandwidth=bw).fit(data3d, sample_weight=weights)
+                            #print("Pulling KDE probabilities: ")
+                            Z3d = np.exp(kde3d.score_samples(xyz_sample).reshape(xxx.shape))
+                            #print("\t Done!")
+
+                            volume = (xxx[1,0,0] - xxx[0,0,0]) * (yyy[0,1,0] - yyy[0,0,0]) * (zzz[0,0,1] - zzz[0,0,0])
+                            w_samp = mass_inject_per_advance / species.m
+                            N_per_cm3 = Z3d * w_samp / 1e6
+
+                            return Z3d, N_per_cm3, xxx, yyy, zzz
+
+                    elif module == 'KDEpy':
+                        # Kernel Density Estimation with KDEpy
+                        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                        data = np.vstack([z, y, x]).T
+                        grid_points = bins
+
+                        if moon_exists:
+                            moon_a = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
+                            r_max = Params.int_spec["r_max"]
+                            boundary = r_max * moon_a
+                            mask = [x < boundary for x in np.linalg.norm(data - np.flip(sim_instance.particles["planet"].xyz).reshape((1,3)), axis=1)]
+                            data = data[mask]
+                            weights = weights[mask]
+                        else:
+                            boundary = Params.int_spec["r_max"] * sim_instance.particles["planet"].a
+                            mask = [x < boundary for x in np.linalg.norm(data, axis=1)]
+                            data = data[mask]
+                            weights = weights[mask]
 
                         if moon_exists:
                             a = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
-                            boundary = Params.int_spec["r_max"] * a
-                            bw = 2 * np.pi * Params.int_spec["sim_advance"] * 1 * a if bandwidth == 'default' else bandwidth
-                            xx, yy = np.mgrid[
-                                     (-boundary + sim_instance.particles["planet"].x):(boundary + sim_instance.particles["planet"].x):bins,
-                                     (-boundary + sim_instance.particles["planet"].y):(boundary + sim_instance.particles["planet"].y):bins]
                         else:
                             a = sim_instance.particles["planet"].a
-                            boundary = Params.int_spec["r_max"] * a
-                            bw = 2 * np.pi * Params.int_spec["sim_advance"] * 2 * a if bandwidth == 'default' else bandwidth
-                            xx, yy = np.mgrid[-boundary:boundary:bins, -boundary:boundary:bins]
+                        bw = a * np.sin(2 * np.pi * Params.int_spec["sim_advance"])
+                        bwx = improved_sheather_jones(data[:,2].reshape((len(data), 1)), weights)
+                        bwy = improved_sheather_jones(data[:,1].reshape((len(data), 1)), weights)
+                        bwz = improved_sheather_jones(data[:,0].reshape((len(data), 1)), weights)
+                        bw_factor = (bwx/data[:,2].std() + bwy/data[:,1].std() + bwz/data[:,0].std()) / 3
 
-                        data = np.vstack([y, x]).T
-                        xy_sample = np.vstack([yy.ravel(), xx.ravel()]).T
+                        kde = KDEpy.FFTKDE(kernel=kernel, norm=2, bw=bw_factor*10)
+                        grid, points = kde.fit(data, weights=weights).evaluate(grid_points)
 
-                        kernel_density = KernelDensity(kernel=kernel, bandwidth=bw).fit(data)
-                        print("Pulling KDE probabilities")
-                        Z = np.exp(kernel_density.score_samples(xy_sample).reshape(xx.shape))
-                        print("\t Done!")
+                        z = points.reshape(grid_points, grid_points, grid_points).T
+                        bin_volume = (grid[:,0][grid_points**2] - grid[:,0][grid_points**2-1]) * (grid[:,1][grid_points] - grid[:,1][grid_points - 1]) * (grid[:,2][1] - grid[:,2][0])
 
-                        bin_size = (xx[:,0][1] - xx[:,0][0]) * (yy[0,:][1] - yy[0,:][0])
-                        N_c = len(x) * Z * bin_size
-                        N_per_cm2 = N_c * species.particles_per_superparticle(mass_inject_per_advance) / (bin_size * 1e4)
+                        z *= species.particles_per_superparticle(mass_inject_per_advance) / (bin_volume * 1e6)
 
                         if draw_contour:
+                            x = np.unique(grid[:,2])
+                            y = np.unique(grid[:,1])
+                            xx = np.repeat(x[:, np.newaxis], bins, axis=1)
+                            yy = np.repeat(y[np.newaxis, :], bins, axis=0)
                             ax = kwargs.get('ax', None)
                             fill = kwargs.get('contour_fill', False)
                             norm = colors.LogNorm()
+                            Z = np.max(z, axis=2)
                             lvls = np.logspace(np.log10(np.max(Z)) - 3, np.log10(np.max(Z)), 8)
                             if fill:
                                 ax.contourf(xx, yy, Z, cmap=matplotlib.cm.afmhot, levels=lvls, norm=norm)
                             ax.contour(xx, yy, Z, colors='w', alpha=0.25, norm=norm, levels=lvls)
 
-                        return Z, N_per_cm2, xx, yy
+                        return z, grid
 
-                    else:
-                        if not z.shape == x.shape:
-                            raise ValueError("z-shape is not equal to x-shape. Cannot pass 3D data.")
-                        data3d = np.vstack([zdata, ydata, xdata]).T
-                        if moon_exists:
-                            a = sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
-                            boundary = Params.int_spec["r_max"] * a
+                #z, grid = kde(x=xdata, y=ydata, weights=weights, module ='KDEpy', z=zdata, bins=200, draw_contour=True, ax=ax_species, contour_fill=False)
 
-                            if estimate_bandwidth:
-                                print("Estimating bandwidth. This may take a while...")
-                                bandwidths = 2 * np.pi * Params.int_spec["sim_advance"] * a * 10 ** np.linspace(-2, 3, 100)
-                                grid = GridSearchCV(KernelDensity(kernel=kernel), {'bandwidth': bandwidths}, n_jobs=-1)
-                                grid.fit(data3d)
-                                bw = grid.best_estimator_.bandwidth
-                                print(f"\t Best bandwidth: {bw}")
-                            else:
-                                bw = 2 * np.pi * Params.int_spec["sim_advance"] * 1 * a if bandwidth == 'default' else bandwidth
+                # ============================================================================================
 
-                            xxx, yyy, zzz = np.mgrid[
-                                            (-boundary + sim_instance.particles["planet"].x):(boundary + sim_instance.particles["planet"].x):bins,
-                                            (-boundary + sim_instance.particles["planet"].y):(boundary + sim_instance.particles["planet"].y):bins,
-                                            (-boundary + sim_instance.particles["planet"].z)/2:(boundary + sim_instance.particles["planet"].z)/2:zbins]
+                points = np.vstack([xdata,ydata, zdata]).T
+                vx = particle_velocities[:, 0][np.where(particle_species == species.id)]
+                vy = particle_velocities[:, 1][np.where(particle_species == species.id)]
+                vz = particle_velocities[:, 2][np.where(particle_species == species.id)]
+                velocities = np.vstack([vx, vy, vz]).T
 
-                            #xmin, xmax = np.min(xdata), np.max(xdata)
-                            #ymin, ymax = np.min(ydata), np.max(ydata)
-                            #zmin, zmax = np.min(zdata), np.max(zdata)
-                            #xxx, yyy, zzz = np.mgrid[xmin:xmax:bins, ymin:ymax:bins, zmin:zmax:zbins]
-                        else:
-                            a = sim_instance.particles["planet"].a
-                            boundary = Params.int_spec["r_max"] * a
-                            bw = 2 * np.pi * Params.int_spec["sim_advance"] * 2 * a if bandwidth == 'default' else bandwidth
-                            xxx, yyy, zzz = np.mgrid[-boundary:boundary:bins, -boundary:boundary:bins, -boundary/2:boundary/2:zbins]
+                simulation_time = i * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
+                total_injected = i * (species.n_sp + species.n_th)
+                remaining_part = len(xdata)
+                mass_in_system = remaining_part / total_injected * species.mass_per_sec * simulation_time
+                superpart_mass = mass_in_system / remaining_part
+                number_per_superpart = superpart_mass / species.m
+                phys_weights = number_per_superpart * weights
 
-                        xyz_sample = np.vstack([zzz.ravel(), yyy.ravel(), xxx.ravel()]).T
 
-                        kde3d = KernelDensity(kernel=kernel, bandwidth=bw).fit(data3d)
-                        print("Pulling KDE probabilities: ")
-                        Z3d = np.exp(kde3d.score_samples(xyz_sample).reshape(xxx.shape))
-                        print("\t Done!")
+                #L = 128
+                #boundary = Params.int_spec["r_max"] * sim_instance.particles["moon"].calculate_orbit(
+                #    primary=sim_instance.particles["planet"]).a
+                #X, Y = np.meshgrid(np.linspace(-boundary + sim_instance.particles["planet"].x, boundary + sim_instance.particles["planet"].x, L),
+                #                   np.linspace(-boundary + sim_instance.particles["planet"].y, boundary + sim_instance.particles["planet"].y, L))
 
-                        volume = (xxx[1,0,0] - xxx[0,0,0]) * (yyy[0,1,0] - yyy[0,0,0]) * (zzz[0,0,1] - zzz[0,0,0])
-                        w_samp = mass_inject_per_advance / species.m
-                        N_per_cm3 = Z3d * w_samp / 1e6
+                print("Constructing DTFE ...")
+                dtfe = DTFE3D.DTFE(points, velocities, superpart_mass)
+                # dens = dtfe.density(X.flat, Y.flat, Z.flat).reshape((L,L,L))
+                dtfe2d = DTFE.DTFE(points[:,:2], velocities[:,:2], phys_weights)
+                dens_plot = dtfe.density(points[:, 0], points[:, 1], points[:, 2]) / 1e6 / species.m * weights
+                print("\t ... done!")
 
-                        return Z3d, N_per_cm3, xxx, yyy, zzz
-
-                # ==========================================================================================
-
-                ax_species = axs[k] if Params.num_species > 1 else axs[0]
-                #plt.axis('off')
-
-                _, N_per_cm2, _, _ = kde(x=xdata, y=ydata, draw_contour=True, ax=ax_species, bins=100j, kernel='exponential', estimate_bandwidth=False)
-
-                # NOTE: np.sum(H3d,axis=2).T * weight / (edges3d[2][-1] * 100 - edges3d[2][0] * 100) == H * weight
-                #       np.sum(H3d, axis=2).T * weight / (edges3d[2][-1] * 100 - edges3d[2][0] * 100) is the AVERAGE density over a column
-                print(np.max(N_per_cm2))
-                plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=H,
-                         xedges=xedges, yedges=yedges,
-                         density=True)
-
-                ax_species.set_title(f"{species_names[k]}", c='k',
-                                     size='medium')
-                plt.setp(ax_species.get_xticklabels(), rotation=30, horizontalalignment='right', visible=True)
-                if k == 0:
-                    plt.setp(ax_species.get_yticklabels(), horizontalalignment='right', visible=True)
-                else:
-                    plt.setp(ax_species.get_yticklabels(), horizontalalignment='right', visible=False)
-                ax_species.tick_params(axis='both', which='major', labelsize=8)
-                ax_species.set_xlabel('')
-                ax_species.set_ylabel('')
-
-            if moon_exists:
-                fig.suptitle(
-                    f"Particle Simulation around Planetary Body",
-                    size='xx-large')
-            else:
-                fig.suptitle(
-                    f"Particle Simulation around Stellar Body",
-                    size='xx-large')
-
-            handles, labels = ax_species.get_legend_handles_labels()
-            fig.legend(handles, labels, loc='upper right')
-            fig.text(0.1, 0.5, "y-distance in primary radii", rotation="vertical", verticalalignment='center', horizontalalignment='right', fontsize = 'x-large')
-            fig.text(0.5, 0.05, "x-distance in primary radii", horizontalalignment='center', fontsize = 'x-large')
-            if save:
-                if moon_exists:
-                    orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(
-                        primary=sim_instance.particles["planet"]).f * 180 / np.pi, 2)
-                else:
-                    orbit_phase = np.around(sim_instance.particles["planet"].calculate_orbit(
-                        primary=sim_instance.particles[0]).f * 180 / np.pi, 2)
-                frame_identifier = f"ColumnDensity_TopDown_{i}_{orbit_phase}"
-                plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
-            if showfig:
-                plt.show()
-            plt.close()
+                vis = Visualize(sim_instance)
+                vis.add_histogram(k, H, xedges, yedges, perspective="topdown")
+                vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices)
+                #vis.add_dtfe(k, points[:, 0], points[:, 1], dens_plot)
+                vis()
 
         def toroidal_hist():
             # RADIAL HISTOGRAM
@@ -501,23 +558,9 @@ if __name__ == "__main__":
             else:
                 pass
 
-
-        def los_column_and_velocity_dist(bins=160):
+        def los_column_and_velocity_dist(bins=100):
             # COLUMN DENSITY & VELOCITY DISTRIBUTION
             # ======================================
-            subplot_rows = int(np.ceil(Params.num_species / 3))
-            subplot_columns = Params.num_species if Params.num_species <= 3 else 3
-            #fig, axs = plt.subplots(subplot_rows, subplot_columns, figsize=(25, 12))
-            #fig.suptitle(r"Particle density in 1/cm$^2$", size='xx-large')
-
-            fig = plt.figure(figsize=(20, 15))
-            fig.suptitle(r"Particle density in 1/cm$^2$", size='xx-large')
-            gs1 = gridspec.GridSpec(subplot_rows, subplot_columns)
-            gs1.update(wspace=0.2, hspace=0.0)
-            axs = [plt.subplot(gs1[f]) for f in range(subplot_rows * subplot_columns)]
-            for l in range(len(axs)):
-                if l >= Params.num_species:
-                    axs[l].remove()
 
             for k in range(Params.num_species):
                 species = Params.get_species(k + 1)
@@ -525,54 +568,55 @@ if __name__ == "__main__":
                 ydata = particle_positions[:, 1][np.where(particle_species == species.id)]
                 zdata = particle_positions[:, 2][np.where(particle_species == species.id)]
 
+                weights = particle_weights[np.where(particle_species == species.id)]
+
                 if moon_exists:
                     zboundaryC = 10 * sim_instance.particles["planet"].r
                     mass_inject_per_advance = species.mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
-                    orbit_phase = np.around(sim_instance.particles["moon"].calculate_orbit(
-                        primary=sim_instance.particles["planet"]).f * 180 / np.pi, 2)
-
-                    H_Io = 100e3
-                    chapman = np.sqrt(2 * np.pi * sim_instance.particles["moon"].r / H_Io)
+                    #H_Io = 100e3
+                    #chapman = np.sqrt(2 * np.pi * sim_instance.particles["moon"].r / H_Io)
 
                 else:
                     zboundaryC = 6 * sim_instance.particles[0].r
                     mass_inject_per_advance = species.mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
-                    orbit_phase = np.around(sim_instance.particles["planet"].f * 180 / np.pi,2)
 
-                HC, yedgesC, zedgesC = getHistogram(sim_instance, ydata, zdata, bins=bins, yboundary=zboundaryC, plane='yz')
+                HC, yedgesC, zedgesC = getHistogram(sim_instance, ydata, zdata, weights=weights, bins=bins, yboundary=zboundaryC, plane='yz')
                 bin_size = (yedgesC[1] - yedgesC[0]) * (zedgesC[1] - zedgesC[0])
                 weight = species.particles_per_superparticle(mass_inject_per_advance) / bin_size / 10000
 
-                ax_species = axs[k] if Params.num_species > 1 else axs[0]
-                plotting(fig, ax_species, sim_instance, save=save, show=showfig, iter=i, histogram=HC * weight,
-                         xedges=yedgesC, yedges=zedgesC,
-                         density=True, plane='yz')
+                #kde = KDEpy.FFTKDE(kernel='gaussian', norm=2, bw=0.001)
+                #grid_points = bins
+                #grid, points = kde.fit(np.vstack([zdata, ydata]).T, weights=weights).evaluate(grid_points)
+                #z = points.reshape(grid_points, grid_points).T
+                #bin_size = (np.unique(grid[:,0])[1] - np.unique(grid[:,0])[0]) * (np.unique(grid[:,1])[1] - np.unique(grid[:,1])[0])
+                #
+                #z *= species.particles_per_superparticle(mass_inject_per_advance) / (bin_size * 1e4)
 
-                ax_species.set_title(f"{species_names[k]}", c='k',
-                                     size='medium')
-                plt.setp(ax_species.get_xticklabels(), rotation=30, horizontalalignment='right', visible=True)
-                if k == 0:
-                    plt.setp(ax_species.get_yticklabels(), horizontalalignment='right', visible=True)
-                else:
-                    plt.setp(ax_species.get_yticklabels(), horizontalalignment='right', visible=False)
-                ax_species.tick_params(axis='both', which='major', labelsize=8)
+                simulation_time = i * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
+                total_injected = i * (species.n_sp + species.n_th)
+                remaining_part = len(ydata)
+                mass_in_system = remaining_part / total_injected * species.mass_per_sec * simulation_time
+                superpart_mass = mass_in_system / remaining_part
 
-                ax_species.set_xlabel('')
-                ax_species.set_ylabel('')
+                points = np.vstack([ydata, zdata]).T
+                vy = particle_velocities[:, 1][np.where(particle_species == species.id)]
+                vz = particle_velocities[:, 2][np.where(particle_species == species.id)]
+                velocities = np.vstack([vy, vz]).T
 
-            handles, labels = ax_species.get_legend_handles_labels()
-            fig.legend(handles, labels, loc='upper right')
-            fig.text(0.1, 0.5, "y-distance in primary radii", rotation="vertical", verticalalignment='center',
-                     horizontalalignment='right', fontsize='x-large')
-            fig.text(0.5, 0.05, "x-distance in primary radii", horizontalalignment='center', fontsize='x-large')
-            #plt.tight_layout()
-            if save:
-                frame_identifier = f"ColumnDensity_LOS_{i}_{orbit_phase}"
-                plt.savefig(f'output/{path}/plots/{frame_identifier}.png')
-            if show_column_density:
-                plt.show()
-            plt.close()
+                dtfe2d = DTFE.DTFE(points, velocities, superpart_mass)
+                dens_los = dtfe2d.density(points[:, 0], points[:, 1]) / 1e4 / species.m * weights
 
+                vis = Visualize(sim_instance)
+                vis.add_dtfe(k, points[:,0], points[:,1], dens_los, perspective="los", cb_format='%.2E')
+                vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective='los')
+                vis()
+
+                #xx = np.repeat(np.unique(grid[:,1])[:, np.newaxis], bins, axis=1)
+                #yy = np.repeat(np.unique(grid[:,0])[np.newaxis, :], bins, axis=0)
+                #norm = colors.LogNorm()
+                #lvls = np.logspace(10, np.log10(np.max(z)), 12)
+                #ax_species.contourf(xx, yy, z, cmap=matplotlib.cm.afmhot, levels=lvls, norm=norm)
+                #ax_species.contour(xx, yy, z, colors='w', alpha=0.25, norm=norm, levels=lvls)
 
         def vel_dist():
             if not i == 0:
@@ -647,6 +691,7 @@ if __name__ == "__main__":
             else:
                 pass
 
+
         if save_particles:
             try:
                 with open(f"output/{path}/particle_pos.txt", "w") as text_file:
@@ -660,9 +705,10 @@ if __name__ == "__main__":
 
         top_down_column(bins=100)
         # mayavi_3D_density()
-        los_column_and_velocity_dist(bins=200)
+        los_column_and_velocity_dist(bins=100)
         #toroidal_hist()
         #vel_dist()
+
 
         print(f"Time needed for processing: {time.time() - start_time}")
     else:
