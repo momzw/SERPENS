@@ -437,7 +437,6 @@ class Network:
             print("Could not set network lifetime")
 
 
-
 class SpeciesSpecifics:
 
     def __init__(self, mass_number, id, type="neutral"):
@@ -447,6 +446,7 @@ class SpeciesSpecifics:
         self.m = mass_number * amu
         self.id = id
         self.network = Network(self.id).network
+
 
 class Species(SpeciesSpecifics):
 
@@ -507,11 +507,9 @@ class Species(SpeciesSpecifics):
             print(f"The species '{name}' has not been implemented.")
             return
 
-
         if duplicate is not None:
             self.id = self.id * 10 + duplicate
         self.duplicate = duplicate
-
 
         self.n_th = n_th
         self.n_sp = n_sp
@@ -559,8 +557,8 @@ class Parameters:
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
         "moon": False,
-        "sim_advance": 1 / 80,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 160,             # Number of times the simulation advances.
+        "sim_advance": 1 / 40,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
+        "num_sim_advances": 200,             # Number of times the simulation advances.
         "stop_at_steady_state": False,
         "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
         "r_max": 4,                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
@@ -582,7 +580,7 @@ class Parameters:
         #self.species4 = Species("H", n_th=0, n_sp=0, mass_per_sec=3)
         #self.species5 = Species("O+", n_th=0, n_sp=0)
 
-        self.species1 = Species("SO2", description="SO2-30km/s", n_th=0, n_sp=500, mass_per_sec=1000e3, model_smyth_v_b=30000, beta=.1, lifetime=360)
+        self.species1 = Species("SO2", description="SO2-30km/s", n_th=0, n_sp=1500, mass_per_sec=1000e3, model_smyth_v_b=30000, beta=.1, lifetime=17.7*360)
         #self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
         #self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
         #self.species4 = Species("NaCl", description="NaCl-10km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=10000, duplicate=3)

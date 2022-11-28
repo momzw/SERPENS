@@ -7,6 +7,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from rebound.plotting import fading_line
 from init import Parameters
 
+import scipy.ndimage
 
 class Visualize:
 
@@ -37,15 +38,19 @@ class Visualize:
             self.fig.suptitle(
                 r"Particle Densities [cm$^{-3}$] around Planetary Body",
                 size='xx-large')
+            self.boundary = params.int_spec["r_max"] * rebsim.particles["moon"].calculate_orbit(primary=rebsim.particles["planet"]).a
         else:
             self.fig.suptitle(
                 r"Particle Densities [cm$^{-3}$] around Stellar Body",
                 size='xx-large')
+            self.boundary = params.int_spec["r_max"] * rebsim.particles["planet"].a
 
     def __call__(self, save_path = None, show_bool=True, **kwargs):
 
         handles, labels = self.axs[0].get_legend_handles_labels()
-        self.fig.legend(handles, labels, loc='upper right')
+        by_label = dict(zip(labels, handles))
+
+        self.fig.legend(by_label.values(), by_label.keys(), loc='upper right')
         self.fig.text(0.1, 0.5, "y-distance in primary radii", rotation="vertical", verticalalignment='center',horizontalalignment='right', fontsize='x-large')
         self.fig.text(0.5, 0.05, "x-distance in primary radii", horizontalalignment='center', fontsize='x-large')
 
@@ -123,10 +128,10 @@ class Visualize:
             xlabels = np.around(np.array(xlocs) / self.ps[0].r, 2)
             ylabels = np.around(np.array(ylocs) / self.ps[0].r, 2)
 
-            star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), self.ps[0].r, fc='y', zorder=4, label="star")
+            star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), self.ps[0].r, fc='y', zorder=10, label="star")
             ax.add_patch(star_patch)
 
-            o = np.array(self.ps["planet"].sample_orbit(primary=self.ps["planet"]))
+            o = np.array(self.ps["planet"].sample_orbit(primary=self.ps[0]))
 
         ax.set_xticks(xlocs)
         ax.set_xticklabels([str(x) for x in xlabels])
@@ -184,7 +189,7 @@ class Visualize:
     def add_dtfe(self, ax, x, y, dtfe, perspective, clim=None, cb_format='%.2f'):
         ax = self.axs[ax]
         self.setup_ax(ax, perspective=perspective)
-        scatter = ax.scatter(x, y, c=dtfe, cmap=plt.cm.afmhot, marker='.', norm=colors.LogNorm(), s=1.5, zorder=8)
+        scatter = ax.scatter(x, y, c=dtfe, cmap=plt.cm.afmhot, marker='.', norm=colors.LogNorm(), s=1.5, zorder=5)
 
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -198,8 +203,13 @@ class Visualize:
         self.setup_ax(ax, perspective=perspective)
         ax.triplot(x, y, simplices, linewidth=0.1, c='w')
 
-
-
+    def add_contour(self, ax, x, y, z, perspective):
+        ax = self.axs[ax]
+        self.setup_ax(ax, perspective=perspective)
+        #z = np.clip(z, a_min=1e-30, a_max=None)
+        #z = scipy.ndimage.filters.gaussian_filter(z, sigma=z.std())
+        ax.contour(x, y, z, colors='w', norm=colors.LogNorm(), zorder=6)
+        #ax.contourf(x, y, z, cmap=matplotlib.cm.afmhot, norm=colors.LogNorm(), zorder=4)
 
 
 

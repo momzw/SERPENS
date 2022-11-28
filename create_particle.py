@@ -2,7 +2,10 @@ import rebound
 import numpy as np
 import warnings
 from init import Parameters
+#from numba import njit, prange
 
+from scipy.optimize import fmin
+from scipy.stats import truncnorm, maxwell, norm, rv_continuous
 import time
 
 # ====================================================================================================================================================================
@@ -21,7 +24,7 @@ spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
 
 
 
-def random_pos(source_r, lat_dist, long_dist, num = 1, **kwargs):
+def random_pos(source_r, lat_dist, long_dist, num=1, **kwargs):
     """
     This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
     :param lat_dist: str. Valid are "truncnorm" and "uniform".
@@ -37,7 +40,6 @@ def random_pos(source_r, lat_dist, long_dist, num = 1, **kwargs):
     longitudes = np.zeros(num)
     if lat_dist in valid_dist:
         if valid_dist[lat_dist] == 0:
-            from scipy.stats import truncnorm
             lower = kwargs.get("a_lat", -np.pi / 2)
             upper = kwargs.get("b_lat", np.pi / 2)
             center = kwargs.get("loc_lat", 0)
@@ -51,11 +53,10 @@ def random_pos(source_r, lat_dist, long_dist, num = 1, **kwargs):
             for i in range(num):
                 latitudes[i] = np.random.default_rng().uniform(lower, upper)
     else:
-        raise ValueError("Invalid latitude distribution encountered in positional calculation: " % lat_dist)
+        raise ValueError("Invalid latitude distribution encountered in positional calculation")
 
     if long_dist in valid_dist:
         if valid_dist[long_dist] == 0:
-            from scipy.stats import truncnorm
             lower = kwargs.get("a_long", -np.pi)
             upper = kwargs.get("b_long", np.pi)
             center = kwargs.get("loc_long", 0)
@@ -69,7 +70,7 @@ def random_pos(source_r, lat_dist, long_dist, num = 1, **kwargs):
             for i in range(num):
                 longitudes[i] = np.random.default_rng().uniform(lower, upper)
     else:
-        raise ValueError("Invalid longitude distribution encountered in positional calculation: " % long_dist)
+        raise ValueError("Invalid longitude distribution encountered in positional calculation")
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
@@ -108,13 +109,15 @@ def random_temp(source, temp_min, temp_max, latitude, longitude):
     return temp
 
 
-def random_vel_thermal(species, temp):
+def random_vel_thermal(species_id, temp):
     """
     Gives a random thermal velocity vector for a sodium atom given a local temperature.
     :param temp: float
     :return: vel_Na: ndarray
     """
-    from scipy.stats import maxwell, norm
+
+    species = Params.get_species_by_id(species_id)
+
     k_B = 1.380649e-23
     vel = np.zeros((len(temp), 3))
     for i in range(len(temp)):
@@ -127,20 +130,19 @@ def random_vel_thermal(species, temp):
     return vel
 
 
-def random_vel_sputter(species, num = 1):
+def random_vel_sputter(species_id, num = 1):
     """
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
     """
-    from scipy.stats import rv_continuous
 
+    species = Params.get_species_by_id(species_id)
     sput_model = species.sput_spec["sput_model"]
 
     # ___________________________________________________
 
     # MAXWELLIAN MODEL
     def model_maxwell():
-        from scipy.stats import maxwell
         model_maxwell_max = species.sput_spec["model_maxwell_max"]
 
         scale = model_maxwell_max / np.sqrt(2)
@@ -210,33 +212,7 @@ def random_vel_sputter(species, num = 1):
         v_M = species.sput_spec["model_smyth_v_M"]
         a = species.sput_spec["model_smyth_a"]
 
-        #class sputter_gen2(rv_continuous):
-        #    def _pdf(self, x, alpha, v_b, v_M):
-        #        def model2func(x, alpha, v_b, v_M):
-        #            f_v = 1 / v_b * (x / v_b) ** 3 \
-        #                  * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** alpha \
-        #                  * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
-        #            return f_v
-        #
-        #        def model2func_int(x, alpha, v_b, v_M):
-        #
-        #            integral_bracket = (1 + x**2)**(5/2) * v_b/v_M / (2*alpha-5) - (1 + x**2)**(3/2) * v_b/v_M / (2*alpha-3) - x**4 / (2*(alpha-2)) - alpha*x**2 / (2*(alpha-2)*(alpha-1)) - 1 / (2*(alpha-2)*(alpha-1))
-        #
-        #            f_v_integrated = integral_bracket * (1+x**2)**(-alpha)
-        #
-        #            return f_v_integrated
-        #
-        #        #normalization = 1 / (model2func_int(v_M, a, v_b, v_M) - model2func_int(v_b, a, v_b, v_M))
-        #        upper_bound = np.sqrt((v_M/v_b)**2 - 1)
-        #        normalization = 1 / (model2func_int(upper_bound, a, v_b, v_M) - model2func_int(0, a, v_b, v_M))
-        #        f_pdf = normalization * model2func(x, a, v_b, v_M)
-        #        return f_pdf
-        #
-        #model2_vel_dist = sputter_gen2(a=0.0, b=np.sqrt(v_M**2 - v_b**2))
-        #model2_ran_speed = model2_vel_dist.rvs(alpha=a, v_b=v_b, v_M=v_M)
-
         def rejection_method():
-            from scipy.optimize import fmin
 
             def phi_neg(x):
 
@@ -294,12 +270,12 @@ def random_vel_sputter(species, num = 1):
         else:
             vel = model_smyth()
     else:
-        raise ValueError("Invalid sputtering model: " % sput_model)
+        raise ValueError("Invalid sputtering model")
 
     return vel
 
 
-def create_particle(species, process, source, source_r, num = 1, **kwargs):
+def create_particle(species_id, process, source, source_r, num = 1, **kwargs):
     """
     Generates a REBOUND particle with random velocity at random position from process given by function argument.
     See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
@@ -314,7 +290,7 @@ def create_particle(species, process, source, source_r, num = 1, **kwargs):
 
     valid_process = {"thermal": 0, "sputter": 1}
     if process not in valid_process:
-        raise ValueError("Invalid escaping mechanism encountered in particle creation: " % process)
+        raise ValueError("Invalid escaping mechanism encountered in particle creation")
 
     temp_min = kwargs.get("temp_min", source_temp_min)
     temp_max = kwargs.get("temp_max", source_temp_max)
@@ -326,7 +302,7 @@ def create_particle(species, process, source, source_r, num = 1, **kwargs):
                                                 b_long=2 * np.pi, num = num)
         ran_temp = random_temp(source, temp_min, temp_max, ran_lat, ran_long)
 
-        ran_vel_not_rotated_in_place = random_vel_thermal(species, ran_temp)
+        ran_vel_not_rotated_in_place = random_vel_thermal(species_id, ran_temp)
 
     else:
 
@@ -344,7 +320,7 @@ def create_particle(species, process, source, source_r, num = 1, **kwargs):
         ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="uniform", long_dist="uniform", num = num)
         #ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
-        ran_vel_not_rotated_in_place = random_vel_sputter(species, num = num)
+        ran_vel_not_rotated_in_place = random_vel_sputter(species_id, num = num)
 
     for part in range(num):
         # Rotation matrix in order to get velocity vector aligned with surface-normal.

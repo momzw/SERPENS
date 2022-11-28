@@ -9,7 +9,6 @@ import os
 import multiprocess as mp
 import multiprocessing
 
-from tqdm import tqdm
 import pickle
 
 from create_particle import create_particle
@@ -207,8 +206,6 @@ def run_simulation():
 
                     product_weight = particle_weight * (1 - np.exp(-delt / tau))
                     particle_weight = particle_weight * np.exp(-delt / tau)
-                    if particle_weight < 1 / pps:
-                        toberemoved.append(particle.hash)
 
                     """
                     # Check all products if they have been implemented.
@@ -284,10 +281,7 @@ def run_simulation():
                     """
             else:
                 tau = chem_network
-
                 particle_weight = particle_weight * np.exp(-delt / tau)
-                #if particle_weight * pps < 1:
-                #    toberemoved.append(particle.hash)
 
             hash_dict[f"{particle.hash.value}"].update({'weight': particle_weight})
 

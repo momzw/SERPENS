@@ -57,14 +57,14 @@ class DTFE:
     def __init__(self, points, velocities, m):
         #print("Delaunay Tesselation Field Estimator initialization:")
         self.velocities = velocities
+
         #print("\t-Evaluate Delaunay tessellation")
         self.delaunay = Delaunay(points)
-
-        # Area of a triangle
 
         # The density estimate
         #print("\t-Evaluate density estimate")
         self.rho = compute_densities(self.delaunay.points, self.delaunay.simplices, m)
+
         # The gradients
         #print("\t-Evaluate gradients")
         self.Drho, self.Dv = compute_gradients(self.delaunay.points, self.delaunay.simplices,
