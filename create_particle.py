@@ -1,24 +1,15 @@
-import rebound
 import numpy as np
-import warnings
 from init import Parameters
-#from numba import njit, prange
 
 from scipy.optimize import fmin
 from scipy.stats import truncnorm, maxwell, norm, rv_continuous
-import time
+
 
 # ====================================================================================================================================================================
 
 Params = Parameters()
-therm_Params = Params.therm_spec
 moon_exists = Params.int_spec["moon"]
 
-# Thermal evaporation parameters
-# ---------------------
-source_temp_max = therm_Params["source_temp_max"]
-source_temp_min = therm_Params["source_temp_min"]
-spherical_symm_ejection = therm_Params["spherical_symm_ejection"]
 
 # ====================================================================================================================================================================
 
@@ -96,7 +87,7 @@ def random_temp(source, temp_min, temp_max, latitude, longitude):
 
     longitude_wrt_sun = longitude + np.arctan2(source[0][1], source[0][0])
 
-    if not spherical_symm_ejection:
+    if not Params.therm_spec["spherical_symm_ejection"]:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
         # Need to change temperature-longitude dependence.
         # (refer Wurz, P., 2002, "Monte-Carlo simulation of Mercury's exosphere"; -np.pi / 2 < longitude_wrt_sun < np.pi / 2)
@@ -116,7 +107,7 @@ def random_vel_thermal(species_id, temp):
     :return: vel_Na: ndarray
     """
 
-    species = Params.get_species_by_id(species_id)
+    species = Params.get_species(id=species_id)
 
     k_B = 1.380649e-23
     vel = np.zeros((len(temp), 3))
@@ -130,13 +121,13 @@ def random_vel_thermal(species_id, temp):
     return vel
 
 
-def random_vel_sputter(species_id, num = 1):
+def random_vel_sputter(species_id, num=1):
     """
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
     """
 
-    species = Params.get_species_by_id(species_id)
+    species = Params.get_species(id=species_id)
     sput_model = species.sput_spec["sput_model"]
 
     # ___________________________________________________
@@ -253,7 +244,7 @@ def random_vel_sputter(species_id, num = 1):
                 v2 = np.sin(ran_azi) * np.sin(ran_elev)
                 v3 = np.cos(ran_elev)
 
-                v_rv[i] = x_rv * np.array([v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
+                v_rv[i] = x_rv * np.array([v3, v2, -v1])  # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2. Hemisphere pointing up -> Hemisphere pointing right
             return v_rv
 
         ran_vel_sputter_smyth = rejection_method()
@@ -275,7 +266,7 @@ def random_vel_sputter(species_id, num = 1):
     return vel
 
 
-def create_particle(species_id, process, source, source_r, num = 1, **kwargs):
+def create_particle(species_id, process, source, source_r, num=1, **kwargs):
     """
     Generates a REBOUND particle with random velocity at random position from process given by function argument.
     See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
@@ -292,8 +283,8 @@ def create_particle(species_id, process, source, source_r, num = 1, **kwargs):
     if process not in valid_process:
         raise ValueError("Invalid escaping mechanism encountered in particle creation")
 
-    temp_min = kwargs.get("temp_min", source_temp_min)
-    temp_max = kwargs.get("temp_max", source_temp_max)
+    temp_min = kwargs.get("temp_min", Params.therm_spec['source_temp_min'])
+    temp_max = kwargs.get("temp_max", Params.therm_spec['source_temp_max'])
 
     out = np.zeros((num, 6), dtype="float64")
 
@@ -316,11 +307,10 @@ def create_particle(species_id, process, source, source_r, num = 1, **kwargs):
         #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
         #                                        b_long=3 * np.pi / 2 + angle_correction,
         #                                        loc_long=np.pi / 2 + angle_correction)
-
-        ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="uniform", long_dist="uniform", num = num)
         #ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
-        ran_vel_not_rotated_in_place = random_vel_sputter(species_id, num = num)
+        ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="uniform", long_dist="uniform", num=num)
+        ran_vel_not_rotated_in_place = random_vel_sputter(species_id, num=num)
 
     for part in range(num):
         # Rotation matrix in order to get velocity vector aligned with surface-normal.

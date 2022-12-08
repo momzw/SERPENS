@@ -3,6 +3,9 @@ import reboundx
 import numpy as np
 import os
 
+from network import Network
+
+
 class Network:
     def __init__(self, id):
         self._species_weights = None
@@ -253,25 +256,25 @@ class Network:
             tau1 = 1 / 4.0e-6
             reagent1 = "H+"
             products1 = "H H2+"
-            delv1 = np.sqrt(2 * 50e3 * e / u)
+            delv1 = 0
 
-            # Charge-Exchange with protons at 60keV
-            tau10 = 1 / 3.0e-6
-            reagent10 = "H+"
-            products10 = "H H2+"
-            delv10 = np.sqrt(2 * 60e3 * e / u)
-
-            # Charge-Exchange with protons at 70keV
-            tau11 = 1 / 2.0e-6
-            reagent11 = "H+"
-            products11 = "H H2+"
-            delv11 = np.sqrt(2 * 70e3 * e / u)
-
-            # Charge-Exchange with protons at 80keV
-            tau12 = 1 / 1.0e-6
-            reagent12 = "H+"
-            products12 = "H H2+"
-            delv12 = np.sqrt(2 * 80e3 * e / u)
+            ## Charge-Exchange with protons at 60keV
+            # tau10 = 1 / 3.0e-6
+            # reagent10 = "H+"
+            # products10 = "H H2+"
+            # delv10 = np.sqrt(2 * 60e3 * e / u)
+            #
+            ## Charge-Exchange with protons at 70keV
+            # tau11 = 1 / 2.0e-6
+            # reagent11 = "H+"
+            # products11 = "H H2+"
+            # delv11 = np.sqrt(2 * 70e3 * e / u)
+            #
+            ## Charge-Exchange with protons at 80keV
+            # tau12 = 1 / 1.0e-6
+            # reagent12 = "H+"
+            # products12 = "H H2+"
+            # delv12 = np.sqrt(2 * 80e3 * e / u)
 
             tau2 = 1 / 2.7e-7
             reagent2 = "O+"
@@ -313,15 +316,13 @@ class Network:
             products9 = "H H+ e"
             delv9 = 0
 
-            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9, tau10, tau11, tau12])
+            lifetimes = np.array([tau1, tau2, tau3, tau4, tau5, tau6, tau7, tau8, tau9])
             reagents = np.array(
-                [reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9, reagent10,
-                 reagent11, reagent12])
+                [reagent1, reagent2, reagent3, reagent4, reagent5, reagent6, reagent7, reagent8, reagent9])
             products = np.array(
-                [products1, products2, products3, products4, products5, products6, products7, products8, products9,
-                 products10, products11, products12])
+                [products1, products2, products3, products4, products5, products6, products7, products8, products9])
             velocities = np.array(
-                [delv1, delv2, delv3, delv4, delv5, delv6, delv7, delv8, delv9, delv10, delv11, delv12])
+                [delv1, delv2, delv3, delv4, delv5, delv6, delv7, delv8, delv9])
 
             self._network = np.vstack((lifetimes, reagents, products, velocities)).T
 
@@ -454,7 +455,7 @@ class Species(SpeciesSpecifics):
     # * Add network/lifetime in <class: Network>
     # * Add to implementedSpecies in <class: Species>
 
-    def __init__(self, name = None, n_th = 0, n_sp = 0, mass_per_sec = None, duplicate = None, **kwargs):
+    def __init__(self, name=None, n_th=0, n_sp=0, mass_per_sec=None, duplicate=None, **kwargs):
         self.implementedSpecies = {
             "Na": 1,
             "O": 3,
@@ -524,7 +525,7 @@ class Species(SpeciesSpecifics):
 
         self.description = kwargs.get("description", self.name)
 
-        self.sput_spec= {
+        self.sput_spec = {
             "sput_model": kwargs.get("sput_model", 'smyth'),
 
             "model_maxwell_max": kwargs.get("model_maxwell_max", 3000),
@@ -556,12 +557,12 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "moon": False,
-        "sim_advance": 1 / 40,              # When simulation reaches multiples of this time step, new particles are generated and sim state gets plotted.
-        "num_sim_advances": 200,             # Number of times the simulation advances.
+        "moon": True,
+        "sim_advance": 1 / 40,
+        "num_sim_advances": 480,
         "stop_at_steady_state": False,
-        "gen_max": None,                    # Define a maximum number of particle generation time steps. After this simulation advances without generating further particles.
-        "r_max": 4,                          # Maximal radial distance in units of source's semi-major axis. Particles beyond get removed from simulation.
+        "gen_max": None,
+        "r_max": 4,
         "random_walk": False,
         "particle_interpolation": False
     }
@@ -574,161 +575,58 @@ class Parameters:
     }
 
     def __init__(self):
-        #self.species1 = Species("O", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b = 2500, odel_smyth_v_M = 10000)      #585    lifetime=2.26*86400
-        #self.species1 = Species("O2", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435    lifetime=3.3*86400
-        #self.species1 = Species("H2", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b = 1200)      #669    lifetime=7*86400
-        #self.species4 = Species("H", n_th=0, n_sp=0, mass_per_sec=3)
-        #self.species5 = Species("O+", n_th=0, n_sp=0)
+        #self.species1 = Species("H", description="H--5.845kg/s--2500m/s", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b=2500, model_smyth_v_M=10000)  # 585, lifetime=2.26*86400
+        #self.species1 = Species("O2", description="O2--14.35kg/s--4700m/s", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b=4700, model_smyth_v_M=10000)  # 1435, lifetime=3.3*86400
+        self.species1 = Species("H2", description="H2--6.69kg/s--1200m/s", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b=1200, model_smyth_v_M=10000)  # 669, lifetime=7*86400
 
-        self.species1 = Species("SO2", description="SO2-30km/s", n_th=0, n_sp=1500, mass_per_sec=1000e3, model_smyth_v_b=30000, beta=.1, lifetime=17.7*360)
-        #self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
-        #self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
-        #self.species4 = Species("NaCl", description="NaCl-10km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=10000, duplicate=3)
-        #self.species5 = Species("NaCl", description="NaCl-50km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=50000, duplicate=4)
-        #self.species6 = Species("NaCl", description="NaCl-30km/s-5d-RAD", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=5, beta=0.1)
-        #self.species7 = Species("NaCl", description="NaCl-30km/s-5d-LRAD", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=6, beta=1)
+        # self.species1 = Species("SO2", description="SO2-30km/s", n_th=0, n_sp=1500, mass_per_sec=1000e3, model_smyth_v_b=30000, beta=.1, lifetime=17.7*360)
+        # self.species2 = Species("NaCl", description="NaCl-30km/s-1hr", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=1, lifetime=60*60)
+        # self.species3 = Species("NaCl", description="NaCl-30km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=2)
+        # self.species4 = Species("NaCl", description="NaCl-10km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=10000, duplicate=3)
+        # self.species5 = Species("NaCl", description="NaCl-50km/s-5d", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=50000, duplicate=4)
+        # self.species6 = Species("NaCl", description="NaCl-30km/s-5d-RAD", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=5, beta=0.1)
+        # self.species7 = Species("NaCl", description="NaCl-30km/s-5d-LRAD", n_th=0, n_sp=300, mass_per_sec=1000, model_smyth_v_b=30000, duplicate=6, beta=1)
 
         self.num_species = len(locals()['self'].__dict__)
 
         # Sputtering model and shape parameters
         self.sput_spec_default = {
-            "sput_model": 'smyth',    # Valid inputs: maxwell, wurz, smyth.
+            "sput_model": 'smyth',  # Valid inputs: maxwell, wurz, smyth.
 
             "model_maxwell_max": 3000,
 
             "model_wurz_inc_part_speed": 5000,
-            "model_wurz_binding_en": 2.89 * 1.602e-19,  # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
+            "model_wurz_binding_en": 2.89 * 1.602e-19,
+            # See table 1, in: Kudriavtsev Y., et al. 2004, "Calculation of the surface binding energy for ion sputtered particles".
             "model_wurz_inc_mass_in_amu": 23,
             "model_wurz_ejected_mass_in_amu": 23,
 
             "model_smyth_v_b": 4000,
             "model_smyth_v_M": 98000,
-            "model_smyth_a": 7/3      # Speed distribution shape parameter
+            "model_smyth_a": 7 / 3  # Speed distribution shape parameter
         }
 
     def __str__(self):
         s = "Integration specifics: \n" + f"\t {self.int_spec} \n"
         s += "Species: \n"
-        for i in range(1, self.num_species+1):
+        for i in range(1, self.num_species + 1):
             species = locals()['self'].__dict__
             s += "\t" + str(vars(species[f"species{i}"])) + "\n"
         s += f"Thermal evaporation parameters: \n \t {self.therm_spec} \n"
         return s
 
-    def get_species(self, num):
-        return locals()['self'].__dict__[f"species{num}"]
-
-    def get_species_by_name(self, name):
-        for i in range(self.num_species):
-            if locals()['self'].__dict__[f"species{i+1}"].name == name:
-                return locals()['self'].__dict__[f"species{i+1}"]
-
-    def get_species_by_id(self, id):
-        for i in range(self.num_species):
-            if locals()['self'].__dict__[f"species{i + 1}"].id == id:
-                return locals()['self'].__dict__[f"species{i+1}"]
-
-    def get_implement_index(self, id, name = None):
-        for i in range(self.num_species):
-            if locals()['self'].__dict__[f"species{i + 1}"].id == id:
-                return i
-            elif locals()['self'].__dict__[f"species{i + 1}"].name == name:
-                return i
-
-    # Particle emission position
-    # ---------------------
-    # Longitude and latitude distributions may be changed inside the 'create_particle' function.
-
-
-def add_major_objects(sim, primary_hash = "planet"):
-    sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="io")
-    #sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles[primary_hash], hash="europa")
-    sim.add(m=1.4819e23, a=1.07e9, e=0.001, inc=0.0031, primary=sim.particles[primary_hash], hash="ganymede")
-    sim.add(m=1.0759e23, a=1.88e9, e=0.007, inc=0.0033, primary=sim.particles[primary_hash], hash="callisto")
-    sim.particles["io"].r = 1821600
-    #sim.particles["europa"].r = 1560800
-    sim.particles["ganymede"].r = 2631200
-    sim.particles["callisto"].r = 2410300
-    sim.N_active += 3
-
-
-def init3(additional_majors = False, moon = True):
-    """
-    This function initializes the basic REBOUND simulation structure and adds the first 3 major objects.
-    These three objects are the host star, planet and moon.
-    :return: rebound simulation object
-    """
-    sim = rebound.Simulation()
-    # sim.automateSimulationArchive("archive.bin", walltime=60)
-    sim.integrator = "whfast" # Fast and unbiased symplectic Wisdom-Holman integrator. Suitability not yet assessed.
-    sim.ri_whfast.kernel = "lazy"
-    sim.collision = "direct" # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
-    sim.collision_resolve = "merge"
-
-    # SI units:
-    # ---------
-    sim.units = ('m', 's', 'kg')
-    sim.G = 6.6743e-11
-
-    # CGS units:
-    # ----------
-    # sim.G = 6.67430e-8
-
-    sim.dt = 500
-
-    # PRELIMINARY: moon defines which objects to use!
-    # ----------------------------------------------
-    if moon:
-        # labels = ["Sun", "Jupiter", "Io"]
-        # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
-        sim.add(m=1.988e30, hash="sun")
-        sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
-
-        sim.particles["sun"].r = 696340000
-        sim.particles["planet"].r = 69911000
-    else:
-        # 55 Cancri e
-        # -----------
-        sim.add(m=1.799e30, hash="sun")
-        sim.add(m=4.77179e25, a=2.244e9, e=0.05, inc=0.00288, primary=sim.particles["sun"], hash="planet")
-
-        sim.particles["sun"].r = 6.56e8
-        sim.particles["planet"].r = 1.196e7
-    # ----------------------------------------------
-
-    if moon:
-        #sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-        #sim.particles["moon"].r = 1821600
-
-        sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=sim.particles["planet"], hash="moon")
-        sim.particles["moon"].r = 1560800
-
-        sim.N_active = 3
-    else:
-        sim.N_active = 2
-
-    if additional_majors:
-        add_major_objects(sim)
-
-    sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
-
-    # IMPORTANT:
-    # * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
-    # * If particle masses are changed or massive particles' position/velocity are changed manually you need to include
-    #   sim.ri_whfast.recalculate_coordinates_this_timestep
-    # * Synchronization is needed if simulation gets manipulated or particle states get printed.
-    # Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
-    # => sim.ri_whfast.safe_mode = 0
-
-    sim.simulationarchive_snapshot("archive.bin", deletefile=True)
-
-    Params = Parameters()
-    with open(f"Parameters.txt", "w") as text_file:
-        text_file.write(f"{Params.__str__()}")
-
-    print("======================================")
-    print("Initialized new simulation instance.")
-    print("======================================")
-
-    return
-
+    def get_species(self, name=None, id=None, num=None):
+        if num != None:
+            return locals()['self'].__dict__[f"species{num}"]
+        elif id != None:
+            for i in range(self.num_species):
+                if locals()['self'].__dict__[f"species{i + 1}"].id == id:
+                    return locals()['self'].__dict__[f"species{i + 1}"]
+            return None
+        elif name != None:
+            for i in range(self.num_species):
+                if locals()['self'].__dict__[f"species{i + 1}"].name == name:
+                    return locals()['self'].__dict__[f"species{i + 1}"]
+            return None
+        else:
+            return

@@ -1,22 +1,14 @@
 import rebound
 import reboundx
 import numpy as np
-import random
-import json
 import warnings
-import os
-
 import multiprocess as mp
 import multiprocessing
-
-from itertools import repeat
-
 import pickle
-
 from create_particle import create_particle
-from init import init3, Parameters
+from init import Parameters
 import time
-
+import random
 
 params = Parameters()
 
@@ -119,9 +111,10 @@ def create(source_state, source_r, process, species):
 
     per_create = int(n / multiprocessing.cpu_count())
 
-    with mp.Pool(multiprocessing.cpu_count()) as p:
+    with mp.Pool(10) as p:
         r = p.map(mp_add, range(multiprocessing.cpu_count()))
         r = np.asarray(r).reshape(np.shape(r)[0] * np.shape(r)[1], 6)
+        p.close()
 
     return r
 
@@ -132,6 +125,7 @@ class SerpensSimulation:
 
     __sim = None
     __sim_deepcopies = []
+    celest_added = False
     hash_supdict = {}
     hash_dict = {}
     params = Parameters()
@@ -157,7 +151,7 @@ class SerpensSimulation:
                 reb_sim = reb_setup()
                 cls.__sim = reb_sim
             else:
-                cls.__sim = rebound.SimulationArchive(filename,process_warnings=False)[snapshot]
+                cls.__sim = rebound.SimulationArchive(filename, process_warnings=False)[snapshot]
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -182,9 +176,14 @@ class SerpensSimulation:
             set_pointers(dc)
         print("Serpens run class called.")
 
-    def __add_celest(self, name, radius = 0, primary_hash = "planet", **kw):
-        self.__sim.add(primary=self.__sim.particles[primary_hash], **kw)
+    def __add_celest(self, name, radius=0, primary_hash="planet", **kw):
+        self.__sim.add(primary=self.__sim.particles[primary_hash], hash=name, **kw)
         self.__sim.particles[f"{name}"].r = radius
+        self.__sim.N_active += 1
+        for dc in self.__sim_deepcopies:
+            dc.add(primary=self.__sim.particles[primary_hash], hash=name, **kw)
+            dc.particles[f"{name}"].r = radius
+            dc.N_active += 1
 
     def __add_particles(self):
 
@@ -196,7 +195,7 @@ class SerpensSimulation:
 
         if params.int_spec["gen_max"] is None or self.var['iter'] < params.int_spec["gen_max"]:
             for s in range(params.num_species):
-                species = params.get_species(s + 1)
+                species = params.get_species(num=s + 1)
 
                 rth = create(source_state, source.r, "thermal", species)
                 rsp = create(source_state, source.r, "sputter", species)
@@ -224,28 +223,16 @@ class SerpensSimulation:
 
             particle_weight = self.hash_dict[f"{particle.hash.value}"]["weight"]
             species_id = self.hash_dict[f"{particle.hash.value}"]["id"]
-            species = self.params.get_species_by_id(species_id)
+            species = self.params.get_species(id=species_id)
 
             if species.duplicate is not None:
                 species_id = int(str(species_id)[0])
-                species = self.params.get_species_by_id(species_id)
+                species = self.params.get_species(id=species_id)
 
-            # Remove if too far away:
-            if self.var["moon"]:
-                particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(self.__sim.particles["planet"].xyz))
-            else:
-                particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(self.__sim.particles[0].xyz))
-            if particle_distance > self.var["boundary"]:
-                self.__sim.remove(particle.hash)
-                continue
-
-            # Remove if chemical reaction happens:
+            # Check if chemical reaction happens:
             chem_network = species.network  # tau (float), educts (str), products (str), velocities (float)
 
             dt = self.params.int_spec["sim_advance"] * self.var["source_P"]
-            mass_inject_per_advance = species.mass_per_sec * dt
-
-            pps = species.particles_per_superparticle(mass_inject_per_advance)
 
             if not isinstance(chem_network, (int, float)):
                 # Go through all reactions/lifetimes
@@ -262,13 +249,19 @@ class SerpensSimulation:
         adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
         dc = self.__sim_deepcopies[dc_index]
         dc.dt = adv / 10
-        dc.integrate(int(adv * (self.var["iter"] + 1)), exact_finish_time=0)
+        dc.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
         dc.simulationarchive_snapshot(f"proc/archiveProcess{dc_index}.bin", deletefile=True)
 
     def advance(self, num):
 
         start_time = time.time()
         cpus = multiprocessing.cpu_count()
+
+        if not self.celest_added and self.var['moon']:
+            self.__add_celest("Io", radius=1821600, m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386)
+            self.__add_celest("Ganymede", radius=2634100, m=1.4819e23, a=1070400000, e=0.0013, inc=0.00349)
+            self.__add_celest("Callisto", radius=2410300, m=1.0759e22, a=1882700000, e=0.0074, inc=0.00335)
+            self.celest_added = True
 
         for _ in range(num):
 
@@ -304,39 +297,57 @@ class SerpensSimulation:
                 self.__sim.add(self.__sim_deepcopies[0].particles[act])
             self.__sim.N_active = self.__sim_deepcopies[0].N_active
 
+            num_lost = 0
             for proc in range(len(self.__sim_deepcopies)):
 
                 dc = self.__sim_deepcopies[proc]
 
+                dc_remove = []
                 for particle in dc.particles[dc.N_active:]:
 
                     w = self.hash_dict[f"{particle.hash.value}"]['weight']
                     species_id = self.hash_dict[f"{particle.hash.value}"]['id']
-                    species = self.params.get_species_by_id(species_id)
+                    species = self.params.get_species(id=species_id)
                     mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * self.var["source_P"]
                     pps = species.particles_per_superparticle(mass_inject_per_advance)
-
 
                     if self.var["moon"]:
                         particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(self.__sim.particles["planet"].xyz))
                     else:
                         particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(self.__sim.particles[0].xyz))
 
-
                     if particle_distance > self.var["boundary"]:
-                        dc.remove(hash=particle.hash)
-                        #del hash_dict[f"{particle.hash.value}"]
-                    elif w * pps < 1:
-                        dc.remove(hash=particle.hash)
-                        #del hash_dict[f"{particle.hash.value}"]
+                        try:
+                            dc_remove.append(particle.hash)
+                            #dc.remove(hash=particle.hash)
+                            #del hash_dict[f"{particle.hash.value}"]
+                        except:
+                            print("Removal error occurred.")
+                            pass
+                    elif w * pps < 1e6:
+                        try:
+                            dc_remove.append(particle.hash)
+                            #dc.remove(hash=particle.hash)
+                            #del hash_dict[f"{particle.hash.value}"]
+                        except:
+                            print("Removal error occurred.")
+                            pass
                     else:
                         self.__sim.add(particle)
 
+                for hash in dc_remove:
+                    dc.remove(hash=hash)
+                    #del self.hash_dict[f"{particle.hash.value}"]
+                    num_lost += 1
+
+            t = self.__sim_deepcopies[0].t
             self.var["iter"] += 1
             self.__sim.simulationarchive_snapshot("archive.bin")
 
             print("Advance done! ")
-            print(f"Simulation runtime: {time.time() - start_time}")
+            print(f"Simulation time: {np.around(t / 3600, 2)}")
+            print(f"Simulation runtime: {np.around(time.time() - start_time, 2)}")
+            print(f"Number of particles removed: {num_lost}")
             print(f"Number of particles: {self.__sim.N}")
 
             print("Saving hash dict...")
@@ -347,7 +358,9 @@ class SerpensSimulation:
             print("#######################################################")
 
 
-
+if __name__ == "__main__":
+    ssim = SerpensSimulation()
+    ssim.advance(params.int_spec["num_sim_advances"])
 
 
 

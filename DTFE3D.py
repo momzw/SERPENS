@@ -74,8 +74,9 @@ class DTFE:
     def density(self, x, y, z):
         simplexIndex = self.delaunay.find_simplex(np.c_[x, y, z])
         pointIndex = self.delaunay.simplices[simplexIndex][..., 0]
-        return map_affine(self.rho[pointIndex], self.Drho[simplexIndex],
-                          np.c_[x, y, z] - self.delaunay.points[pointIndex])
+        m = map_affine(self.rho[pointIndex], self.Drho[simplexIndex], np.c_[x, y, z] - self.delaunay.points[pointIndex])
+        m[simplexIndex == -1] = 0
+        return m
 
     def v(self, x, y, z):
         simplexIndex = self.delaunay.find_simplex(np.c_[x, y, z])

@@ -172,9 +172,9 @@ def plotting(fig, ax, sim, density=True, plane="xy", **kwargs):
             #    cax.tick_params(axis='both', which='major', labelsize=8)
             #    ticks = np.logspace(np.log10(np.max(H))-5, np.log10(np.max(H)), 8)
             #    if np.log10(np.max(H)) > 4:
-            #        cb = fig.colorbar(im, cax=cax, orientation='vertical', format='%.2E', ticks=ticks)
+            #        cb_interact = fig.colorbar(im, cax=cax, orientation='vertical', format='%.2E', ticks=ticks)
             #    else:
-            #        cb = fig.colorbar(im, cax=cax, orientation='vertical', format='%.2f', ticks=ticks)
+            #        cb_interact = fig.colorbar(im, cax=cax, orientation='vertical', format='%.2f', ticks=ticks)
             #    plt.minorticks_off()
 
         elif "DTFE" in kwargs and "x" in kwargs and "y" in kwargs:

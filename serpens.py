@@ -8,6 +8,7 @@ mplstyle.use('fast')
 import time
 import numpy as np
 import os as os
+import sys
 import shutil
 
 import pickle
@@ -23,6 +24,7 @@ from KDEpy.bw_selection import improved_sheather_jones
 from scipy.spatial import KDTree
 import DTFE
 import DTFE3D
+
 
 """
 
@@ -49,11 +51,10 @@ Params = Parameters()
 # Plotting
 # ---------------------
 
-RUN = False
 save = False
 save_archive = False
 save_particles = False
-plot_freq = 10  # Plot at each *plot_freq* advance
+plot_freq = 50  # Plot at each *plot_freq* advance
 
 showfig = True
 showhist = False
@@ -155,11 +156,6 @@ def getHistogram(sim, xdata, ydata, weights, bins, xboundary="default", yboundar
 
 if __name__ == "__main__":
 
-    if RUN:
-        ssim = SerpensSimulation()
-        ssim.advance(Params.int_spec["num_sim_advances"])
-
-
     moon_exists = Params.int_spec["moon"]
 
     sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
@@ -173,7 +169,7 @@ if __name__ == "__main__":
         os.makedirs(f'output/{path}/plots')
 
         try:
-            os.replace('Parameters.txt', f'output/{path}/Parameters.txt')
+            shutil.copy2(f'{os.getcwd()}Parameters.txt', f'output/{path}/Parameters.txt')
         except:
             pass
 
@@ -239,7 +235,7 @@ if __name__ == "__main__":
 
         species_names = []
         for ns in range(Params.num_species):
-            species = Params.get_species(ns + 1)
+            species = Params.get_species(num=ns + 1)
             species_names.append(species.description)
 
         if not i == 0:
@@ -265,7 +261,10 @@ if __name__ == "__main__":
                 particle_time = (i - particle_iter) * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
             else:
                 particle_time = (i - particle_iter) * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
-            chem_network = Params.get_species_by_id(particle_species[k1]).network
+
+            if Params.get_species(id=particle_species[k1]) is None:
+                continue
+            chem_network = Params.get_species(id=particle_species[k1]).network
             reaction_rate = 0
             if not isinstance(chem_network, (int, float)):
                 for l in range(np.size(chem_network[:, 0])):
@@ -281,8 +280,10 @@ if __name__ == "__main__":
             # IMSHOW TOP DOWN COLUMN DENSITY PLOTS
             # ====================================
 
+            vis = Visualize(sim_instance)
+
             for k in range(Params.num_species):
-                species = Params.get_species(k + 1)
+                species = Params.get_species(num=k + 1)
 
                 xdata = particle_positions[:, 0][np.where(particle_species == species.id)]
                 ydata = particle_positions[:, 1][np.where(particle_species == species.id)]
@@ -290,6 +291,7 @@ if __name__ == "__main__":
 
                 weights = particle_weights[np.where(particle_species == species.id)]
 
+                """
                 H, xedges, yedges = getHistogram(sim_instance, xdata, ydata, weights, bins=bins, mask=False)
                 bin_size = (xedges[1] - xedges[0]) * (yedges[1] - yedges[0])
 
@@ -308,14 +310,15 @@ if __name__ == "__main__":
                 else:
                     weight = 1
                     weight3d = 1
-
+                """
+                """
                 # ============================================================================================
 
-                def kde(x, y, weights, z=None, bandwidth='default', bins=100j, zbins=10j, kernel='gaussian', draw_contour=False, estimate_bandwidth=False, **kwargs):
+                def kde(x, y, weights, z=None, bandwidth='default', bins=100j, zbins=10j, kernel='gaussian', contour=False, estimate_bandwidth=False, **kwargs):
 
                     # Kernel Density Estimation with KDEpy
                     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                    data = np.vstack([y, x]).T
+                    data = np.vstack([z, y, x]).T
                     grid_points = 2**7
 
                     if moon_exists:
@@ -341,32 +344,27 @@ if __name__ == "__main__":
                     #bwz = improved_sheather_jones(data[:,0].reshape((len(data), 1)), weights)
                     bw_factor = (bwx/data[:,1].std() + bwy/data[:,0].std()) / 2
 
-                    kde = KDEpy.FFTKDE(kernel=kernel, norm=2, bw=bw_factor)
-                    grid, points = kde.fit(data, weights=weights).evaluate(grid_points)
+                    kde = KDEpy.FFTKDE(kernel=kernel, norm=2, bw=10*bw_factor)
+                    grid, points = kde.fit(data).evaluate(grid_points)
 
-                    z = points.reshape(grid_points, grid_points).T
+                    z = points.reshape(grid_points, grid_points, grid_points).T
 
-                    if draw_contour:
+                    if contour:
                         x = np.unique(grid[:,2])
                         y = np.unique(grid[:,1])
                         xx = np.repeat(x[:, np.newaxis], grid_points, axis=1)
                         yy = np.repeat(y[np.newaxis, :], grid_points, axis=0)
-                        ax = kwargs.get('ax', None)
-                        fill = kwargs.get('contour_fill', False)
-                        norm = colors.LogNorm()
                         Z = np.max(z, axis=2)
-                        lvls = np.logspace(np.log10(np.max(Z)) - 3, np.log10(np.max(Z)), 8)
-                        if fill:
-                            ax.contourf(xx, yy, Z, cmap=matplotlib.cm.afmhot, levels=lvls, norm=norm)
-                        ax.contour(xx, yy, Z, colors='w', alpha=0.25, norm=norm, levels=lvls)
+                        return xx, yy, Z
 
                     return z, grid
 
-                #z, grid = kde(x=xdata, y=ydata, weights=weights, z=zdata, bins=bins, draw_contour=False, contour_fill=False)
+                #xx, yy, Z = kde(x=xdata, y=ydata, weights=weights, z=zdata, contour=True)
 
                 # ============================================================================================
+                """
 
-                points = np.vstack([xdata,ydata, zdata]).T
+                points = np.vstack([xdata,ydata,zdata]).T
                 vx = particle_velocities[:, 0][np.where(particle_species == species.id)]
                 vy = particle_velocities[:, 1][np.where(particle_species == species.id)]
                 vz = particle_velocities[:, 2][np.where(particle_species == species.id)]
@@ -374,12 +372,9 @@ if __name__ == "__main__":
 
                 # Filter points:
                 indices = np.unique([tuple(row) for row in points], axis=0, return_index=True)[1]
+                weights = weights[np.sort(indices)]
                 points = points[np.sort(indices)]
                 velocities = velocities[np.sort(indices)]
-                weights = weights[np.sort(indices)]
-
-                #kd_tree = KDTree(points)
-                #pairs = kd_tree.query_pairs(r=4e5)
 
                 if moon_exists:
                     simulation_time = i * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
@@ -393,39 +388,33 @@ if __name__ == "__main__":
                 number_per_superpart = superpart_mass / species.m
                 phys_weights = number_per_superpart * weights
 
-
                 print("Constructing DTFE ...")
-                dtfe = DTFE3D.DTFE(points, velocities, superpart_mass)
                 dtfe2d = DTFE.DTFE(points[:,:2], velocities[:,:2], phys_weights)
-                dens_plot = dtfe.density(points[:, 0], points[:, 1], points[:, 2]) / 1e6 / species.m * weights
+                dtfe3d = DTFE3D.DTFE(points, velocities, superpart_mass)
+                dens3d = dtfe3d.density(points[:, 0], points[:, 1], points[:, 2]) / 1e6 / species.m * weights
+                dens2d = dtfe2d.density(points[:, 0], points[:, 1]) / 1e4
                 print("\t ... done!")
 
-                vis = Visualize(sim_instance)
-                #vis.add_histogram(k, H, xedges, yedges, perspective="topdown")
-                #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe.delaunay.simplices[:,:3], perspective="topdown")
-                vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown")
-                vis.add_dtfe(k, points[:, 0], points[:, 1], dens_plot, perspective="topdown", cb_format='%.2E')
+                boundary = Params.int_spec["r_max"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).a
+                X, Y = np.meshgrid(np.linspace(-boundary + sim_instance.particles["planet"].x, boundary + sim_instance.particles["planet"].x, 100),
+                                   np.linspace(-boundary + sim_instance.particles["planet"].y, boundary + sim_instance.particles["planet"].y, 100))
+                dens2dgrid = dtfe2d.density(X.flat, Y.flat).reshape((100, 100)) / 1e4
 
-                #x = np.unique(grid[:, 1])
-                #y = np.unique(grid[:, 0])
-                #xx = np.repeat(x[:, np.newaxis], 2**7, axis=1)
-                #yy = np.repeat(y[np.newaxis, :], 2**7, axis=0)
-                #boundary = Params.int_spec['r_max'] * sim_instance.particles["planet"].a
-                #xx, yy, zz = np.meshgrid(np.linspace(-boundary, boundary, 128),
-                #                         np.linspace(-boundary, boundary, 128),
-                #                         np.linspace(-boundary, boundary, 128))
-                #zz = dtfe.density(xx.flat, yy.flat, zz.flat).reshape((128,128,128))
-                #x = np.unique(xx)
-                #y = np.unique(yy)
-                #xx = np.repeat(x[:, np.newaxis], 128, axis=1)
-                #yy = np.repeat(y[np.newaxis, :], 128, axis=0)
-                #xbincenters = (xedges[1:] + xedges[:-1]) / 2
-                #ybincenters = (yedges[1:] + yedges[:-1]) / 2
-                #yy = np.repeat(ybincenters[:, np.newaxis], 100, axis=1)
-                #xx = np.repeat(xbincenters[np.newaxis, :], 100, axis=0)
-                #vis.add_contour(k, xx, yy, z, perspective="topdown")
 
-                vis()
+                vis.add_colormesh(k, X, Y, dens2dgrid, contour=True, fill_contour=True, zorder=3, numlvls=25)
+                #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe3d.delaunay.simplices[:,:3], perspective="topdown")
+                vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown", zorder=3)
+                #vis.add_densityscatter(k, points[:, 0], points[:, 1], dens3d, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'b'])
+
+                vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-2}])$ around Planetary Body")
+
+
+            if save:
+                vis(show_bool=showfig, save_path=path, filename=f'{i}_td')
+            else:
+                vis(show_bool=showfig)
+            del vis
+
 
         def toroidal_hist():
             # RADIAL HISTOGRAM
@@ -433,7 +422,7 @@ if __name__ == "__main__":
             if not i == 0:
                 fig, ax = plt.subplots(figsize=(8, 8))
                 for k in range(Params.num_species):
-                    species = Params.get_species(k + 1)
+                    species = Params.get_species(num=k + 1)
 
                     psx = particle_positions[:, 0][np.where(particle_species == species.id)][sim_instance.N_active:]
                     psy = particle_positions[:, 1][np.where(particle_species == species.id)][sim_instance.N_active:]
@@ -458,8 +447,8 @@ if __name__ == "__main__":
 
                         weights = counts / V_tor / 1e6
 
-                        mass_inject_per_advance = Params.get_species(k + 1).mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
-                        weights_phys = weights * Params.get_species(k + 1).particles_per_superparticle( mass_inject_per_advance)
+                        mass_inject_per_advance = Params.get_species(num=k + 1).mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
+                        weights_phys = weights * Params.get_species(num=k + 1).particles_per_superparticle( mass_inject_per_advance)
 
                     else:
 
@@ -476,12 +465,12 @@ if __name__ == "__main__":
 
                         weights = counts / V_tor / 1e6
 
-                        mass_inject_per_advance = Params.get_species(k + 1).mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
-                        weights_phys = weights * Params.get_species(k + 1).particles_per_superparticle(mass_inject_per_advance)
+                        mass_inject_per_advance = Params.get_species(num=k + 1).mass_per_sec * Params.int_spec["sim_advance"] * sim_instance.particles["planet"].P
+                        weights_phys = weights * Params.get_species(num=k + 1).particles_per_superparticle(mass_inject_per_advance)
 
                     bincenters = (bin_edges[1:] + bin_edges[:-1]) / 2
 
-                    ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', label=f"{Params.get_species(k + 1).description}", alpha=1)
+                    ax.plot(bincenters[weights != 0], weights_phys[weights != 0], '-', label=f"{Params.get_species(num=k + 1).description}", alpha=1)
                     ax.scatter(bincenters[weights != 0], weights_phys[weights != 0], marker='x')
 
                 ax.set_yscale("log")
@@ -499,12 +488,13 @@ if __name__ == "__main__":
             else:
                 pass
 
+
         def los_column_and_velocity_dist(bins=100):
             # COLUMN DENSITY & VELOCITY DISTRIBUTION
             # ======================================
-
+            vis = Visualize(sim_instance)
             for k in range(Params.num_species):
-                species = Params.get_species(k + 1)
+                species = Params.get_species(num=k + 1)
 
                 ydata = particle_positions[:, 1][np.where(particle_species == species.id)]
                 zdata = particle_positions[:, 2][np.where(particle_species == species.id)]
@@ -525,14 +515,6 @@ if __name__ == "__main__":
                 bin_size = (yedgesC[1] - yedgesC[0]) * (zedgesC[1] - zedgesC[0])
                 weight = species.particles_per_superparticle(mass_inject_per_advance) / bin_size / 10000
 
-                #kde = KDEpy.FFTKDE(kernel='gaussian', norm=2, bw=0.001)
-                #grid_points = bins
-                #grid, points = kde.fit(np.vstack([zdata, ydata]).T, weights=weights).evaluate(grid_points)
-                #z = points.reshape(grid_points, grid_points).T
-                #bin_size = (np.unique(grid[:,0])[1] - np.unique(grid[:,0])[0]) * (np.unique(grid[:,1])[1] - np.unique(grid[:,1])[0])
-                #
-                #z *= species.particles_per_superparticle(mass_inject_per_advance) / (bin_size * 1e4)
-
                 simulation_time = i * Params.int_spec["sim_advance"] * sim_instance.particles["moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
                 total_injected = i * (species.n_sp + species.n_th)
                 remaining_part = len(ydata)
@@ -547,17 +529,15 @@ if __name__ == "__main__":
                 dtfe2d = DTFE.DTFE(points, velocities, superpart_mass)
                 dens_los = dtfe2d.density(points[:, 0], points[:, 1]) / 1e4 / species.m * weights
 
-                vis = Visualize(sim_instance)
-                vis.add_dtfe(k, points[:,0], points[:,1], dens_los, perspective="los", cb_format='%.2E')
+                vis.add_densityscatter(k, points[:, 0], points[:, 1], dens_los, perspective="los", cb_format='%.2E')
                 vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective='los')
-                vis()
 
-                #xx = np.repeat(np.unique(grid[:,1])[:, np.newaxis], bins, axis=1)
-                #yy = np.repeat(np.unique(grid[:,0])[np.newaxis, :], bins, axis=0)
-                #norm = colors.LogNorm()
-                #lvls = np.logspace(10, np.log10(np.max(z)), 12)
-                #ax_species.contourf(xx, yy, z, cmap=matplotlib.cm.afmhot, levels=lvls, norm=norm)
-                #ax_species.contour(xx, yy, z, colors='w', alpha=0.25, norm=norm, levels=lvls)
+            if save:
+                vis(show_bool=show_column_density, save_path=path, filename=f'{i}_los')
+            else:
+                vis(show_bool=show_column_density)
+            del vis
+
 
         def vel_dist():
             if not i == 0:
@@ -586,7 +566,7 @@ if __name__ == "__main__":
                     return f_v_integrated
 
                 for k in range(Params.num_species):
-                    species = Params.get_species(k + 1)
+                    species = Params.get_species(num=k + 1)
 
                     vel = particle_velocities[np.where(particle_species == species.id)]
 
@@ -644,8 +624,8 @@ if __name__ == "__main__":
                 pass
 
 
-        top_down_column(bins=100)
-        #los_column_and_velocity_dist(bins=100)
+        top_down_column(bins=50)
+        #los_column_and_velocity_dist(bins=50)
         #toroidal_hist()
         #vel_dist()
 

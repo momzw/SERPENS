@@ -144,6 +144,3 @@ def pngToGif(path, fps):
 
 
 #orbit_sol()
-
-s = SerpensSimulation()
-test = s.advance(20)
