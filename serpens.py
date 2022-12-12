@@ -403,7 +403,7 @@ if __name__ == "__main__":
 
                 vis.add_colormesh(k, X, Y, dens2dgrid, contour=True, fill_contour=True, zorder=3, numlvls=25)
                 #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe3d.delaunay.simplices[:,:3], perspective="topdown")
-                vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown", zorder=3)
+                #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown", zorder=3)
                 #vis.add_densityscatter(k, points[:, 0], points[:, 1], dens3d, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'b'])
 
                 vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-2}])$ around Planetary Body")

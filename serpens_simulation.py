@@ -8,12 +8,9 @@ import pickle
 from create_particle import create_particle
 from init import Parameters
 import time
-import random
-
-params = Parameters()
 
 
-def reb_setup():
+def reb_setup(params):
     print("=======================================")
     print("Initializing new simulation instance...")
 
@@ -31,35 +28,42 @@ def reb_setup():
 
     # PRELIMINARY: moon defines which objects to use!
     # ----------------------------------------------
-    if params.int_spec["moon"]:
-        # labels = ["Sun", "Jupiter", "Io"]
-        # sim.add(labels)      # Note: Takes current position in the solar system. Therefore more useful to define objects manually in the following.
-        reb_sim.add(m=1.988e30, hash="sun")
-        reb_sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=reb_sim.particles["sun"],
-                    hash="planet")  # Omega=1.753, omega=4.78
-
-        reb_sim.particles["sun"].r = 696340000
-        reb_sim.particles["planet"].r = 69911000
-    else:
-        # 55 Cancri e
-        # -----------
-        reb_sim.add(m=1.799e30, hash="sun")
-        reb_sim.add(m=4.77179e25, a=2.244e9, e=0.05, inc=0.00288, primary=reb_sim.particles["sun"], hash="planet")
-
-        reb_sim.particles["sun"].r = 6.56e8
-        reb_sim.particles["planet"].r = 1.196e7
+    #if params.int_spec["moon"]:
+    #
+    #    reb_sim.add(m=1.988e30, hash="sun")
+    #    reb_sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=reb_sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
+    #
+    #    reb_sim.particles["sun"].r = 696340000
+    #    reb_sim.particles["planet"].r = 69911000
+    #else:
+    #    # 55 Cancri e
+    #    # -----------
+    #    reb_sim.add(m=1.799e30, hash="sun")
+    #    reb_sim.add(m=4.77179e25, a=2.244e9, e=0.05, inc=0.00288, primary=reb_sim.particles["sun"], hash="planet")
+    #
+    #    reb_sim.particles["sun"].r = 6.56e8
+    #    reb_sim.particles["planet"].r = 1.196e7
     # ----------------------------------------------
 
-    if params.int_spec["moon"]:
-        # sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-        # sim.particles["moon"].r = 1821600
+    for k, v in Parameters.celest.items():
+        primary = v.pop("primary", 0)
+        if reb_sim.N == 0:
+            reb_sim.add(**v)
+        else:
+            reb_sim.add(**v, primary=reb_sim.particles[primary])
+    reb_sim.N_active = len(Parameters.celest)
 
-        reb_sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=reb_sim.particles["planet"], hash="moon")
-        reb_sim.particles["moon"].r = 1560800
 
-        reb_sim.N_active = 3
-    else:
-        reb_sim.N_active = 2
+    #if params.int_spec["moon"]:
+    #    # sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
+    #    # sim.particles["moon"].r = 1821600
+    #
+    #    reb_sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=reb_sim.particles["planet"], hash="moon")
+    #    reb_sim.particles["moon"].r = 1560800
+    #
+    #    reb_sim.N_active = 3
+    #else:
+    #    reb_sim.N_active = 2
 
     reb_sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
@@ -121,7 +125,7 @@ def create(source_state, source_r, process, species):
 
 class SerpensSimulation:
 
-    __instance = None
+    _instance = None
 
     __sim = None
     __sim_deepcopies = []
@@ -132,13 +136,15 @@ class SerpensSimulation:
     var = {"iter": 0}
 
     def __new__(cls, *args, **kw):
-        if cls.__instance is None:
+        if cls._instance is None:
             # Handle arguments
             filename = None
             if len(args) > 0:
                 filename = args[0]
             if "filename" in kw:
                 filename = kw["filename"]
+            if "test" in kw:
+                print("test")
             snapshot = -1
             if len(args) > 1:
                 snapshot = args[1]
@@ -148,7 +154,8 @@ class SerpensSimulation:
             # Create simulation
             if filename is None:
                 # Create a new simulation
-                reb_sim = reb_setup()
+                cls.params = Parameters()
+                reb_sim = reb_setup(cls.params)
                 cls.__sim = reb_sim
             else:
                 cls.__sim = rebound.SimulationArchive(filename, process_warnings=False)[snapshot]
@@ -167,8 +174,8 @@ class SerpensSimulation:
                 cls.var["source_P"] = cls.__sim.particles["planet"].P
             cls.var["boundary"] = cls.params.int_spec["r_max"] * cls.var["source_a"]
 
-            cls.__instance = object.__new__(cls)
-        return cls.__instance
+            cls._instance = object.__new__(cls)
+        return cls._instance
 
     def __init__(self):
         set_pointers(self.__sim)
@@ -193,9 +200,9 @@ class SerpensSimulation:
             source = self.__sim.particles["planet"]
         source_state = np.array([source.xyz, source.vxyz])
 
-        if params.int_spec["gen_max"] is None or self.var['iter'] < params.int_spec["gen_max"]:
-            for s in range(params.num_species):
-                species = params.get_species(num=s + 1)
+        if self.params.int_spec["gen_max"] is None or self.var['iter'] < self.params.int_spec["gen_max"]:
+            for s in range(self.params.num_species):
+                species = self.params.get_species(num=s + 1)
 
                 rth = create(source_state, source.r, "thermal", species)
                 rsp = create(source_state, source.r, "sputter", species)
@@ -214,7 +221,7 @@ class SerpensSimulation:
                                                                                         "i": self.var['iter'],
                                                                                         "id": species.id,
                                                                                         "weight": 1,
-                                                                                        "products_weight": np.zeros(params.num_species)}
+                                                                                        "products_weight": np.zeros(self.params.num_species)}
 
     def __loss_per_advance(self):
 
@@ -257,11 +264,11 @@ class SerpensSimulation:
         start_time = time.time()
         cpus = multiprocessing.cpu_count()
 
-        if not self.celest_added and self.var['moon']:
-            self.__add_celest("Io", radius=1821600, m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386)
-            self.__add_celest("Ganymede", radius=2634100, m=1.4819e23, a=1070400000, e=0.0013, inc=0.00349)
-            self.__add_celest("Callisto", radius=2410300, m=1.0759e22, a=1882700000, e=0.0074, inc=0.00335)
-            self.celest_added = True
+        #if not self.celest_added and self.var['moon']:
+        #    self.__add_celest("Io", radius=1821600, m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386)
+        #    self.__add_celest("Ganymede", radius=2634100, m=1.4819e23, a=1070400000, e=0.0013, inc=0.00349)
+        #    self.__add_celest("Callisto", radius=2410300, m=1.0759e22, a=1882700000, e=0.0074, inc=0.00335)
+        #    self.celest_added = True
 
         for _ in range(num):
 
@@ -357,10 +364,19 @@ class SerpensSimulation:
             print("\t ... done!")
             print("#######################################################")
 
+    @staticmethod
+    def scheduler(simulation_parameters, *args, **kwargs):
+        SerpensSimulation._instance = None
+        SerpensSimulation.params = simulation_parameters
+        #Parameters(*simulation_parameters, update=True)
+        Parameters.update(*simulation_parameters)
+        return SerpensSimulation(*args, **kwargs)
+
 
 if __name__ == "__main__":
+    main_params = Parameters()
     ssim = SerpensSimulation()
-    ssim.advance(params.int_spec["num_sim_advances"])
+    ssim.advance(main_params.int_spec["num_sim_advances"])
 
 
 
