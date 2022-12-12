@@ -125,63 +125,58 @@ def create(source_state, source_r, process, species):
 
 class SerpensSimulation:
 
-    _instance = None
+    def __init__(self, params = "default", *args, **kw):
 
-    __sim = None
-    __sim_deepcopies = []
-    celest_added = False
-    hash_supdict = {}
-    hash_dict = {}
-    params = Parameters()
-    var = {"iter": 0}
+        print("=====================================")
+        print("SERPENS simulation has been created.")
+        print("=====================================")
 
-    def __new__(cls, *args, **kw):
-        if cls._instance is None:
-            # Handle arguments
-            filename = None
-            if len(args) > 0:
-                filename = args[0]
-            if "filename" in kw:
-                filename = kw["filename"]
-            if "test" in kw:
-                print("test")
-            snapshot = -1
-            if len(args) > 1:
-                snapshot = args[1]
-            if "snapshot" in kw:
-                snapshot = kw["snapshot"]
+        self.hash_supdict = {}
+        self.hash_dict = {}
 
-            # Create simulation
-            if filename is None:
-                # Create a new simulation
-                cls.params = Parameters()
-                reb_sim = reb_setup(cls.params)
-                cls.__sim = reb_sim
-            else:
-                cls.__sim = rebound.SimulationArchive(filename, process_warnings=False)[snapshot]
+        if params == "default":
+            self.params = Parameters()
+        else:
+            self.params = params
 
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                for _ in range(multiprocessing.cpu_count()):
-                    cls.__sim_deepcopies.append(cls.__sim.copy())
+        # Handle arguments
+        filename = None
+        if len(args) > 0:
+            filename = args[0]
+        if "filename" in kw:
+            filename = kw["filename"]
+        snapshot = -1
+        if len(args) > 1:
+            snapshot = args[1]
+        if "snapshot" in kw:
+            snapshot = kw["snapshot"]
 
-            cls.var["moon"] = cls.params.int_spec["moon"]
-            if cls.var["moon"]:
-                cls.var["source_a"] = cls.__sim.particles["moon"].calculate_orbit(primary=cls.__sim.particles["planet"]).a
-                cls.var["source_P"] = cls.__sim.particles["moon"].calculate_orbit(primary=cls.__sim.particles["planet"]).P
-            else:
-                cls.var["source_a"] = cls.__sim.particles["planet"].a
-                cls.var["source_P"] = cls.__sim.particles["planet"].P
-            cls.var["boundary"] = cls.params.int_spec["r_max"] * cls.var["source_a"]
+        # Create simulation
+        if filename is None:
+            # Create a new simulation
+            reb_sim = reb_setup(self.params)
+            self.__sim = reb_sim
+        else:
+            self.__sim = rebound.SimulationArchive(filename, process_warnings=False)[snapshot]
 
-            cls._instance = object.__new__(cls)
-        return cls._instance
+        self.__sim_deepcopies = []
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            for _ in range(multiprocessing.cpu_count()):
+                self.__sim_deepcopies.append(self.__sim.copy())
 
-    def __init__(self):
+        self.var = {"iter": 0, "moon": self.params.int_spec["moon"]}
+        if self.var["moon"]:
+            self.var["source_a"] = self.__sim.particles["moon"].calculate_orbit(primary=self.__sim.particles["planet"]).a
+            self.var["source_P"] = self.__sim.particles["moon"].calculate_orbit(primary=self.__sim.particles["planet"]).P
+        else:
+            self.var["source_a"] = self.__sim.particles["planet"].a
+            self.var["source_P"] = self.__sim.particles["planet"].P
+        self.var["boundary"] = self.params.int_spec["r_max"] * self.var["source_a"]
+
         set_pointers(self.__sim)
         for dc in self.__sim_deepcopies:
             set_pointers(dc)
-        print("Serpens run class called.")
 
     def __add_celest(self, name, radius=0, primary_hash="planet", **kw):
         self.__sim.add(primary=self.__sim.particles[primary_hash], hash=name, **kw)
@@ -263,12 +258,6 @@ class SerpensSimulation:
 
         start_time = time.time()
         cpus = multiprocessing.cpu_count()
-
-        #if not self.celest_added and self.var['moon']:
-        #    self.__add_celest("Io", radius=1821600, m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386)
-        #    self.__add_celest("Ganymede", radius=2634100, m=1.4819e23, a=1070400000, e=0.0013, inc=0.00349)
-        #    self.__add_celest("Callisto", radius=2410300, m=1.0759e22, a=1882700000, e=0.0074, inc=0.00335)
-        #    self.celest_added = True
 
         for _ in range(num):
 
@@ -364,13 +353,6 @@ class SerpensSimulation:
             print("\t ... done!")
             print("#######################################################")
 
-    @staticmethod
-    def scheduler(simulation_parameters, *args, **kwargs):
-        SerpensSimulation._instance = None
-        SerpensSimulation.params = simulation_parameters
-        #Parameters(*simulation_parameters, update=True)
-        Parameters.update(*simulation_parameters)
-        return SerpensSimulation(*args, **kwargs)
 
 
 if __name__ == "__main__":

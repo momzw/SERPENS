@@ -1,5 +1,4 @@
 from network import Network
-from numpy import ndarray
 from objects import *
 
 class SpeciesSpecifics:
@@ -114,14 +113,14 @@ class Species(SpeciesSpecifics):
 
 class Parameters:
 
-    __instance = None
+    _instance = None
 
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
         "moon": True,
         "sim_advance": 1 / 40,
-        "num_sim_advances": 480,
+        "num_sim_advances": 5,
         "stop_at_steady_state": False,
         "gen_max": None,
         "r_max": 4,
@@ -138,31 +137,20 @@ class Parameters:
 
     celest = celestial_objects(int_spec["moon"])
     species = {}
-    num_species = None
+    num_species = 0
 
-    def __new__(cls, *args, **kwargs):
-        update = kwargs.get("update", False)
-        if update:
-            cls.__instance = None
-            cls.species = {}
-            cls.num_species = None
+    def __new__(cls):
 
-        if cls.__instance is None:
+        if cls._instance is None:
 
             #self.species[f"species1"] = Species("H", description="H--5.845kg/s--2500m/s", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b=2500, model_smyth_v_M=10000)  # 585, lifetime=2.26*86400
             #self.species[f"species1"] = Species("O2", description="O2--14.35kg/s--4700m/s", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b=4700, model_smyth_v_M=10000)  # 1435, lifetime=3.3*86400
             cls.species[f"species1"] = Species("H2", description="H2--6.69kg/s--1200m/s", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b=1200, model_smyth_v_M=10000)  # 669, lifetime=7*86400
             cls.num_species = len(cls.species)
 
-            # Overwrite species if args supply
-            if len(args) != 0:
-                for index, arg in enumerate(args):
-                    cls.species[f"species{index+1}"] = arg
-                cls.num_species = len(args)
+            cls._instance = object.__new__(cls)
 
-            cls.__instance = object.__new__(cls)
-
-        return cls.__instance
+        return cls._instance
 
     def __str__(self):
         s = "Integration specifics: \n" + f"\t {self.int_spec} \n"
@@ -198,31 +186,35 @@ class Parameters:
 
 
     @classmethod
-    def update(cls, *args):
+    def modify_species(cls, *args):
         # Overwrite species if args supply species
         if len(args) != 0:
+            cls.species = {}
             for index, arg in enumerate(args):
                 cls.species[f"species{index + 1}"] = arg
             cls.num_species = len(args)
-            return cls()
-        else:
-            pass
-
+            print("Globally modified species.")
 
     @classmethod
-    def with_modified_object(cls, object, as_new_source = False, *args):
-        celedict = cls.celest
-        if as_new_source:
-            temp = celedict["moon"]
-            celedict["moon"] = celedict[object]
-            celedict[object] = temp
+    def modify_objects(cls, moon="default", object=None, as_new_source=False):
 
-            celedict["moon"]["hash"] = "moon"
-            del celedict[object]["hash"]
+        if isinstance(moon, bool):
+            cls.int_spec["moon"] = moon
+            cls.celest = celestial_objects(moon)
 
-        return cls(update=True, *args)
+        if as_new_source and object is not None:
+            temp = cls.celest["moon"]
+            cls.celest["moon"] = cls.celest[object]
+            cls.celest[object] = temp
+
+            cls.celest["moon"]["hash"] = "moon"
+            del cls.celest[object]["hash"]
+            print("Globally modified source object.")
 
     @staticmethod
-    def reset_objects():
-        Parameters.celest = celestial_objects(Parameters.int_spec["moon"])
-
+    def reset(species=True, objects=True):
+        if species:
+            Parameters._instance = None
+            Parameters.species = {}
+        if objects:
+            Parameters.celest = celestial_objects(Parameters.int_spec["moon"])

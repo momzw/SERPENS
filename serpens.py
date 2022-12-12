@@ -169,7 +169,7 @@ if __name__ == "__main__":
         os.makedirs(f'output/{path}/plots')
 
         try:
-            shutil.copy2(f'{os.getcwd()}Parameters.txt', f'output/{path}/Parameters.txt')
+            shutil.copy2(f'{os.getcwd()}/Parameters.txt', f'output/{path}/Parameters.txt')
         except:
             pass
 
