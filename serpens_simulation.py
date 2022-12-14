@@ -26,25 +26,6 @@ def reb_setup(params):
 
     reb_sim.dt = 500
 
-    # PRELIMINARY: moon defines which objects to use!
-    # ----------------------------------------------
-    #if params.int_spec["moon"]:
-    #
-    #    reb_sim.add(m=1.988e30, hash="sun")
-    #    reb_sim.add(m=1.898e27, a=7.785e11, e=0.0489, inc=0.0227, primary=reb_sim.particles["sun"], hash="planet")  # Omega=1.753, omega=4.78
-    #
-    #    reb_sim.particles["sun"].r = 696340000
-    #    reb_sim.particles["planet"].r = 69911000
-    #else:
-    #    # 55 Cancri e
-    #    # -----------
-    #    reb_sim.add(m=1.799e30, hash="sun")
-    #    reb_sim.add(m=4.77179e25, a=2.244e9, e=0.05, inc=0.00288, primary=reb_sim.particles["sun"], hash="planet")
-    #
-    #    reb_sim.particles["sun"].r = 6.56e8
-    #    reb_sim.particles["planet"].r = 1.196e7
-    # ----------------------------------------------
-
     for k, v in Parameters.celest.items():
         primary = v.pop("primary", 0)
         if reb_sim.N == 0:
@@ -52,18 +33,6 @@ def reb_setup(params):
         else:
             reb_sim.add(**v, primary=reb_sim.particles[primary])
     reb_sim.N_active = len(Parameters.celest)
-
-
-    #if params.int_spec["moon"]:
-    #    # sim.add(m=8.932e22, a=4.217e8, e=0.0041, inc=0.0386, primary=sim.particles["planet"], hash="moon")
-    #    # sim.particles["moon"].r = 1821600
-    #
-    #    reb_sim.add(m=4.799e22, a=6.709e8, e=0.009, inc=0.0082, primary=reb_sim.particles["planet"], hash="moon")
-    #    reb_sim.particles["moon"].r = 1560800
-    #
-    #    reb_sim.N_active = 3
-    #else:
-    #    reb_sim.N_active = 2
 
     reb_sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
@@ -78,6 +47,8 @@ def reb_setup(params):
     reb_sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     with open(f"Parameters.txt", "w") as text_file:
         text_file.write(f"{params.__str__()}")
+    with open("Parameters.pickle", 'wb') as f:
+        pickle.dump(params, f, pickle.HIGHEST_PROTOCOL)
 
     print("\t \t ... done!")
     print("=======================================")

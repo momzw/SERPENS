@@ -14,10 +14,6 @@ class SpeciesSpecifics:
 
 class Species(SpeciesSpecifics):
 
-    # How to implement new species:
-    # * Add network/lifetime in <class: Network>
-    # * Add to implementedSpecies in <class: Species>
-
     def __init__(self, name=None, n_th=0, n_sp=0, mass_per_sec=None, duplicate=None, **kwargs):
         self.implementedSpecies = {
             "Na": 1,
@@ -118,7 +114,7 @@ class Parameters:
     # Integration specifics
     # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
-        "moon": True,
+        "moon": False,
         "sim_advance": 1 / 40,
         "num_sim_advances": 5,
         "stop_at_steady_state": False,
@@ -196,11 +192,11 @@ class Parameters:
             print("Globally modified species.")
 
     @classmethod
-    def modify_objects(cls, moon="default", object=None, as_new_source=False):
+    def modify_objects(cls, moon="default", set=1, object=None, as_new_source=False):
 
         if isinstance(moon, bool):
             cls.int_spec["moon"] = moon
-            cls.celest = celestial_objects(moon)
+            cls.celest = celestial_objects(moon, set=set)
 
         if as_new_source and object is not None:
             temp = cls.celest["moon"]
@@ -217,4 +213,4 @@ class Parameters:
             Parameters._instance = None
             Parameters.species = {}
         if objects:
-            Parameters.celest = celestial_objects(Parameters.int_spec["moon"])
+            Parameters.celest = celestial_objects(Parameters.int_spec["moon"], set=1)

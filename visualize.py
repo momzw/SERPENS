@@ -297,19 +297,6 @@ class Visualize:
         # Redraw the figure to ensure it updates
         self.fig.canvas.draw_idle()
 
-    def add_histogram(self, ax, H, xedges, yedges, perspective, zorder=1, **kwargs):
-        ax = self.axs[ax]
-        self.__setup_ax(ax, perspective=perspective)
-        norm_min = kwargs.get("norm_min", None)
-        if norm_min is not None:
-            norm = colors.LogNorm(vmin=norm_min) if not np.max(H) == 0 else colors.Normalize(vmin=0,
-                                                                                             vmax=0)  # Not needed if first sim_instance is already with particles.
-        else:
-            norm = colors.LogNorm() if not np.max(H) == 0 else colors.Normalize(vmin=None, vmax=0)
-
-        ax.imshow(H, interpolation='gaussian', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
-                  cmap=self.cmap, norm=norm, zorder=zorder)
-
     def add_densityscatter(self, ax, x, y, density, perspective, **kwargs):
         kw = {
             "cb_format": '%.2f',
@@ -336,53 +323,6 @@ class Visualize:
         ax = self.axs[ax]
         self.__setup_ax(ax, perspective=perspective)
         ax.triplot(x, y, simplices, linewidth=0.1, c='w', zorder=zorder, alpha=1)
-
-    def add_dtfe_contour(self, ax, x, y, density, simplices, perspective, fill=False, zorder=1):
-        ax = self.axs[ax]
-        self.__setup_ax(ax, perspective=perspective)
-
-        # Number of recursive subdivisions of the initial mesh for smooth plots.
-        # Values >3 might result in a very high number of triangles for the refine
-        # mesh: new triangles numbering = (4**subdiv)*ntri
-        subdiv = 3
-
-        # Float > 0. adjusting the proportion of (invalid) initial triangles which will
-        # be masked out. Enter 0 for no mask.
-        init_mask_frac = 0.0
-
-        # Minimum circle ratio - border triangles with circle ratio below this will be
-        # masked if they touch a border. Suggested value 0.01; use -1 to keep all
-        # triangles.
-        min_circle_ratio = .01
-
-        # meshing with Delaunay triangulation
-        tri = Triangulation(x, y, simplices)
-        ntri = tri.triangles.shape[0]
-
-        # Some invalid data are masked out
-        mask_init = np.zeros(ntri, dtype=bool)
-        masked_tri = np.random.randint(0, ntri, int(ntri * init_mask_frac))
-        mask_init[masked_tri] = True
-        tri.set_mask(mask_init)
-
-        # ----------------------------------------------------------------------------
-        # Improving the triangulation before high-res plots: removing flat triangles
-        # ----------------------------------------------------------------------------
-        # masking badly shaped triangles at the border of the triangular mesh.
-        mask = TriAnalyzer(tri).get_flat_tri_mask(min_circle_ratio)
-        tri.set_mask(mask)
-
-        # refining the data
-        refiner = UniformTriRefiner(tri)
-        tri_refi, z_test_refi = refiner.refine_field(density, subdiv=subdiv)
-
-        # levels = np.logspace(np.log10(np.max(z_test_refi)) - 3, np.log10(np.max(z_test_refi)), 5)
-        # levels = 10 ** np.linspace(np.min(density), np.max(density), 20)
-
-        lvls = np.logspace(np.log10(np.min(z_test_refi[z_test_refi > 0])), np.log10(np.max(z_test_refi)), 8)
-        ax.tricontour(tri_refi, z_test_refi, cmap=self.cmap, levels=lvls, zorder=zorder)
-        if fill:
-            ax.tricontourf(tri_refi, z_test_refi, cmap=self.cmap, levels=10, zorder=zorder)
 
     def add_colormesh(self, ax, X, Y, dens, contour=True, fill_contour=False, **kwargs):
         kw = {

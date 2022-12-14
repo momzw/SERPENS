@@ -7,10 +7,11 @@ from init import Parameters, Species
 class NewParams:
 # TODO: As subclass
 
-    def __init__(self, species=None, objects=None, moon=None):
+    def __init__(self, species=None, objects=None, moon=None, celest_set=1):
         self.species = species
         self.object_instructions = objects
         self.moon = moon
+        self.celest_set = celest_set
         Parameters.reset()
 
     def __call__(self):
@@ -18,7 +19,7 @@ class NewParams:
             Parameters.modify_species(*self.species)
 
         if self.moon is not None:
-            Parameters.modify_objects(moon=self.moon)
+            Parameters.modify_objects(moon=self.moon, set=self.celest_set)
 
         if isinstance(self.object_instructions, dict):
             for k1, v1 in self.object_instructions.items():
@@ -29,7 +30,6 @@ class NewParams:
                         if k2 == "m":
                             message = "can implement mass change etc. here"
 
-
         return Parameters()
 
 
@@ -39,12 +39,11 @@ if __name__ == "__main__":
 
     simulations = {
         "1": NewParams(),
-        "2": NewParams(species=[Species('H2', description='H2--6.69kg/s--1200m/s', n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b=1200, model_smyth_v_M=50000),
-                                Species('O2')],
+        "2": NewParams(species=[Species('H2', description='H2--6.69kg/s--1200m/s', n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b=1200, model_smyth_v_M=50000)],
                        objects={"add1": {"source": False}},
-                       moon="default")
+                       moon=False,
+                       celest_set=1)
     }
-
 
     for k, v in simulations.items():
         v()
@@ -52,10 +51,15 @@ if __name__ == "__main__":
         sim.advance(Parameters.int_spec["num_sim_advances"])
 
         path = f'schedule_archive/simulation{k}'
+
+        if os.path.exists(path):
+            shutil.rmtree(path)
         os.makedirs(path)
+
         shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/{path}")
         shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/{path}")
         shutil.copy2(f'{os.getcwd()}/Parameters.txt', f"{os.getcwd()}/{path}")
+        shutil.copy2(f'{os.getcwd()}/Parameters.pickle', f"{os.getcwd()}/{path}")
 
         del sim
 

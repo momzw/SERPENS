@@ -5,7 +5,7 @@
 /archive.bin
 *.gif
 /hash_library.json
-/hash_library.pickle
+*.pickle
 *.mp4
 *.xlsx
 /temporary.txt

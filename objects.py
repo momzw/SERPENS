@@ -1,10 +1,12 @@
 
 __all__ = ['celestial_objects']
 
-def celestial_objects(moon):
+def celestial_objects(moon, set=1):
 
     if moon:
-        celest = {
+        # Jovian system
+        # -------------
+        celest1 = {
             "star": {"m": 1.988e30,
                      "hash": 'star',
                      "r": 696340000
@@ -45,8 +47,11 @@ def celestial_objects(moon):
                      "primary": 'planet'
                      }
         }
+
     else:
-        celest = {
+        # 55 Cnc-e
+        # --------
+        celest1 = {
             "star": {"m": 1.799e30,
                      "hash": 'star',
                      "r": 6.56e8
@@ -57,6 +62,11 @@ def celestial_objects(moon):
                        "inc": 0.00288,
                        "r": 1.196e7,
                        "primary": 'star',
-                       "hast": 'planet'}
+                       "hash": 'planet'}
         }
-    return celest
+
+    if set == 1:
+        return celest1
+    else:
+        print("Celestial body set not found. Returning set 1. ")
+        return celest1
