@@ -1,7 +1,10 @@
-rebound>=3.19.3
-numpy>=1.23.0
-reboundx>=3.7.2
-tqdm>=4.64.1
-matplotlib>=3.5.2
-pandas>=1.5.0
-scipy>=1.8.1
+rebound~=3.21.0
+numpy~=1.23.0
+reboundx~=3.7.2
+tqdm~=4.64.1
+matplotlib~=3.5.2
+pandas~=1.5.0
+scipy~=1.8.1
+numba~=0.56.3
+DateTime~=4.5
+multiprocess~=0.70.13

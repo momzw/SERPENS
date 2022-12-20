@@ -1,3 +1,4 @@
+import pickle
 from network import Network
 from objects import *
 
@@ -76,11 +77,16 @@ class Species(SpeciesSpecifics):
         self.mass_per_sec = mass_per_sec
         self.name = name
 
+        # Handle key word arguments:
         self.beta = kwargs.get("beta", 0)
 
         tau = kwargs.get("lifetime", None)
         if tau is not None:
             self.network = tau
+
+        electron_density = kwargs.get("n_e", None)
+        if electron_density is not None:
+            self.network = Network(self.id, e_scaling=electron_density).network
 
         self.description = kwargs.get("description", self.name)
 
@@ -108,11 +114,9 @@ class Species(SpeciesSpecifics):
 
 
 class Parameters:
-
     _instance = None
 
     # Integration specifics
-    # NOTE: sim time step =/= sim advance => sim advance refers to number of sim time steps until integration is paused and actions are performed. !!!
     int_spec = {
         "moon": False,
         "sim_advance": 1 / 40,
@@ -138,9 +142,8 @@ class Parameters:
     def __new__(cls):
 
         if cls._instance is None:
-
-            #self.species[f"species1"] = Species("H", description="H--5.845kg/s--2500m/s", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b=2500, model_smyth_v_M=10000)  # 585, lifetime=2.26*86400
-            #self.species[f"species1"] = Species("O2", description="O2--14.35kg/s--4700m/s", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b=4700, model_smyth_v_M=10000)  # 1435, lifetime=3.3*86400
+            # self.species[f"species1"] = Species("H", description="H--5.845kg/s--2500m/s", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b=2500, model_smyth_v_M=10000)  # 585, lifetime=2.26*86400
+            # self.species[f"species1"] = Species("O2", description="O2--14.35kg/s--4700m/s", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b=4700, model_smyth_v_M=10000)  # 1435, lifetime=3.3*86400
             cls.species[f"species1"] = Species("H2", description="H2--6.69kg/s--1200m/s", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b=1200, model_smyth_v_M=10000)  # 669, lifetime=7*86400
             cls.num_species = len(cls.species)
 
@@ -192,7 +195,7 @@ class Parameters:
             print("Globally modified species.")
 
     @classmethod
-    def modify_objects(cls, moon="default", set=1, object=None, as_new_source=False):
+    def modify_objects(cls, moon="default", set=1, object=None, as_new_source=False, new_properties=None):
 
         if isinstance(moon, bool):
             cls.int_spec["moon"] = moon
@@ -206,6 +209,16 @@ class Parameters:
             cls.celest["moon"]["hash"] = "moon"
             del cls.celest[object]["hash"]
             print("Globally modified source object.")
+
+        if object is not None and type(new_properties) == dict:
+            cls.celest[object].update(new_properties)
+
+    @classmethod
+    def modify_spec(cls, int_spec=None, therm_spec=None):
+        if int_spec is not None:
+            cls.int_spec.update(int_spec)
+        if therm_spec is not None:
+            cls.therm_spec.update(therm_spec)
 
     @staticmethod
     def reset(species=True, objects=True):

@@ -1,24 +1,21 @@
 import numpy as np
+import rebound
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.colors as colors
 import matplotlib
-
-matplotlib.use('TkAgg')
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib.tri import Triangulation, TriAnalyzer, UniformTriRefiner
 from rebound.plotting import fading_line
 from init import Parameters
-
 from scipy.ndimage.filters import gaussian_filter
 from matplotlib.widgets import Slider, RangeSlider
-
+matplotlib.use('TkAgg')
 
 class Visualize:
 
     # TODO (FOR LATER): Check out VISPY for fast interactive plots running over GPU
 
-    def __init__(self, rebsim, interactive=True, cmap=plt.cm.afmhot):
+    def __init__(self, rebsim, interactive=True, cmap=plt.cm.afmhot, lim=35):
         params = Parameters()
         self.ns = params.num_species
         self.sim = rebsim
@@ -51,6 +48,7 @@ class Visualize:
 
         self.cmap = cmap
         self.cmap.set_bad(color='k', alpha=1.)
+        self.lim = lim
 
         self.cf = None
         self.c = None
@@ -128,7 +126,7 @@ class Visualize:
         #    lim *= self.ps["planet"].r
 
         ax.set_aspect("equal")
-        lim = 35 * self.ps["planet"].r if self.moon else 10 * self.ps[0].r
+        lim = self.lim * self.ps["planet"].r if self.moon else self.lim * self.ps[0].r
 
         if perspective == "topdown":
             ps_star_coord1 = self.ps[0].x

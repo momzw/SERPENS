@@ -1,6 +1,5 @@
 import rebound
 import matplotlib
-import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
 import time
 import numpy as np
@@ -11,6 +10,8 @@ from datetime import datetime
 from visualize import Visualize
 import DTFE
 import DTFE3D
+from init import Species
+from scheduler import NewParams
 matplotlib.use('TkAgg')
 mplstyle.use('fast')
 
@@ -39,7 +40,7 @@ mplstyle.use('fast')
 save = False
 save_archive = False
 save_particles = False
-plot_freq = 5  # Plot at each *plot_freq* advance
+plot_freq = 400  # Plot at each *plot_freq* advance
 
 showfig = True
 showhist = False
@@ -65,6 +66,8 @@ if __name__ == "__main__":
     with open('Parameters.pickle', 'rb') as handle:
         Params = pickle.load(handle)
 
+    v = NewParams(species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285, lifetime=4 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)], moon=True, objects={'moon': {'m': 8.8e22, 'r': 1820e3}}, celest_set=2)
+    v()
     moon_exists = Params.int_spec["moon"]
 
     sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
@@ -180,11 +183,11 @@ if __name__ == "__main__":
             # particle_weights[k1] = hash_dict_current[str(particle_hashes[k1])]["weight"]
 
 
-        def top_down_column(bins=160):
+        def top_down_column():
             # IMSHOW TOP DOWN COLUMN DENSITY PLOTS
             # ====================================
 
-            vis = Visualize(sim_instance)
+            vis = Visualize(sim_instance, lim=10)
 
             for k in range(Params.num_species):
                 species = Params.get_species(num=k + 1)
@@ -238,10 +241,10 @@ if __name__ == "__main__":
 
                 dens2dgrid = dtfe2d.density(X.flat, Y.flat).reshape((100, 100)) / 1e4
 
-                vis.add_colormesh(k, X, Y, dens2dgrid, contour=True, fill_contour=True, zorder=3, numlvls=25)
+                #vis.add_colormesh(k, X, Y, dens2dgrid, contour=True, fill_contour=True, zorder=3, numlvls=25)
                 # vis.add_triplot(k, points[:, 0], points[:, 1], dtfe3d.delaunay.simplices[:,:3], perspective="topdown")
-                # vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown", zorder=3)
-                # vis.add_densityscatter(k, points[:, 0], points[:, 1], dens3d, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'b'])
+                #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown", zorder=3)
+                vis.add_densityscatter(k, points[:, 0], points[:, 1], dens3d, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'b'])
 
                 vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-2}])$ around Planetary Body")
 
@@ -251,7 +254,7 @@ if __name__ == "__main__":
                 vis(show_bool=showfig)
             del vis
 
-
+        """
         def toroidal_hist():
             # RADIAL HISTOGRAM
             # ================
@@ -335,9 +338,9 @@ if __name__ == "__main__":
                 plt.close()
             else:
                 pass
+        """
 
-
-        def los_column_and_velocity_dist(bins=100):
+        def los_column_and_velocity_dist():
             # COLUMN DENSITY & VELOCITY DISTRIBUTION
             # ======================================
             vis = Visualize(sim_instance)
@@ -380,7 +383,7 @@ if __name__ == "__main__":
                 vis(show_bool=show_column_density)
             del vis
 
-
+        """
         def vel_dist():
             if not i == 0:
 
@@ -456,7 +459,7 @@ if __name__ == "__main__":
                 plt.close()
             else:
                 pass
-
+        """
 
         if save_particles:
             try:
@@ -468,10 +471,8 @@ if __name__ == "__main__":
                 print("Cannot save particles. Path may not exist")
                 pass
 
-        top_down_column(bins=50)
-        # los_column_and_velocity_dist(bins=50)
-        # toroidal_hist()
-        # vel_dist()
+        top_down_column()
+        # los_column_and_velocity_dist()
 
         print(f"Time needed for processing: {time.time() - start_time}")
     else:

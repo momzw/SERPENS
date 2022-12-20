@@ -2,7 +2,7 @@ import rebound
 import reboundx
 import numpy as np
 import warnings
-import multiprocess as mp
+import multiprocess
 import multiprocessing
 import pickle
 from create_particle import create_particle
@@ -48,7 +48,7 @@ def reb_setup(params):
     with open(f"Parameters.txt", "w") as text_file:
         text_file.write(f"{params.__str__()}")
     with open("Parameters.pickle", 'wb') as f:
-        pickle.dump(params, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(params, f)
 
     print("\t \t ... done!")
     print("=======================================")
@@ -86,7 +86,7 @@ def create(source_state, source_r, process, species):
 
     per_create = int(n / multiprocessing.cpu_count())
 
-    with mp.Pool(10) as p:
+    with multiprocess.Pool(10) as p:
         r = p.map(mp_add, range(multiprocessing.cpu_count()))
         r = np.asarray(r).reshape(np.shape(r)[0] * np.shape(r)[1], 6)
         p.close()
@@ -96,7 +96,7 @@ def create(source_state, source_r, process, species):
 
 class SerpensSimulation:
 
-    def __init__(self, params = "default", *args, **kw):
+    def __init__(self, *args, **kw):
 
         print("=====================================")
         print("SERPENS simulation has been created.")
@@ -105,10 +105,7 @@ class SerpensSimulation:
         self.hash_supdict = {}
         self.hash_dict = {}
 
-        if params == "default":
-            self.params = Parameters()
-        else:
-            self.params = params
+        self.params = Parameters()
 
         # Handle arguments
         filename = None
@@ -148,15 +145,6 @@ class SerpensSimulation:
         set_pointers(self.__sim)
         for dc in self.__sim_deepcopies:
             set_pointers(dc)
-
-    def __add_celest(self, name, radius=0, primary_hash="planet", **kw):
-        self.__sim.add(primary=self.__sim.particles[primary_hash], hash=name, **kw)
-        self.__sim.particles[f"{name}"].r = radius
-        self.__sim.N_active += 1
-        for dc in self.__sim_deepcopies:
-            dc.add(primary=self.__sim.particles[primary_hash], hash=name, **kw)
-            dc.particles[f"{name}"].r = radius
-            dc.N_active += 1
 
     def __add_particles(self):
 
@@ -203,7 +191,7 @@ class SerpensSimulation:
                 species = self.params.get_species(id=species_id)
 
             # Check if chemical reaction happens:
-            chem_network = species.network  # tau (float), educts (str), products (str), velocities (float)
+            chem_network = species.network  # tau (str), educts (str), products (str), velocities (str)
 
             dt = self.params.int_spec["sim_advance"] * self.var["source_P"]
 
@@ -291,7 +279,7 @@ class SerpensSimulation:
                         except:
                             print("Removal error occurred.")
                             pass
-                    elif w * pps < 1e6:
+                    elif w * pps < 1e3:
                         try:
                             dc_remove.append(particle.hash)
                             #dc.remove(hash=particle.hash)

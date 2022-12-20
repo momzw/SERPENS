@@ -3,9 +3,6 @@ import rebound
 import os
 from tqdm import tqdm
 import pandas as pd
-from scipy.integrate import quad
-
-from serpens_simulation import SerpensSimulation
 
 def orbit_sol():
 
