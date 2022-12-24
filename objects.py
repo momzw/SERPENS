@@ -137,6 +137,27 @@ def celestial_objects(moon, set=1):
                      }
         }
 
+        # WASP-39
+        # -------
+        celest6 = {
+            "star": {"m": .93 * m_sol,
+                     "hash": 'star',
+                     "r": .895 * r_sol
+                     },
+            "planet": {"m": 0.28 * m_jup,
+                       "a": 0.0486 * au,
+                       "r": 90794840,
+                       "primary": 'star',
+                       "hash": 'planet'
+                       },
+            "moon": {"m": 3.8e24,
+                     "a": 1.79 * 90794840,
+                     "r": 6370e3,
+                     "primary": 'planet',
+                     "hash": 'moon'
+                     }
+        }
+
     else:
         # 55 Cnc-e
         # --------

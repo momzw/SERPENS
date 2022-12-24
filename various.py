@@ -4,6 +4,10 @@ import os
 from tqdm import tqdm
 import pandas as pd
 
+
+from serpens_analyzer import SerpensAnalyzer
+
+
 def orbit_sol():
 
     G = 6.6743e-11
@@ -140,4 +144,8 @@ def pngToGif(path, fps):
     writer.close()
 
 
-#orbit_sol()
+sa = SerpensAnalyzer(save_output=True)
+sa.birdseye(timestep=280, d=2, grid=False, colormesh=False, scatter=True, triplot=False, show=False)
+sa.birdseye(timestep=280, d=3, grid=False, colormesh=False, scatter=True, triplot=False, show=False)
+sa.birdseye(timestep=280, d=2, grid=True, colormesh=True, scatter=False, triplot=True, show=False)
+sa.birdseye(timestep=280, d=3, grid=True, colormesh=True, scatter=False, triplot=True, show=False)

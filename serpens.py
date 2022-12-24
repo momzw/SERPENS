@@ -1,19 +1,16 @@
 import rebound
-import matplotlib
-import matplotlib.style as mplstyle
 import time
 import numpy as np
 import os as os
 import shutil
 import pickle
+import dill
 from datetime import datetime
 from visualize import Visualize
 import DTFE
 import DTFE3D
-from init import Species
-from scheduler import NewParams
-matplotlib.use('TkAgg')
-mplstyle.use('fast')
+from init import Parameters
+
 
 """
 
@@ -30,19 +27,15 @@ mplstyle.use('fast')
 
 """
 
-# TODO: Ions and ENAs around torus
-# TODO: Multiprocessing improvements
-# TODO: MAYBE: Check if in-between advance modifications can be written as a reboundx operator.
-
 # Plotting
 # ---------------------
 
-save = False
+save = True
 save_archive = False
 save_particles = False
-plot_freq = 400  # Plot at each *plot_freq* advance
+plot_freq = 10  # Plot at each *plot_freq* advance
 
-showfig = True
+showfig = False
 showhist = False
 showvel = False
 show_column_density = False
@@ -63,11 +56,11 @@ if __name__ == "__main__":
     with open('hash_library.pickle', 'rb') as handle:
         hash_supdict = pickle.load(handle)
 
-    with open('Parameters.pickle', 'rb') as handle:
-        Params = pickle.load(handle)
+    with open('Parameters.pkl', 'rb') as handle:
+        params_load = dill.load(handle)
+        params_load()
 
-    v = NewParams(species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285, lifetime=4 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)], moon=True, objects={'moon': {'m': 8.8e22, 'r': 1820e3}}, celest_set=2)
-    v()
+    Params = Parameters()
     moon_exists = Params.int_spec["moon"]
 
     sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
@@ -148,7 +141,7 @@ if __name__ == "__main__":
         else:
             hash_dict_current = {}
 
-        ids = [val["id"] for key, val in hash_dict_current.items() if "id" in val]
+        #ids = [val["id"] for key, val in hash_dict_current.items() if "id" in val]
 
         particle_positions = np.zeros((sim_instance.N, 3), dtype="float64")
         particle_velocities = np.zeros((sim_instance.N, 3), dtype="float64")
@@ -242,7 +235,7 @@ if __name__ == "__main__":
                 dens2dgrid = dtfe2d.density(X.flat, Y.flat).reshape((100, 100)) / 1e4
 
                 #vis.add_colormesh(k, X, Y, dens2dgrid, contour=True, fill_contour=True, zorder=3, numlvls=25)
-                # vis.add_triplot(k, points[:, 0], points[:, 1], dtfe3d.delaunay.simplices[:,:3], perspective="topdown")
+                #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe3d.delaunay.simplices[:,:3], perspective="topdown")
                 #vis.add_triplot(k, points[:, 0], points[:, 1], dtfe2d.delaunay.simplices, perspective="topdown", zorder=3)
                 vis.add_densityscatter(k, points[:, 0], points[:, 1], dens3d, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'b'])
 

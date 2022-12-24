@@ -5,6 +5,7 @@ import warnings
 import multiprocess
 import multiprocessing
 import pickle
+import dill
 from create_particle import create_particle
 from init import Parameters
 import time
@@ -45,11 +46,8 @@ def reb_setup(params):
     # => sim.ri_whfast.safe_mode = 0
 
     reb_sim.simulationarchive_snapshot("archive.bin", deletefile=True)
-    with open(f"Parameters.txt", "w") as text_file:
-        text_file.write(f"{params.__str__()}")
-    with open("Parameters.pickle", 'wb') as f:
-        pickle.dump(params, f)
-
+    with open(f"Parameters.txt", "w") as f:
+        f.write(f"{params.__str__()}")
     print("\t \t ... done!")
     print("=======================================")
 
@@ -296,7 +294,6 @@ class SerpensSimulation:
                     num_lost += 1
 
             t = self.__sim_deepcopies[0].t
-            self.var["iter"] += 1
             self.__sim.simulationarchive_snapshot("archive.bin")
 
             print("Advance done! ")
@@ -309,6 +306,9 @@ class SerpensSimulation:
             self.hash_supdict[str(self.var["iter"] + 1)] = self.hash_dict
             with open("hash_library.pickle", 'wb') as f:
                 pickle.dump(self.hash_supdict, f, pickle.HIGHEST_PROTOCOL)
+
+            self.var["iter"] += 1
+
             print("\t ... done!")
             print("#######################################################")
 
@@ -316,8 +316,11 @@ class SerpensSimulation:
 
 if __name__ == "__main__":
     main_params = Parameters()
+    with open("Parameters.pkl", 'wb') as f:
+        dill.dump(main_params, f, protocol=pickle.HIGHEST_PROTOCOL)
+
     ssim = SerpensSimulation()
-    ssim.advance(main_params.int_spec["num_sim_advances"])
+    ssim.advance(Parameters.int_spec["num_sim_advances"])
 
 
 
