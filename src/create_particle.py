@@ -1,5 +1,5 @@
 import numpy as np
-from init import Parameters
+from parameters import Parameters
 
 from scipy.optimize import fmin
 from scipy.stats import truncnorm, maxwell, norm, rv_continuous

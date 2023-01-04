@@ -2,11 +2,56 @@ import os as os
 import shutil
 import dill
 from serpens_simulation import SerpensSimulation
-from init import Parameters, NewParams
+from parameters import Parameters, NewParams
 from species import Species
 
+class SerpensScheduler:
 
+    sims = {}
 
+    def schedule(self, description, species = None, objects = None, moon = None, int_spec = None, therm_spec = None, celest_set = 1):
+
+        if isinstance(description, str):
+            self.sims[description] = NewParams(species=species, objects=objects, moon=moon, int_spec=int_spec, therm_spec=therm_spec, celest_set=celest_set)
+        else:
+            print("Please pass a string to the scheduler as simulation description.")
+
+    def run(self):
+        print("Starting scheduled simulations.")
+        for k, v in self.sims.items():
+            v()
+            with open("Parameters.pickle", 'wb') as f:
+                dill.dump(v, f, protocol=dill.HIGHEST_PROTOCOL)
+            sim = SerpensSimulation()
+            sim.advance(Parameters.int_spec["num_sim_advances"])
+
+            path = f'schedule_archive/simulation-{k}'
+
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            os.makedirs(path)
+
+            shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/{path}")
+            shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/{path}")
+            shutil.copy2(f'{os.getcwd()}/Parameters.txt', f"{os.getcwd()}/{path}")
+
+            del sim
+
+            Parameters.reset()
+
+        print("=============================")
+        print("COMPLETED ALL SIMULATIONS")
+        print("=============================")
+
+# E.g.:
+# ssch = SerpensScheduler()
+# ssch.schedule("WASP-49-SuperEarth",
+#               species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285, lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+#               moon=True,
+#               celest_set=2)
+# ssch.run()
+
+"""
 if __name__ == "__main__":
 
     print("Scheduler called.")
@@ -96,7 +141,7 @@ if __name__ == "__main__":
 
     for k, v in simulations.items():
         v()
-        with open("Parameters.pkl", 'wb') as f:
+        with open("Parameters.pickle", 'wb') as f:
             dill.dump(v, f, protocol=dill.HIGHEST_PROTOCOL)
         sim = SerpensSimulation()
         sim.advance(Parameters.int_spec["num_sim_advances"])
@@ -110,7 +155,6 @@ if __name__ == "__main__":
         shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/{path}")
         shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/{path}")
         shutil.copy2(f'{os.getcwd()}/Parameters.txt', f"{os.getcwd()}/{path}")
-        shutil.copy2(f'{os.getcwd()}/Parameters.pkl', f"{os.getcwd()}/{path}")
 
         del sim
 
@@ -118,7 +162,7 @@ if __name__ == "__main__":
     print("COMPLETED ALL SIMULATIONS")
     print("=============================")
 
-
+"""
 
 
 

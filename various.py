@@ -4,7 +4,6 @@ import os
 from tqdm import tqdm
 import pandas as pd
 
-
 from serpens_analyzer import SerpensAnalyzer
 
 
@@ -145,7 +144,7 @@ def pngToGif(path, fps):
 
 
 sa = SerpensAnalyzer(save_output=True)
-sa.birdseye(timestep=280, d=2, grid=False, colormesh=False, scatter=True, triplot=False, show=False)
-sa.birdseye(timestep=280, d=3, grid=False, colormesh=False, scatter=True, triplot=False, show=False)
-sa.birdseye(timestep=280, d=2, grid=True, colormesh=True, scatter=False, triplot=True, show=False)
-sa.birdseye(timestep=280, d=3, grid=True, colormesh=True, scatter=False, triplot=True, show=False)
+sa.top_down(timestep=280, d=2, colormesh=False, scatter=True, triplot=False, show=False)
+sa.top_down(timestep=280, d=3, colormesh=False, scatter=True, triplot=False, show=False)
+sa.top_down(timestep=280, d=2, colormesh=True, scatter=False, triplot=True, show=False)
+sa.top_down(timestep=280, d=3, colormesh=True, scatter=False, triplot=True, show=False)

@@ -3,6 +3,7 @@
 /particles.txt
 /Parameters.txt
 /archive.bin
+archive.bin
 *.gif
 /hash_library.json
 *.pickle

@@ -6,8 +6,8 @@ import multiprocess
 import multiprocessing
 import pickle
 import dill
-from create_particle import create_particle
-from init import Parameters
+from src.create_particle import create_particle
+from parameters import Parameters
 import time
 
 
@@ -48,6 +48,9 @@ def reb_setup(params):
     reb_sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     with open(f"Parameters.txt", "w") as f:
         f.write(f"{params.__str__()}")
+    with open("Parameters.pickle", 'wb') as f:
+        dill.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
+
     print("\t \t ... done!")
     print("=======================================")
 
@@ -55,7 +58,7 @@ def reb_setup(params):
 
 
 def set_pointers(reb_sim):
-    reb_sim.collision = "direct"   # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
+    reb_sim.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
     reb_sim.collision_resolve = "merge"
 
     # REBOUNDX ADDITIONAL FORCES
@@ -67,7 +70,6 @@ def set_pointers(reb_sim):
 
 
 def create(source_state, source_r, process, species):
-
     if process == "thermal":
         n = species.n_th
     elif process == "sputter":
@@ -79,7 +81,8 @@ def create(source_state, source_r, process, species):
         return np.array([])
 
     def mp_add(_):
-        part_state = create_particle(species.id, process=process, source=source_state, source_r=source_r, num=per_create)
+        part_state = create_particle(species.id, process=process, source=source_state, source_r=source_r,
+                                     num=per_create)
         return part_state
 
     per_create = int(n / multiprocessing.cpu_count())
@@ -133,8 +136,10 @@ class SerpensSimulation:
 
         self.var = {"iter": 0, "moon": self.params.int_spec["moon"]}
         if self.var["moon"]:
-            self.var["source_a"] = self.__sim.particles["moon"].calculate_orbit(primary=self.__sim.particles["planet"]).a
-            self.var["source_P"] = self.__sim.particles["moon"].calculate_orbit(primary=self.__sim.particles["planet"]).P
+            self.var["source_a"] = self.__sim.particles["moon"].calculate_orbit(
+                primary=self.__sim.particles["planet"]).a
+            self.var["source_P"] = self.__sim.particles["moon"].calculate_orbit(
+                primary=self.__sim.particles["planet"]).P
         else:
             self.var["source_a"] = self.__sim.particles["planet"].a
             self.var["source_P"] = self.__sim.particles["planet"].P
@@ -173,7 +178,8 @@ class SerpensSimulation:
                                                                                         "i": self.var['iter'],
                                                                                         "id": species.id,
                                                                                         "weight": 1,
-                                                                                        "products_weight": np.zeros(self.params.num_species)}
+                                                                                        "products_weight": np.zeros(
+                                                                                            self.params.num_species)}
 
     def __loss_per_advance(self):
 
@@ -247,7 +253,19 @@ class SerpensSimulation:
 
             print("\t Transfering particle data...")
             for act in range(self.__sim_deepcopies[0].N_active):
+
+                try:
+                    if self.var["moon"]:
+                        _ = self.__sim_deepcopies[0].particles["moon"]
+                    _ = self.__sim_deepcopies[0].particles["planet"]
+                except:
+                    print("ERROR:")
+                    print("moon or planet collided with the planet (if moon exists) or star!")
+                    print("aborting simulation...")
+                    return
+
                 self.__sim.add(self.__sim_deepcopies[0].particles[act])
+
             self.__sim.N_active = self.__sim_deepcopies[0].N_active
 
             num_lost = 0
@@ -261,27 +279,30 @@ class SerpensSimulation:
                     w = self.hash_dict[f"{particle.hash.value}"]['weight']
                     species_id = self.hash_dict[f"{particle.hash.value}"]['id']
                     species = self.params.get_species(id=species_id)
-                    mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * self.var["source_P"]
+                    mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * self.var[
+                        "source_P"]
                     pps = species.particles_per_superparticle(mass_inject_per_advance)
 
                     if self.var["moon"]:
-                        particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(self.__sim.particles["planet"].xyz))
+                        particle_distance = np.linalg.norm(
+                            np.asarray(particle.xyz) - np.asarray(self.__sim.particles["planet"].xyz))
                     else:
-                        particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(self.__sim.particles[0].xyz))
+                        particle_distance = np.linalg.norm(
+                            np.asarray(particle.xyz) - np.asarray(self.__sim.particles[0].xyz))
 
                     if particle_distance > self.var["boundary"]:
                         try:
                             dc_remove.append(particle.hash)
-                            #dc.remove(hash=particle.hash)
-                            #del hash_dict[f"{particle.hash.value}"]
+                            # dc.remove(hash=particle.hash)
+                            # del hash_dict[f"{particle.hash.value}"]
                         except:
                             print("Removal error occurred.")
                             pass
                     elif w * pps < 1e3:
                         try:
                             dc_remove.append(particle.hash)
-                            #dc.remove(hash=particle.hash)
-                            #del hash_dict[f"{particle.hash.value}"]
+                            # dc.remove(hash=particle.hash)
+                            # del hash_dict[f"{particle.hash.value}"]
                         except:
                             print("Removal error occurred.")
                             pass
@@ -290,15 +311,15 @@ class SerpensSimulation:
 
                 for hash in dc_remove:
                     dc.remove(hash=hash)
-                    #del self.hash_dict[f"{particle.hash.value}"]
+                    # del self.hash_dict[f"{particle.hash.value}"]
                     num_lost += 1
 
             t = self.__sim_deepcopies[0].t
             self.__sim.simulationarchive_snapshot("archive.bin")
 
             print("Advance done! ")
-            print(f"Simulation time: {np.around(t / 3600, 2)}")
-            print(f"Simulation runtime: {np.around(time.time() - start_time, 2)}")
+            print(f"Simulation time [h]: {np.around(t / 3600, 2)}")
+            print(f"Simulation runtime [s]: {np.around(time.time() - start_time, 2)}")
             print(f"Number of particles removed: {num_lost}")
             print(f"Number of particles: {self.__sim.N}")
 
@@ -313,20 +334,7 @@ class SerpensSimulation:
             print("#######################################################")
 
 
-
 if __name__ == "__main__":
-    main_params = Parameters()
-    with open("Parameters.pkl", 'wb') as f:
-        dill.dump(main_params, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ssim = SerpensSimulation()
     ssim.advance(Parameters.int_spec["num_sim_advances"])
-
-
-
-
-
-
-
-
-

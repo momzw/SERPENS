@@ -5,7 +5,7 @@ import matplotlib.colors as colors
 import matplotlib
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from rebound.plotting import fading_line
-from init import Parameters
+from parameters import Parameters
 from scipy.ndimage.filters import gaussian_filter
 from matplotlib.widgets import Slider, RangeSlider
 matplotlib.use('TkAgg')
@@ -257,6 +257,9 @@ class Visualize:
         ax.set_xlabel('')
         ax.set_ylabel('')
 
+        if perspective == 'los':
+            ax.invert_xaxis()
+
     def __update_interactive(self, val, slider=None, smoothing_slider=None):
         # The val passed to a callback by the RangeSlider will
         # be a tuple of (min, max)
@@ -329,12 +332,13 @@ class Visualize:
             "zorder": 1,
             "cfilter_coeff": 1,
             "numlvls": 10,
-            "celest_colors": 'default'
+            "celest_colors": 'default',
+            "perspective": "topdown"
         }
         kw.update(kwargs)
 
         ax_obj = self.axs[ax]
-        self.__setup_ax(ax_obj, perspective="topdown", celest_colors=kw["celest_colors"])
+        self.__setup_ax(ax_obj, perspective=kw["perspective"], celest_colors=kw["celest_colors"])
         self.X = X
         self.Y = Y
         self.dens = dens

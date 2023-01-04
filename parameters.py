@@ -2,14 +2,12 @@ from species import Species
 from objects import *
 
 
-class Parameters:
-    _instance = None
-
+class DefaultFields:
     # Integration specifics
     int_spec = {
         "moon": True,
         "sim_advance": 1 / 40,
-        "num_sim_advances": 280,
+        "num_sim_advances": 6,
         "stop_at_steady_state": False,
         "gen_max": None,
         "r_max": 4,
@@ -25,17 +23,39 @@ class Parameters:
     }
 
     celest = celestial_objects(int_spec["moon"], set=6)
+    species = {
+        "species1": Species('Na', description='Na--2.6e12kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
+                            mass_per_sec=2.6e12, lifetime=6.7 * 60, model_smyth_v_b=2500,
+                            model_smyth_v_M=30000)
+
+    }
+    num_species = len(species)
+
+    @classmethod
+    def change_defaults(cls, **kwargs):
+        cls.int_spec = kwargs.get("int_spec", cls.int_spec)
+        cls.therm_spec = kwargs.get("therm_spec", cls.therm_spec)
+        cls.celest = kwargs.get("celest", cls.celest)
+        cls.species = kwargs.get("species", cls.species)
+        cls.num_species = len(cls.species)
+
+
+class Parameters:
+    _instance = None
+
+    int_spec = {}
+    therm_spec = {}
+    celest = None
     species = {}
     num_species = 0
 
     def __new__(cls):
 
         if cls._instance is None:
-            # self.species[f"species1"] = Species("H", description="H--5.845kg/s--2500m/s", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b=2500, model_smyth_v_M=10000)  # 585, lifetime=2.26*86400
-            # self.species[f"species1"] = Species("O2", description="O2--14.35kg/s--4700m/s", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b=4700, model_smyth_v_M=10000)  # 1435, lifetime=3.3*86400
-            # cls.species[f"species1"] = Species("H2", description="H2--6.69kg/s--1200m/s", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b=1200, model_smyth_v_M=10000)  # 669, lifetime=7*86400
-            cls.species["species1"] = Species('Na', description='Na--2.6e12kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000, mass_per_sec=2.6e12, lifetime=6.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)
-
+            cls.int_spec = DefaultFields.int_spec
+            cls.therm_spec = DefaultFields.therm_spec
+            cls.species = DefaultFields.species
+            cls.celest = DefaultFields.celest
             cls.num_species = len(cls.species)
 
             cls._instance = object.__new__(cls)
@@ -113,17 +133,12 @@ class Parameters:
             cls.therm_spec.update(therm_spec)
 
     @staticmethod
-    def reset(species=True, objects=True):
-        if species:
-            Parameters._instance = None
-            Parameters.species = {}
-        if objects:
-            Parameters.celest = celestial_objects(Parameters.int_spec["moon"], set=1)
+    def reset():
+        Parameters._instance = None
         Parameters()
 
 
 class NewParams:
-    # TODO: As subclass
     """
     This class allows for the change of simulation parameters.
 

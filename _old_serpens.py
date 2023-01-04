@@ -6,10 +6,9 @@ import shutil
 import pickle
 import dill
 from datetime import datetime
-from visualize import Visualize
-import DTFE
-import DTFE3D
-from init import Parameters
+from src.visualize import Visualize
+from src import DTFE, DTFE3D
+from parameters import Parameters
 
 
 """
@@ -56,7 +55,7 @@ if __name__ == "__main__":
     with open('hash_library.pickle', 'rb') as handle:
         hash_supdict = pickle.load(handle)
 
-    with open('Parameters.pkl', 'rb') as handle:
+    with open('Parameters.pickle', 'rb') as handle:
         params_load = dill.load(handle)
         params_load()
 
