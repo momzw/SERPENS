@@ -3,6 +3,8 @@ import rebound
 import os
 from tqdm import tqdm
 import pandas as pd
+import matplotlib
+matplotlib.use('TkAgg')
 
 from serpens_analyzer import SerpensAnalyzer
 
@@ -120,31 +122,40 @@ def orbit_sol():
     df.to_excel('temporary.xlsx', index=False, header=False)
 
 
-def pngToGif(path, fps):
+def pngToGif(path, fps, name=None):
     """
     TOOL TO COMBINE PNG TO GIF
     """
     import imageio
+    imageio.plugins.ffmpeg.download()
 
     files = []
     for file in os.listdir(path):
-        if file.startswith('ColumnDensity_TopDown_'):
+        if file.startswith('SERPENS_'):
             cutoff = file[::-1].find('_')
             files.append(file[:-cutoff])
 
-    date = path[path.find('/')+1:path.find('_')]
-    writer = imageio.get_writer(f'sim_{date}.mp4', fps=fps, macro_block_size=None)
+    if name is None:
+        name = path[path.find('--')+2:path.find('/p')]
+    writer = imageio.get_writer(f'sim_{name}.mp4', fps=fps, macro_block_size=None)
 
-    for im in sorted(files, key = len):
+    for im in sorted(files, key=len):
         for file in os.listdir(path):
             if os.path.isfile(os.path.join(path, file)) and f'{im}' in file:
                 im2 = os.path.join(path, file)
-                writer.append_data(imageio.v3.imread(im2))
+                writer.append_data(imageio.imread(im2))
     writer.close()
 
 
-sa = SerpensAnalyzer(save_output=True)
-sa.top_down(timestep=280, d=2, colormesh=False, scatter=True, triplot=False, show=False)
-sa.top_down(timestep=280, d=3, colormesh=False, scatter=True, triplot=False, show=False)
-sa.top_down(timestep=280, d=2, colormesh=True, scatter=False, triplot=True, show=False)
-sa.top_down(timestep=280, d=3, colormesh=True, scatter=False, triplot=True, show=False)
+# pngToGif('output/09012023--22-39_moonsource/plots/LOS', 10, name="HD209-LOS")
+# pngToGif('output/09012023--22-39_moonsource/plots/LOSPatch', 10, name="HD209-LOSwPlanet")
+# pngToGif('output/09012023--22-39_moonsource/plots/TD', 10, name="HD209-TD")
+# pngToGif('output/09012023--22-51_moonsource/plots/LOS', 10, name="HD189-LOS")
+# pngToGif('output/09012023--22-51_moonsource/plots/LOSPatch', 10, name="HD189-LOSwPlanet")
+# pngToGif('output/09012023--22-51_moonsource/plots/TD', 10, name="HD189-TD")
+
+#sa = SerpensAnalyzer(save_output=True)
+#sa.top_down(timestep=np.arange(1, 80, 1), d=2, colormesh=True, scatter=False, triplot=False, show=False, lvlmin=0*np.log(10), lvlmax=18*np.log(10), lim=6.5)
+#sa.los(timestep=np.arange(1, 80, 1), show=False, show_planet=True, lvlmin=0*np.log(10), lvlmax=14*np.log(10), lim=6.5)
+#sa.los(timestep=np.arange(1, 80, 1), show=False, show_planet=False, lvlmin=0*np.log(10), lvlmax=14*np.log(10), lim=6.5)
+

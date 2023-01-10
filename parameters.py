@@ -7,7 +7,7 @@ class DefaultFields:
     int_spec = {
         "moon": True,
         "sim_advance": 1 / 40,
-        "num_sim_advances": 6,
+        "num_sim_advances": 280,
         "stop_at_steady_state": False,
         "gen_max": None,
         "r_max": 4,
@@ -24,8 +24,8 @@ class DefaultFields:
 
     celest = celestial_objects(int_spec["moon"], set=6)
     species = {
-        "species1": Species('Na', description='Na--2.6e12kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
-                            mass_per_sec=2.6e12, lifetime=6.7 * 60, model_smyth_v_b=2500,
+        "species1": Species('Na', description='Na--6.3e4kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
+                            mass_per_sec=6.3e4, lifetime=6.7 * 60, model_smyth_v_b=2500,
                             model_smyth_v_M=30000)
 
     }
@@ -70,10 +70,11 @@ class Parameters:
             for k in vars(self.species[f"species{i}"]).keys():
                 s += "\t \t" + f"{k} : {vars(self.species[f'species{i}'])[k]} \n"
         s += f"Thermal evaporation parameters: \n \t {self.therm_spec} \n"
+        s += f"Celestial objects: \n \t {self.celest} \n"
         return s
 
     def __call__(self):
-        return
+        return self
 
     def get_species(self, name=None, id=None, num=None):
 
@@ -204,7 +205,7 @@ class NewParams:
                         Parameters.modify_objects(object=k1, as_new_source=source)
 
         if self.therm_spec is not None or self.int_spec is not None:
-            Parameters.modify_spec(self.int_spec, self.therm_spec)
+            Parameters.modify_spec(int_spec=self.int_spec, therm_spec=self.therm_spec)
 
         return
 

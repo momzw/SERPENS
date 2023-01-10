@@ -25,12 +25,12 @@ class SerpensAnalyzer:
             with open('Parameters.pickle', 'rb') as handle:
                 params_load = dill.load(handle)
                 params_load()
-        except:
+        except Exception:
             raise Exception("hash_library.pickle and/or Parameters.pickle not found.")
 
         try:
             self.sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
-        except:
+        except Exception:
             raise Exception("simulation archive not found.")
 
         self.save = save_output
@@ -166,12 +166,16 @@ class SerpensAnalyzer:
         if d == 2:
 
             if los:
-                dtfe = DTFE.DTFE(points[:, 1:3], velocities[:, 1:3], phys_weights)
+                los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["planet"].y) ** 2 +
+                                             (points[:, 2] - self._sim_instance.particles["planet"].z) ** 2)
+                mask = (los_dist_to_planet > self._sim_instance.particles["planet"].r) | (points[:, 0] - self._sim_instance.particles["planet"].x > 0)
+
+                dtfe = DTFE.DTFE(points[:, 1:3][mask], velocities[:, 1:3][mask], phys_weights[mask])
                 if grid:
                     Y, Z = self.__grid(timestep, plane='yz')
                     dens = dtfe.density(Y.flat, Z.flat).reshape((100, 100)) / 1e4
                 else:
-                    dens = dtfe.density(points[:, 1], points[:, 2]) / 1e4
+                    dens = dtfe.density(points[:, 1][mask], points[:, 2][mask]) / 1e4
 
             else:
                 dtfe = DTFE.DTFE(points[:, :2], velocities[:, :2], phys_weights)
@@ -197,70 +201,110 @@ class SerpensAnalyzer:
         self.__pull_data(timestep)
         return self._p_positions
 
-    def top_down(self, timestep, d=3, colormesh=True, scatter=False, triplot=True, show=True):
+    def top_down(self, timestep, d=3, colormesh=True, scatter=False, triplot=True, show=True, **kwargs):
         # TOP DOWN DENSITIES
         # ====================================
-        self.__pull_data(timestep)
-        self._sim_instance = self.sa[timestep]
+        kw = {
+            "lvlmin": None,
+            "lvlmax": None,
+            "lim": 10
+        }
+        kw.update(kwargs)
 
-        vis = Visualize(self._sim_instance, lim=10)
-
-        for k in range(self.params.num_species):
-            species = self.params.get_species(num=k + 1)
-            points = self._p_positions[np.where(self._p_species == species.id)]
-            dens, delaunay = self.dtfe(species, timestep, d=d, grid=False)
-
-            if colormesh:
-                if d == 3:
-                    print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
-                dens_grid, _ = self.dtfe(species, timestep, d=2, grid=True)
-                X, Y = self.__grid(timestep)
-                self.__pull_data(timestep)
-                vis.add_colormesh(k, X, Y, dens_grid, contour=True, fill_contour=True, zorder=3, numlvls=25)
-
-            if scatter:
-                vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'b'])
-
-            if triplot:
-                if d == 3:
-                    vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3], perspective="topdown")
-                elif d == 2:
-                    vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices, perspective="topdown", zorder=3)
-
-            if d == 2:
-                vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-2}])$ around Planetary Body")
-            elif d == 3:
-                vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-3}])$ around Planetary Body")
-
-        if self.save:
-            vis(show_bool=show, save_path=self.path, filename=f'{timestep}_{self.save_index}_td')
-            self.save_index += 1
+        ts_list = []
+        if isinstance(timestep, int):
+            ts_list.append(timestep)
+        elif isinstance(timestep, list):
+            ts_list = timestep
+        elif isinstance(timestep, np.ndarray):
+            ts_list = np.ndarray.tolist(timestep)
         else:
-            vis(show_bool=show)
+            raise TypeError("top-down timestep has an invalid type.")
 
-        del vis
+        for ts in ts_list:
+            self.__pull_data(ts)
+            self._sim_instance = self.sa[ts]
 
-    def los(self, timestep, show=False):
+            vis = Visualize(self._sim_instance, lim=kw["lim"])
 
-        self.__pull_data(timestep)
-        self._sim_instance = self.sa[timestep]
+            for k in range(self.params.num_species):
+                species = self.params.get_species(num=k + 1)
+                points = self._p_positions[np.where(self._p_species == species.id)]
+                dens, delaunay = self.dtfe(species, ts, d=d, grid=False)
 
-        vis = Visualize(self._sim_instance, lim=10)
+                if colormesh:
+                    if d == 3:
+                        print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
+                    dens_grid, _ = self.dtfe(species, ts, d=2, grid=True)
+                    X, Y = self.__grid(ts)
+                    self.__pull_data(ts)
+                    vis.add_colormesh(k, X, Y, dens_grid, contour=True, fill_contour=True, zorder=3, numlvls=25,
+                                      celest_colors=['royalblue', 'sandybrown', 'y'], lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'])
 
-        for k in range(self.params.num_species):
-            species = self.params.get_species(num=k + 1)
-            dens, delaunay = self.dtfe(species, timestep, d=2, grid=True, los=True)
+                if scatter:
+                    vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, perspective="topdown", cb_format='%.2f', zorder=5, celest_colors=['y', 'sandybrown', 'y'])
 
-            Y, Z = self.__grid(timestep, plane='yz')
-            self.__pull_data(timestep)
-            vis.add_colormesh(k, Y, Z, dens, contour=True, fill_contour=True, zorder=3, numlvls=25, perspective='los')
+                if triplot:
+                    if d == 3:
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3], perspective="topdown")
+                    elif d == 2:
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices, perspective="topdown", zorder=3)
 
-            vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-2}])$ around Planetary Body")
+                if d == 2:
+                    vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body")
+                elif d == 3:
+                    vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-3}])$ around Planetary Body")
 
-        if self.save:
-            vis(show_bool=show, save_path=self.path, filename=f'{timestep}_{self.save_index}_td')
-            self.save_index += 1
+            if self.save:
+                vis(show_bool=show, save_path=self.path, filename=f'TD_{ts}_{self.save_index}')
+                self.save_index += 1
+            else:
+                vis(show_bool=show)
+
+            del vis
+
+    def los(self, timestep, show=False, **kwargs):
+        # LINE OF SIGHT DENSITIES
+        # ====================================
+        kw = {
+            "lvlmin": None,
+            "lvlmax": None,
+            "show_planet": True,
+            "lim": 10
+        }
+        kw.update(kwargs)
+
+        ts_list = []
+        if isinstance(timestep, int):
+            ts_list.append(timestep)
+        elif isinstance(timestep, list):
+            ts_list = timestep
+        elif isinstance(timestep, np.ndarray):
+            ts_list = np.ndarray.tolist(timestep)
         else:
-            vis(show_bool=show)
+            raise TypeError("LOS timestep has an invalid type.")
 
-        del vis
+        for ts in ts_list:
+            self.__pull_data(ts)
+            self._sim_instance = self.sa[ts]
+
+            vis = Visualize(self._sim_instance, lim=kw["lim"])
+
+            for k in range(self.params.num_species):
+                species = self.params.get_species(num=k + 1)
+                dens, delaunay = self.dtfe(species, ts, d=2, grid=True, los=True)
+
+                Y, Z = self.__grid(ts, plane='yz')
+                self.__pull_data(ts)
+                vis.add_colormesh(k, Y, Z, dens, contour=True, fill_contour=True, zorder=9, numlvls=25, perspective='los',
+                                  lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'], show_planet=kw["show_planet"])
+
+                vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
+
+            if self.save:
+                vis(show_bool=show, save_path=self.path, filename=f'LOS_{ts}_{self.save_index}')
+                self.save_index += 1
+            else:
+                vis(show_bool=show)
+
+            del vis

@@ -35,7 +35,7 @@ class Visualize:
             else:
                 species_name = params.get_species(num=ax_num + 1).description
                 self.axs[ax_num].set_facecolor('k')
-                self.axs[ax_num].set_title(f"{species_name}", c='k', size='large')
+                self.axs[ax_num].set_title(f"{species_name}", c='k', size='xx-large', pad=10)
 
         if self.moon:
             self.fig.suptitle("Serpens Simulation around Planetary Body")
@@ -61,20 +61,23 @@ class Visualize:
         by_label = dict(zip(labels, handles))
 
         self.fig.legend(by_label.values(), by_label.keys())
-        self.fig.text(0.08, 0.5, "y-distance in primary radii", rotation="vertical", verticalalignment='center',
-                      horizontalalignment='right', fontsize='x-large')
-        self.fig.text(0.5, 0.05, "x-distance in primary radii", horizontalalignment='center', fontsize='x-large')
+        #self.fig.text(0.2, 0.5, "y-distance in primary radii", rotation="vertical", verticalalignment='center',
+        #              horizontalalignment='right', fontsize='x-large', transform=self.fig.transFigure)
+        #self.fig.text(0.5, 0.05, "x-distance in primary radii", horizontalalignment='center', fontsize='x-large',
+        #              transform=self.fig.transFigure)
 
         if save_path is not None:
             fn = kwargs.get("filename", -1)
             if self.moon:
                 orbit_phase = np.around(self.sim.particles["moon"].calculate_orbit(
-                    primary=self.sim.particles["planet"]).f * 180 / np.pi)
+                    primary=self.sim.particles["planet"]).M * 180 / np.pi)
             else:
                 orbit_phase = np.around(self.sim.particles["planet"].calculate_orbit(
-                    primary=self.sim.particles[0]).f * 180 / np.pi)
-            frame_identifier = f"ColumnDensity_TopDown_{fn}_{orbit_phase}"
+                    primary=self.sim.particles[0]).M * 180 / np.pi)
+            frame_identifier = f"SERPENS_{fn}_{orbit_phase}"
             plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png')
+            if not show_bool:
+                plt.close('all')
 
         if show_bool:
 
@@ -108,7 +111,6 @@ class Visualize:
                 plt.show()
             else:
                 plt.show()
-        plt.close()
 
     def __del__(self):
         plt.clf()
@@ -117,19 +119,20 @@ class Visualize:
     def set_title(self, title_string, size='xx-large'):
         self.fig.suptitle(title_string, size=size)
 
-    def __setup_ax(self, ax, perspective, celest_colors='default'):
-        # if lim is None:
-        #    #lim = 35 * self.ps["planet"].r
-        #    lim = self.ps[self.sim.N_active - 1].x - self.ps["planet"].x
-        # else:
-        #    lim *= self.ps["planet"].r
+    def __setup_ax(self, ax, perspective, **kwargs):
+        kw = {
+            "show_planet": True,
+            "show_hill": False,
+            "celest_colors": 'default'
+        }
+        kw.update(kwargs)
 
         ax.set_aspect("equal")
         lim = self.lim * self.ps["planet"].r if self.moon else self.lim * self.ps[0].r
 
         if perspective == "topdown":
-            ps_star_coord1 = self.ps[0].x
-            ps_star_coord2 = self.ps[0].y
+            ps_star_coord1 = self.ps["star"].x
+            ps_star_coord2 = self.ps["star"].y
             ps_planet_coord1 = self.ps["planet"].x
             ps_planet_coord2 = self.ps["planet"].y
 
@@ -137,8 +140,8 @@ class Visualize:
             ax.set_ylabel("y-distance in planetary radii", fontsize='x-large')
 
         elif perspective == "los":
-            ps_star_coord1 = self.ps[0].y
-            ps_star_coord2 = self.ps[0].z
+            ps_star_coord1 = self.ps["star"].y
+            ps_star_coord2 = self.ps["star"].z
             ps_planet_coord1 = self.ps["planet"].y
             ps_planet_coord2 = self.ps["planet"].z
 
@@ -151,17 +154,21 @@ class Visualize:
         ax.set_xlim([-lim + ps_planet_coord1, lim + ps_planet_coord1]) if self.moon else ax.set_xlim([-lim, lim])
         ax.set_ylim([-lim + ps_planet_coord2, lim + ps_planet_coord2]) if self.moon else ax.set_ylim([-lim, lim])
 
-        if celest_colors == 'default':
+        if kw['celest_colors'] == 'default':
             fc = ['y', 'sandybrown', 'y']
         else:
-            if isinstance(celest_colors, (list, np.ndarray)):
-                fc = celest_colors
+            if isinstance(kw['celest_colors'], (list, np.ndarray)):
+                fc = kw['celest_colors']
             else:
                 fc = ['y', 'sandybrown', 'y']
 
         if self.moon:
             ps_moon_coord1 = self.ps["moon"].x
             ps_moon_coord2 = self.ps["moon"].y
+
+            if perspective == "los":
+                ps_moon_coord1 = self.ps["moon"].y
+                ps_moon_coord2 = self.ps["moon"].z
 
             xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, 13)
             ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, 13)
@@ -194,14 +201,19 @@ class Visualize:
         ax.set_yticks(ylocs)
         ax.set_yticklabels([str(y) for y in ylabels])
 
-        planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), self.ps["planet"].r, fc=fc[0],
-                                  label="planet", zorder=10)
-        ax.add_patch(planet_patch)
+        if kw['show_planet']:
+            planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), self.ps["planet"].r, fc=fc[0],
+                                      label="planet", zorder=10)
+            ax.add_patch(planet_patch)
+        if kw['show_hill']:
+            hill_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), self.ps["planet"].rhill, fc='green',
+                                    fill=False)
+            ax.add_patch(hill_patch)
 
         if perspective == "topdown":
             line_color = fc[2] if self.moon else fc[1]
             line_color = colors.to_rgba(line_color)
-            lc = fading_line(o[:, 0], o[:, 1], alpha=0.5, color=line_color[:3], zorder=10)
+            lc = fading_line(o[:, 0], o[:, 1], alpha=0.8, color=line_color[:3], zorder=10)
             ax.add_collection(lc)
 
         # Additional celestial objects
@@ -231,7 +243,7 @@ class Visualize:
 
                 fc = 'y'
                 try:
-                    fc = celest_colors[2+i]
+                    fc = kw['celest_colors'][2+i]
                     if not isinstance(fc, str):
                         fc = 'y'
                 except:
@@ -253,9 +265,9 @@ class Visualize:
                 axis='y',  # changes apply to the x-axis
                 which='both',  # both major and minor ticks are affected
                 left=False)
-        ax.tick_params(axis='both', which='major', labelsize=8)
-        ax.set_xlabel('')
-        ax.set_ylabel('')
+        ax.tick_params(axis='both', which='major', labelsize=25)
+        #ax.set_xlabel('')
+        #ax.set_ylabel('')
 
         if perspective == 'los':
             ax.invert_xaxis()
@@ -303,7 +315,7 @@ class Visualize:
             "zorder": 1,
             "cfilter_coeff": 1,
             "vmin": None,
-            "celest_colors": 'y'
+            "celest_colors": 'default'
         }
         kw.update(kwargs)
 
@@ -316,7 +328,7 @@ class Visualize:
 
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        # cax.tick_params(axis='both', which='major', labelsize=8)
+        #cax.tick_params(axis='both', which='major', labelsize=12)
         self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical', format=kw['cb_format'])
 
     def add_triplot(self, ax, x, y, simplices, perspective, zorder=1):
@@ -333,20 +345,30 @@ class Visualize:
             "cfilter_coeff": 1,
             "numlvls": 10,
             "celest_colors": 'default',
-            "perspective": "topdown"
+            "perspective": "topdown",
+            "lvlmin": None,
+            "lvlmax": None,
+            "show_planet": True,
         }
         kw.update(kwargs)
 
         ax_obj = self.axs[ax]
-        self.__setup_ax(ax_obj, perspective=kw["perspective"], celest_colors=kw["celest_colors"])
+        self.__setup_ax(ax_obj, perspective=kw["perspective"], celest_colors=kw["celest_colors"],
+                        show_planet=kw["show_planet"])
         self.X = X
         self.Y = Y
         self.dens = dens
 
         np.seterr(divide='ignore')
         logdens = np.where(dens > 0, np.log(gaussian_filter(dens, kw['cfilter_coeff'], mode='constant')), 0)
-        lvls = np.linspace(np.min(np.log(dens)[np.log(dens) > 0]) + kw['logmin'],
-                           np.max(np.log(dens)[np.log(dens) > 0]) - kw['logmax'], kw['numlvls']) / np.log(10)
+
+        lvlmin = np.min(np.log(dens)[np.log(dens) > 0]) if kw["lvlmin"] is None else kw["lvlmin"]
+        lvlmax = np.max(np.log(dens)[np.log(dens) > 0]) if kw["lvlmax"] is None else kw["lvlmax"]
+        lvlmin += kw['logmin']
+        lvlmax -= kw['logmax']
+
+        lvls = np.linspace(lvlmin, lvlmax, kw['numlvls']) / np.log(10)
+
         np.seterr(divide='warn')
 
         if contour:
@@ -360,5 +382,5 @@ class Visualize:
 
         divider = make_axes_locatable(ax_obj)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        cax.tick_params(axis='both', which='major', labelsize=8)
+        cax.tick_params(axis='both', which='major', labelsize=25)
         self.cb_interact = plt.colorbar(self.cf, cax=cax, orientation='vertical', format=kw['cb_format'])

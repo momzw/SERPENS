@@ -48,8 +48,6 @@ def reb_setup(params):
     reb_sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     with open(f"Parameters.txt", "w") as f:
         f.write(f"{params.__str__()}")
-    with open("Parameters.pickle", 'wb') as f:
-        dill.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("\t \t ... done!")
     print("=======================================")
@@ -252,6 +250,8 @@ class SerpensSimulation:
             del self.__sim.particles
 
             print("\t Transfering particle data...")
+
+            # Copy active objects from first simulation copy:
             for act in range(self.__sim_deepcopies[0].N_active):
 
                 try:
@@ -268,6 +268,7 @@ class SerpensSimulation:
 
             self.__sim.N_active = self.__sim_deepcopies[0].N_active
 
+            # Transfer superparticles
             num_lost = 0
             for proc in range(len(self.__sim_deepcopies)):
 
@@ -335,6 +336,9 @@ class SerpensSimulation:
 
 
 if __name__ == "__main__":
+    params = Parameters()
+    with open("Parameters.pickle", 'wb') as f:
+        dill.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ssim = SerpensSimulation()
     ssim.advance(Parameters.int_spec["num_sim_advances"])

@@ -56,16 +56,16 @@ def celestial_objects(moon, set=1):
         # WASP 49
         # -------
         celest2 = {
-            "star": {"m": 0.72 * m_sol,
-                     "hash": 'star',
-                     "r": 1.038 * r_sol
-                     },
             "planet": {"m": 0.378 * m_jup,
-                       "a": 0.0378 * au,
                        "r": 1.115 * r_jup,
-                       "primary": 'star',
                        "hash": 'planet'
                        },
+            "star": {"m": 0.72 * m_sol,  # 0.72
+                     "a": 0.0378 * au,
+                     "hash": 'star',
+                     "primary": 'planet',
+                     "r": 1.038 * r_sol
+                     },
             "moon": {"m": 3.8e24,
                      "a": 1.74 * 1.115 * r_jup,
                      "r": 6370e3,
@@ -77,16 +77,16 @@ def celestial_objects(moon, set=1):
         # HD 189733
         # -------
         celest3 = {
-            "star": {"m": 0.8 * m_sol,
-                     "hash": 'star',
-                     "r": 0.805 * r_sol
-                     },
             "planet": {"m": 1.138 * m_jup,
-                       "a": 0.031 * au,
                        "r": 1.138 * r_jup,
-                       "primary": 'star',
                        "hash": 'planet'
                        },
+            "star": {"m": 0 * m_sol,  # 0.8
+                     "a": 0.031 * au,
+                     "r": 0.805 * r_sol,
+                     "hash": 'star',
+                     "primary": 'planet',
+                     },
             "moon": {"m": 3.8e24,
                      "a": 2.11 * 1.138 * r_jup,
                      "r": 6370e3,
@@ -98,16 +98,16 @@ def celestial_objects(moon, set=1):
         # HD 209458
         # ---------
         celest4 = {
-            "star": {"m": 1.148 * m_sol,
-                     "hash": 'star',
-                     "r": 1.203 * r_sol
-                     },
             "planet": {"m": 0.69 * m_jup,
-                       "a": 0.0475 * au,
                        "r": 1.38 * r_jup,
-                       "primary": 'star',
                        "hash": 'planet'
                        },
+            "star": {"m": 0 * m_sol,  # 1.148
+                     "a": 0.0475 * au,
+                     "hash": 'star',
+                     "primary": 'planet',
+                     "r": 1.203 * r_sol
+                     },
             "moon": {"m": 3.8e24,
                      "a": 1.93 * 1.38 * r_jup,
                      "r": 6370e3,
@@ -140,16 +140,16 @@ def celestial_objects(moon, set=1):
         # WASP-39
         # -------
         celest6 = {
-            "star": {"m": .93 * m_sol,
-                     "hash": 'star',
-                     "r": .895 * r_sol
-                     },
             "planet": {"m": 0.28 * m_jup,
-                       "a": 0.0486 * au,
                        "r": 90794840,
-                       "primary": 'star',
                        "hash": 'planet'
                        },
+            "star": {"m": 0 * m_sol,  #0.93
+                     "r": .895 * r_sol,
+                     "a": 0.0486 * au,
+                     "hash": 'star',
+                     "primary": 'planet',
+                     },
             "moon": {"m": 3.8e24,
                      "a": 1.79 * 90794840,
                      "r": 6370e3,
