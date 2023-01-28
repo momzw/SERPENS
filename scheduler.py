@@ -17,14 +17,37 @@ class SerpensScheduler:
         else:
             print("Please pass a string to the scheduler as simulation description.")
 
-    def run(self):
+    def run(self, *args, **kwargs):
+
+        if len(self.sims) == 1:
+            # Handle arguments
+            filename = None
+            if len(args) > 0:
+                filename = args[0]
+            if "filename" in kwargs:
+                filename = kwargs["filename"]
+            snapshot = -1
+            if len(args) > 1:
+                snapshot = args[1]
+            if "snapshot" in kwargs:
+                snapshot = kwargs["snapshot"]
+        else:
+            filename = None
+            if len(args) > 0 or "filename" in kwargs:
+                print("You have passed additional arguments implying multiple scheduled simulation.")
+                print("Please schedule only one simulation to append to the archive.")
+                print("Returning...")
+                return
+            snapshot = -1
+
         print("Starting scheduled simulations.")
         for k, v in self.sims.items():
             v()
+            num_advances = kwargs.get("sim_advances", Parameters.int_spec["num_sim_advances"])
             with open("Parameters.pickle", 'wb') as f:
                 dill.dump(v, f, protocol=dill.HIGHEST_PROTOCOL)
-            sim = SerpensSimulation()
-            sim.advance(Parameters.int_spec["num_sim_advances"])
+            sim = SerpensSimulation(filename, snapshot)
+            sim.advance(num_advances)
 
             path = f'schedule_archive/simulation-{k}'
 
@@ -50,207 +73,98 @@ class SerpensScheduler:
 ssch = SerpensScheduler()
 
 #######################################################################################################################
-ssch.schedule("2WASP-39-ExoEarth",
-              species=[Species('Na', description='Na--6.3e4kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
-                               mass_per_sec=6.3e4, lifetime=6.7 * 60, model_smyth_v_b=2500,
-                               model_smyth_v_M=30000)],
-              moon=True,
-              celest_set=6)
+#ssch.schedule("Io-SO2",
+#              species=[Species('SO2', description=r'SO2 $-$ 1000 kg/s $-$ .515-40km/s', n_th=0, n_sp=500,
+#                               mass_per_sec=1000, model_smyth_v_b=515,
+#                               model_smyth_v_M=40000)],
+#              moon=True,
+#              objects={"Io": {'source': True}},
+#              celest_set=1)
 
-ssch.schedule("2WASP-39-ExoIo",
-              species=[Species('Na', description='Na--6.3e4kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
-                               mass_per_sec=6.3e4, lifetime=6.7 * 60, model_smyth_v_b=2500,
-                               model_smyth_v_M=30000)],
+#ssch.schedule("W39-Na+K",
+#              species=[Species('Na', description=r'Na $-$ 63000 kg/s $-$ 1-40km/s', n_th=0, n_sp=500,
+#                               mass_per_sec=63000, model_smyth_v_b=1000,
+#                               model_smyth_v_M=40000),
+#                       Species('K', description=r'K $-$ 63000 kg/s $-$ 1-40km/s', n_th=0, n_sp=500,
+#                               mass_per_sec=63000, model_smyth_v_b=1000,
+#                               model_smyth_v_M=40000)],
+#              moon=True,
+#              celest_set=6)
+ssch.schedule("W49-K-photo",
+              species=[Species('K', description=r'K $-$ 1-40km/s', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=64.37)],
               moon=True,
-              objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-              celest_set=6)
+              celest_set=2,
+              objects={"moon": {'a': 1.2 * 1.115 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/200, "num_sim_advances": 600})
 
-ssch.schedule("2WASP-39-ExoEnce",
-              species=[Species('Na', description='Na--6.3e4kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
-                               mass_per_sec=6.3e4, lifetime=6.7 * 60, model_smyth_v_b=2500,
-                               model_smyth_v_M=30000)],
+ssch.schedule("W49-K-3h",
+              species=[Species('K', description=r'K $-$ 1-40km/s - $\tau = 3$h', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=3 * 60 * 60)],
               moon=True,
-              objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-              celest_set=6)
+              celest_set=2,
+              objects={"moon": {'a': 1.2 * 1.115 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/40, "num_sim_advances": 400})
 
-#######################################################################################################################
-ssch.schedule("2WASP-49-ExoEarth",
-              species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285,
-                               lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+ssch.schedule("W69-K-photo",
+              species=[Species('K', description=r'K $-$ 1-40km/s', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=88.63)],
               moon=True,
-              celest_set=2)
+              celest_set=8,
+              objects={"moon": {'a': 1.2 * 1.06 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/200, "num_sim_advances": 600})
 
-ssch.schedule("2WASP-49-ExoIo",
-              species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285,
-                               lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+ssch.schedule("W69-K-3h",
+              species=[Species('K', description=r'K $-$ 1-40km/s - $\tau = 3$h', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=3 * 60 * 60)],
               moon=True,
-              objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-              celest_set=2)
+              celest_set=8,
+              objects={"moon": {'a': 1.2 * 1.06 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/40, "num_sim_advances": 400})
 
-ssch.schedule("2WASP-49-ExoEnce",
-              species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285,
-                               lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-              moon=True,
-              objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-              celest_set=2)
 
-#######################################################################################################################
-ssch.schedule("2HD-189733-ExoEarth",
-              species=[Species('Na', description='Na--11576kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=11576,
-                               lifetime=16.9 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+ssch.schedule("W49-Na-photo",
+              species=[Species('Na', description=r'Na $-$ $N=10^{39}$ $-$ 1-40km/s', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=241)],
               moon=True,
-              celest_set=3)
+              celest_set=2,
+              objects={"moon": {'a': 2 * 1.115 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/100, "num_sim_advances": 600})
 
-ssch.schedule("2HD-189733-ExoIo",
-              species=[Species('Na', description='Na--11576kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=11576,
-                               lifetime=16.9 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+ssch.schedule("W49-Na-3h",
+              species=[Species('Na', description=r'Na $-$ $N=10^{39}$ $-$ 1-40km/s - $\tau = 3$h', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=3 * 60 * 60)],
               moon=True,
-              objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-              celest_set=3)
+              celest_set=2,
+              objects={"moon": {'a': 2 * 1.115 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/40, "num_sim_advances": 400})
 
-ssch.schedule("2HD-189733-ExoEnce",
-              species=[Species('Na', description='Na--11576kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=11576,
-                               lifetime=16.9 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+ssch.schedule("W69-Na-photo",
+              species=[Species('Na', description=r'Na $-$ $N=5 \cdot 10^{36}$ $-$ 1-40km/s', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=332)],
               moon=True,
-              objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-              celest_set=3)
+              celest_set=8,
+              objects={"moon": {'a': 2 * 1.06 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/100, "num_sim_advances": 600})
 
-#######################################################################################################################
-ssch.schedule("2HD-209458-ExoEarth",
-              species=[Species('Na', description='Na--10233kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=10233,
-                               lifetime=5.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
+ssch.schedule("W69-Na-3h",
+              species=[Species('Na', description=r'Na $-$ $N=5 \cdot 10^{36}$ $-$ 1-40km/s - $\tau = 3$h', n_th=0, n_sp=1000,
+                               mass_per_sec=63000, model_smyth_v_b=1000,
+                               model_smyth_v_M=40000, lifetime=3 * 60 * 60)],
               moon=True,
-              celest_set=4)
+              celest_set=8,
+              objects={"moon": {'a': 2 * 1.06 * 69911e3}},
+              int_spec={"r_max": 3, "sim_advance": 1/40, "num_sim_advances": 400})
 
-ssch.schedule("2HD-209458-ExoIo",
-              species=[Species('Na', description='Na--10233kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=10233,
-                               lifetime=5.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-              moon=True,
-              objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-              celest_set=4)
-
-ssch.schedule("2HD-209458-ExoEnce",
-              species=[Species('Na', description='Na--10233kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=10233,
-                               lifetime=5.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-              moon=True,
-              objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-              celest_set=4)
 
 ssch.run()
-
-"""
-if __name__ == "__main__":
-
-    print("Scheduler called.")
-
-    # See NewParams class for possible simulation changes.
-    simulations = {
-        #"WASP-49-SuperEarth": NewParams(species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285, lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #                                moon=True,
-        #                                celest_set=2),
-        #"WASP-49-SuperIo": NewParams(species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285, lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #                             moon=True,
-        #                             objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-        #                             celest_set=2),
-        #"WASP-49-SuperEnce": NewParams(species=[Species('Na', description='Na--125285kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=125285, lifetime=4*60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #                               moon=True,
-        #                               objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-        #                               celest_set=2),
-        #"HD-189733-ExoEarth": NewParams(
-        #    species=[Species('Na', description='Na--11576kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=11576,
-        #            lifetime=16.9 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    celest_set=3),
-        #"HD-189733-ExoIo": NewParams(species=[
-        #    Species('Na', description='Na--11576kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=11576,
-        #            lifetime=16.9 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-        #    celest_set=3),
-        #"HD-189733-ExoEnce": NewParams(species=[
-        #    Species('Na', description='Na--11576kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=11576,
-        #            lifetime=16.9 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-        #    celest_set=3),
-        #"HD-209458-ExoEarth": NewParams(species=[
-        #    Species('Na', description='Na--10233kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=10233,
-        #            lifetime=5.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    celest_set=4),
-        #"HD-209458-ExoIo": NewParams(species=[
-        #    Species('Na', description='Na--10233kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=10233,
-        #            lifetime=5.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-        #    celest_set=4),
-        #"HD-209458-ExoEnce": NewParams(species=[
-        #    Species('Na', description='Na--10233kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=10233,
-        #            lifetime=5.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-        #    celest_set=4),
-        #"HAT-P-1-ExoEarth": NewParams(species=[
-        #    Species('Na', description='Na--206909kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=206909,
-        #            lifetime=8.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    celest_set=5),
-        #"HAT-P-1-ExoIo": NewParams(species=[
-        #    Species('Na', description='Na--206909kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=206909,
-        #            lifetime=8.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-        #    celest_set=5),
-        #"HAT-P-1-ExoEnce": NewParams(species=[
-        #    Species('Na', description='Na--206909kg/s--2.5-30km/s', n_th=0, n_sp=1000, mass_per_sec=206909,
-        #            lifetime=8.7 * 60, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-        #    moon=True,
-        #    objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-        #    celest_set=5),
-        "WASP-39-ExoIo": NewParams(
-            species=[Species('Na', description='Na--2.6e12kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000, mass_per_sec=2.6e12,
-                             lifetime=6.7 * 360, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-            moon=True,
-            objects={'moon': {'m': 8.8e22, 'r': 1820e3}},
-            celest_set=6),
-        "WASP-39-ExoEnce": NewParams(species=[
-           Species('Na', description='Na--2.6e12kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000, mass_per_sec=2.6e12,
-                   lifetime=6.7 * 360, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-           moon=True,
-           objects={'moon': {'m': 2.3e20, 'r': 250e3}},
-           celest_set=6),
-        "WASP-39-ExoEarth": NewParams(species=[
-           Species('Na', description='Na--2.6e12kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000, mass_per_sec=2.6e12,
-                   lifetime=6.7 * 360, model_smyth_v_b=2500, model_smyth_v_M=30000)],
-           moon=True,
-           celest_set=6),
-    }
-
-    for k, v in simulations.items():
-        v()
-        with open("Parameters.pickle", 'wb') as f:
-            dill.dump(v, f, protocol=dill.HIGHEST_PROTOCOL)
-        sim = SerpensSimulation()
-        sim.advance(Parameters.int_spec["num_sim_advances"])
-
-        path = f'schedule_archive/simulation-{k}'
-
-        if os.path.exists(path):
-            shutil.rmtree(path)
-        os.makedirs(path)
-
-        shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/{path}")
-        shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/{path}")
-        shutil.copy2(f'{os.getcwd()}/Parameters.txt', f"{os.getcwd()}/{path}")
-
-        del sim
-
-    print("=============================")
-    print("COMPLETED ALL SIMULATIONS")
-    print("=============================")
-
-"""
-
 
 
 

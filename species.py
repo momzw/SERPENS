@@ -24,7 +24,9 @@ class Species(SpeciesSpecifics):
             "H2": 6,
             "NaCl": 7,
             "SO2": 8,
-            "O+": 9
+            "O+": 9,
+            "CO2": 10,
+            "K": 11
         }
         if name in self.implementedSpecies:
             if self.implementedSpecies[name] == 1:
@@ -62,6 +64,14 @@ class Species(SpeciesSpecifics):
             elif self.implementedSpecies[name] == 9:
                 self.id = self.implementedSpecies[name]
                 super().__init__(16, self.id)
+
+            elif self.implementedSpecies[name] == 10:
+                self.id = self.implementedSpecies[name]
+                super().__init__(44, self.id)
+
+            elif self.implementedSpecies[name] == 11:
+                self.id = self.implementedSpecies[name]
+                super().__init__(39, self.id)
 
         else:
             print(f"The species '{name}' has not been implemented.")

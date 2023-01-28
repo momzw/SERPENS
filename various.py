@@ -3,10 +3,10 @@ import rebound
 import os
 from tqdm import tqdm
 import pandas as pd
+from serpens_analyzer import SerpensAnalyzer
+import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')
-
-from serpens_analyzer import SerpensAnalyzer
 
 
 def orbit_sol():
@@ -146,16 +146,17 @@ def pngToGif(path, fps, name=None):
                 writer.append_data(imageio.imread(im2))
     writer.close()
 
+    # pngToGif('output/09012023--22-39_moonsource/plots/LOS', 10, name="HD209-LOS")
 
-# pngToGif('output/09012023--22-39_moonsource/plots/LOS', 10, name="HD209-LOS")
-# pngToGif('output/09012023--22-39_moonsource/plots/LOSPatch', 10, name="HD209-LOSwPlanet")
-# pngToGif('output/09012023--22-39_moonsource/plots/TD', 10, name="HD209-TD")
-# pngToGif('output/09012023--22-51_moonsource/plots/LOS', 10, name="HD189-LOS")
-# pngToGif('output/09012023--22-51_moonsource/plots/LOSPatch', 10, name="HD189-LOSwPlanet")
-# pngToGif('output/09012023--22-51_moonsource/plots/TD', 10, name="HD189-TD")
 
-#sa = SerpensAnalyzer(save_output=True)
-#sa.top_down(timestep=np.arange(1, 80, 1), d=2, colormesh=True, scatter=False, triplot=False, show=False, lvlmin=0*np.log(10), lvlmax=18*np.log(10), lim=6.5)
-#sa.los(timestep=np.arange(1, 80, 1), show=False, show_planet=True, lvlmin=0*np.log(10), lvlmax=14*np.log(10), lim=6.5)
-#sa.los(timestep=np.arange(1, 80, 1), show=False, show_planet=False, lvlmin=0*np.log(10), lvlmax=14*np.log(10), lim=6.5)
+sa = SerpensAnalyzer(save_output=False)
 
+sa.top_down(timestep=370, d=2, colormesh=True, scatter=False, triplot=False, show=True, smoothing=.5, trialpha=.3, lim=4,
+            celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'],
+            colormap=plt.cm.get_cmap("autumn"))
+
+#sa.los(timestep=390, show=True, show_planet=True, show_moon=True, lim=4,
+#       celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'], scatter=False, colormesh=True,
+#       colormap=plt.cm.inferno)
+
+sa.plot3d(400)

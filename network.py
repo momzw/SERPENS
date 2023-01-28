@@ -2,6 +2,7 @@ import numpy as np
 
 
 class Network:
+
     def __init__(self, id, e_scaling=1):
         self._species_weights = None
         self._network = None
@@ -9,17 +10,17 @@ class Network:
         u = 1.6726e-27
         e = 1.602e-19
 
-        # Na
+        # Na (default network from Io!)
         if id == 1:
             # Na
             self._network = 6 * 60 * 60
 
-        # S
+        # S (default network from Io!)
         elif id == 2:
             # S
             self._network = 20 * 60 * 60
 
-        # O
+        # O (default network from Io!)
         elif id == 3:
             self.reaction([["H+", "O+ H", 1/4.5e-6, np.sqrt(2 * 50e3 * e / u)],
                            ["S+", "O+ S", 1 / 3.5e-9],
@@ -27,7 +28,7 @@ class Network:
                            ["e", "O+ 2e", 1 / 5.1e-6],
                            ["y", "O+ e", 1 / 1.7e-8]])
 
-        # O2
+        # O2 (default network from Io!)
         elif id == 4:
             self.reaction([["H+", "O2+ H", 1 / 5.5e-6, np.sqrt(2 * 50e3 * e / u)],
                            ["H+", "O+ O H", 1 / 9.2e-10],
@@ -48,7 +49,7 @@ class Network:
                            ["y", "O2+ e", 1 / 3.0e-8],
                            ["y", "O O+ e", 1 / 8.5e-8]])
 
-        # H
+        # H (default network from Io!)
         elif id == 5:
             # Charge-Exchange with protons at 50keV
             tau4 = 1 / 2.0e-6
@@ -96,7 +97,7 @@ class Network:
 
             self._network = np.vstack((lifetimes, reagents, products, velocities)).T
 
-        # H2
+        # H2 (default network from Io!)
         elif id == 6:
             self.reaction([["H+", "H H2+", 1 / 4.0e-6],
                            ["O+", "O H2+", 1 / 2.7e-7],
@@ -108,12 +109,12 @@ class Network:
                            ["y", "H2+ e", 1 / 3.1e-9],
                            ["y", "H H+ e", 1 / 6.9e-10]])
 
-        # NaCl
+        # NaCl (default network from Io!)
         elif id == 7:
             # NaCl
             self._network = 60 * 60 * 24 * 5
 
-        # SO2
+        # SO2 (default network from Io!)
         elif id == 8:
             tau1 = 494 * 60 * 60
             reagent1 = "O+"
@@ -174,7 +175,7 @@ class Network:
 
             self._network = np.vstack((lifetimes, reagents, products)).T
 
-        # O+
+        # O+ (default network from Io!)
         elif id == 9:
             # Charge-Exchange with protons at 50keV
             t1 = 1 / 3.0e-7
@@ -206,6 +207,14 @@ class Network:
             delvs = np.array([dv1, dv2, dv3, dv4])
 
             self._network = np.vstack((lifetimes, reagents, products, delvs)).T
+
+        # CO2 (default network from WASP-39!)
+        elif id == 10:
+            self._network = 2.47 * 60
+
+        # K (default network from WASP-39!)
+        elif id == 11:
+            self._network = 1.77 * 60
 
     def reaction(self, reac):
         for r in reac:

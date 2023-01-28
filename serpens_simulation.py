@@ -4,7 +4,6 @@ import numpy as np
 import warnings
 import multiprocess
 import multiprocessing
-import pickle
 import dill
 from src.create_particle import create_particle
 from parameters import Parameters
@@ -104,14 +103,20 @@ class SerpensSimulation:
         self.hash_supdict = {}
         self.hash_dict = {}
 
-        self.params = Parameters()
-
         # Handle arguments
         filename = None
         if len(args) > 0:
             filename = args[0]
         if "filename" in kw:
             filename = kw["filename"]
+        if filename is not None:
+            with open('hash_library.pickle', 'rb') as handle:
+                self.hash_supdict = dill.load(handle)
+            with open('Parameters.pickle', 'rb') as handle:
+                params_load = dill.load(handle)
+                params_load()
+        self.params = Parameters()
+
         snapshot = -1
         if len(args) > 1:
             snapshot = args[1]
@@ -123,8 +128,12 @@ class SerpensSimulation:
             # Create a new simulation
             reb_sim = reb_setup(self.params)
             self.__sim = reb_sim
+            iter = 0
         else:
-            self.__sim = rebound.SimulationArchive(filename, process_warnings=False)[snapshot]
+            arch = rebound.SimulationArchive(filename, process_warnings=False)
+            self.__sim = arch[snapshot]
+            iter = len(arch) - 1 if snapshot == -1 else snapshot
+            self.hash_dict = self.hash_supdict[f"{iter+1}"]
 
         self.__sim_deepcopies = []
         with warnings.catch_warnings():
@@ -132,7 +141,7 @@ class SerpensSimulation:
             for _ in range(multiprocessing.cpu_count()):
                 self.__sim_deepcopies.append(self.__sim.copy())
 
-        self.var = {"iter": 0, "moon": self.params.int_spec["moon"]}
+        self.var = {"iter": iter, "moon": self.params.int_spec["moon"]}
         if self.var["moon"]:
             self.var["source_a"] = self.__sim.particles["moon"].calculate_orbit(
                 primary=self.__sim.particles["planet"]).a
@@ -146,6 +155,7 @@ class SerpensSimulation:
         set_pointers(self.__sim)
         for dc in self.__sim_deepcopies:
             set_pointers(dc)
+            dc.t = self.var["iter"] * self.var["source_P"] * self.params.int_spec["sim_advance"]
 
     def __add_particles(self):
 
@@ -299,7 +309,7 @@ class SerpensSimulation:
                         except:
                             print("Removal error occurred.")
                             pass
-                    elif w * pps < 1e3:
+                    elif w * pps < 1e10:
                         try:
                             dc_remove.append(particle.hash)
                             # dc.remove(hash=particle.hash)
@@ -327,7 +337,7 @@ class SerpensSimulation:
             print("Saving hash dict...")
             self.hash_supdict[str(self.var["iter"] + 1)] = self.hash_dict
             with open("hash_library.pickle", 'wb') as f:
-                pickle.dump(self.hash_supdict, f, pickle.HIGHEST_PROTOCOL)
+                dill.dump(self.hash_supdict, f, dill.HIGHEST_PROTOCOL)
 
             self.var["iter"] += 1
 
@@ -338,7 +348,7 @@ class SerpensSimulation:
 if __name__ == "__main__":
     params = Parameters()
     with open("Parameters.pickle", 'wb') as f:
-        dill.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
+        dill.dump(params, f, protocol=dill.HIGHEST_PROTOCOL)
 
     ssim = SerpensSimulation()
     ssim.advance(Parameters.int_spec["num_sim_advances"])
