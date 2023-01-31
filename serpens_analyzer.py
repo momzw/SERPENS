@@ -35,7 +35,6 @@ class SerpensAnalyzer:
             raise Exception("hash_library.pickle and/or Parameters.pickle not found.")
 
         try:
-            # REBX: self.sa = reboundx.SimulationArchive("archive.bin", rebxfilename="rebx.bin", process_warnings=False)
             self.sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
         except Exception:
             raise Exception("simulation archive not found.")
@@ -84,9 +83,7 @@ class SerpensAnalyzer:
                 print("\t ...done!")
 
     def __grid(self, timestep, plane='xy'):
-        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
-
         if self.moon_exists:
             boundary = self.params.int_spec["r_max"] * sim_instance.particles["moon"].calculate_orbit(
                 primary=sim_instance.particles["planet"]).a
@@ -131,7 +128,6 @@ class SerpensAnalyzer:
 
         # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
-
         self._p_positions = np.zeros((sim_instance.N, 3), dtype="float64")
         self._p_velocities = np.zeros((sim_instance.N, 3), dtype="float64")
         self._p_hashes = np.zeros(sim_instance.N, dtype="uint32")
@@ -202,7 +198,6 @@ class SerpensAnalyzer:
 
     def dtfe(self, species, timestep, d=2, grid=True, los=False):
         self.__pull_data(timestep)
-        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
 
         if self.moon_exists:
@@ -302,7 +297,6 @@ class SerpensAnalyzer:
 
         for ts in ts_list:
             self.__pull_data(ts)
-            # REBX: self._sim_instance, rebx = self.sa[ts]
             self._sim_instance = self.sa[ts]
 
             vis = Visualize(self._sim_instance, lim=kw["lim"], cmap=kw["colormap"], singlePlot=kw["single_plot"])
@@ -317,7 +311,7 @@ class SerpensAnalyzer:
                         print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
                     dens_grid, _ = self.dtfe(species, ts, d=2, grid=True)
                     X, Y = self.__grid(ts)
-                    #self.__pull_data(ts)
+                    self.__pull_data(ts)
                     vis.add_colormesh(k, X, Y, dens_grid, contour=kw["contour"], fill_contour=kw["fill_contour"], zorder=2, numlvls=25,
                                       celest_colors=kw["celest_colors"], lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'], cfilter_coeff=kw["smoothing"])
 
@@ -371,7 +365,6 @@ class SerpensAnalyzer:
 
         for ts in ts_list:
             self.__pull_data(ts)
-            # REBX: self._sim_instance, rebx = self.sa[ts]
             self._sim_instance = self.sa[ts]
 
             vis = Visualize(self._sim_instance, lim=kw["lim"], cmap=kw["colormap"])
@@ -389,7 +382,7 @@ class SerpensAnalyzer:
                                       show_planet=kw["show_planet"], show_moon=kw["show_moon"],
                                       celest_colors=kw["celest_colors"])
 
-                    vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=18)
+                    vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
 
                 if scatter:
                     species = self.params.get_species(num=k + 1)
@@ -413,7 +406,6 @@ class SerpensAnalyzer:
 
     def plot3d(self, timestep, species_num=1, log_cutoff=5):
         self.__pull_data(timestep)
-        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
 
         pos = self._p_positions[sim_instance.N_active:]
@@ -463,11 +455,10 @@ class SerpensAnalyzer:
         elif isinstance(timestep, np.ndarray):
             ts_list = np.ndarray.tolist(timestep)
         else:
-            raise TypeError("timestep has an invalid type.")
+            raise TypeError("top-down timestep has an invalid type.")
 
         for ts in ts_list:
             self.__pull_data(ts)
-            # REBX: self._sim_instance, rebx = self.sa[ts]
             self._sim_instance = self.sa[ts]
 
             dens2d, _ = self.dtfe(species, ts, d=2, grid=True, los=True)
@@ -519,7 +510,7 @@ class SerpensAnalyzer:
         axs[2].vlines([ingress_timestep, egress_timestep], ymin=np.min(los_mean), ymax=np.max(los_mean))
         plt.show()
 
-        #moon_period = self.sa[0].particles["moon"].calculate_orbit(primary=self.sa[0].particles["planet"]).P
+
 
 
 

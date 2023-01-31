@@ -54,8 +54,7 @@ def reb_setup(params):
 
     reb_sim.dt = 500
 
-    celest = Parameters.celest.copy()
-    for k, v in celest.items():
+    for k, v in Parameters.celest.items():
         primary = v.pop("primary", 0)
         if reb_sim.N == 0:
             reb_sim.add(**v)
@@ -73,11 +72,7 @@ def reb_setup(params):
     # Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
     # => sim.ri_whfast.safe_mode = 0
 
-    reb_sim.save("archive.bin")
-
-    # REBX: rebx = rebx_setup(reb_sim)
-    # REBX: rebx.save("rebx.bin")
-
+    reb_sim.simulationarchive_snapshot("archive.bin", deletefile=True)
     with open(f"Parameters.txt", "w") as f:
         f.write(f"{params.__str__()}")
 
@@ -88,7 +83,6 @@ def reb_setup(params):
 
 
 def set_pointers(reb_sim):
-    reb_sim.softening = 0.2
     reb_sim.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
     reb_sim.collision_resolve = "merge"
     reb_sim.heartbeat = heartbeat
@@ -169,25 +163,21 @@ class SerpensSimulation:
             self.__sim = reb_sim
             iter = 0
         else:
-            arch = rebound.SimulationArchive(filename)
+            arch = rebound.SimulationArchive(filename, process_warnings=False)
             self.__sim = arch[snapshot]
 
             # REBX: arch, rebx = reboundx.SimulationArchive(filename, rebxfilename="rebx.bin")
             # REBX: self.__sim, self.__rebx = arch[snapshot]
 
             iter = len(arch) - 1 if snapshot == -1 else snapshot
-            self.hash_dict = self.hash_supdict[f"{iter + 1}"]
+            self.hash_dict = self.hash_supdict[f"{iter+1}"]
 
         self.__sim_deepcopies = []
         # REBX: self.__rebx_deepcopies = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             for _ in range(multiprocessing.cpu_count()):
-                reb_copy = self.__sim.copy()
-                self.__sim_deepcopies.append(reb_copy)
-
-                # REBX: rebx = rebx_setup(reb_copy)
-                # REBX: self.__rebx_deepcopies.append(rebx)
+                self.__sim_deepcopies.append(self.__sim.copy())
 
         self.var = {"iter": iter, "moon": self.params.int_spec["moon"]}
         if self.var["moon"]:
@@ -302,15 +292,14 @@ class SerpensSimulation:
                 tau = chem_network
                 particle_weight = particle_weight * np.exp(-dt / tau)
 
-            self.hash_dict[f"{particle.hash.value}"]['weight'] = particle_weight
-            # REBX: particle.params["serpens_weight"] = particle_weight
+            self.hash_dict[f"{particle.hash.value}"].update({'weight': particle_weight})
 
     def __advance_integration(self, dc_index):
         adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
         dc = self.__sim_deepcopies[dc_index]
         dc.dt = adv / 10
         dc.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
-        dc.save(f"proc/archiveProcess{dc_index}.bin")
+        dc.simulationarchive_snapshot(f"proc/archiveProcess{dc_index}.bin", deletefile=True)
 
         # REBX: dc_rebx = self.__rebx_deepcopies[dc_index]
         # REBX: dc_rebx.save(f"proc/archiveRebx{dc_index}.bin")
