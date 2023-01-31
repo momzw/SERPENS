@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.colors as colors
 import matplotlib
+import time
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from parameters import Parameters
 from scipy.ndimage.filters import gaussian_filter
@@ -13,7 +14,7 @@ matplotlib.use('TkAgg')
 
 class Visualize:
 
-    # TODO (FOR LATER): Check out VISPY for fast interactive plots running over GPU
+    # TODO (FOR LATER): Check out VISPY for fast interactive plots running on GPU
 
     def __init__(self, rebsim, interactive=True, cmap=plt.cm.afmhot, lim=35, singlePlot=False):
         params = Parameters()
@@ -53,7 +54,6 @@ class Visualize:
             self.boundary = params.int_spec["r_max"] * rebsim.particles["planet"].a
 
         self.cmap = cmap
-
         self.lim = lim
 
         self.cf = None
@@ -80,14 +80,16 @@ class Visualize:
             fn = kwargs.get("filename", -1)
             if self.moon:
                 orbit_phase = np.around(self.sim.particles["moon"].calculate_orbit(
-                    primary=self.sim.particles["planet"]).M * 180 / np.pi)
+                    primary=self.sim.particles["planet"]).theta * 180 / np.pi)
             else:
                 orbit_phase = np.around(self.sim.particles["planet"].calculate_orbit(
-                    primary=self.sim.particles[0]).M * 180 / np.pi)
+                    primary=self.sim.particles[0]).theta * 180 / np.pi)
             frame_identifier = f"SERPENS_{fn}_{orbit_phase}"
-            plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png')
+            plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png', bbox_inches='tight')
+            print(f"\t plotted {fn}")
             if not show_bool:
                 plt.close('all')
+            time.sleep(1)
 
         if show_bool:
             if not len(by_label) == 0:
@@ -161,9 +163,9 @@ class Visualize:
             ax.set_ylabel("y-distance in planetary radii", fontsize=15, labelpad=15)
 
         elif perspective == "los":
-            ps_star_coord1 = self.ps["star"].y
+            ps_star_coord1 = -self.ps["star"].y
             ps_star_coord2 = self.ps["star"].z
-            ps_planet_coord1 = self.ps["planet"].y
+            ps_planet_coord1 = -self.ps["planet"].y
             ps_planet_coord2 = self.ps["planet"].z
 
             ax.set_xlabel("y-distance in planetary radii", fontsize=15, labelpad=8)
@@ -190,7 +192,7 @@ class Visualize:
             ps_moon_coord2 = self.ps["moon"].y
 
             if perspective == "los":
-                ps_moon_coord1 = self.ps["moon"].y
+                ps_moon_coord1 = -self.ps["moon"].y
                 ps_moon_coord2 = self.ps["moon"].z
 
             xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, 13)
@@ -202,10 +204,21 @@ class Visualize:
                 moon_patch = plt.Circle((ps_moon_coord1, ps_moon_coord2), self.ps["moon"].r, fc=fc[2], alpha=.7, label="exomoon", zorder=10)
                 ax.add_patch(moon_patch)
 
-            # Show direction to Sun:
+            # Show direction to star and shadow:
             if perspective == "topdown":
                 ax.plot([ps_star_coord1, ps_moon_coord1], [ps_star_coord2, ps_moon_coord2], color='bisque',
                         linestyle=':', linewidth=1, zorder=10)
+
+                apex = np.asarray(self.ps["planet"].xyz) * (1 + self.ps["planet"].r / (self.ps["star"].r - self.ps["planet"].r))
+                orthogonal_vector_to_pos = np.array([-ps_planet_coord2, ps_planet_coord1, 0]) / np.linalg.norm(np.array([-ps_planet_coord2, ps_planet_coord1, 0]))
+                left_flank = self.ps["planet"].r * orthogonal_vector_to_pos + np.asarray(self.ps["planet"].xyz)
+                right_flank = - self.ps["planet"].r * orthogonal_vector_to_pos + np.asarray(self.ps["planet"].xyz)
+
+                t1 = plt.Polygon([apex[:2], left_flank[:2], right_flank[:2]], color='black', alpha=0.7, zorder=10)
+                ax.add_patch(t1)
+
+                #star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), self.ps[0].r, fc=fc[0], zorder=10, label="star")
+                #ax.add_patch(star_patch)
 
         else:
             xlocs = np.linspace(-lim, lim, 13)
@@ -232,12 +245,13 @@ class Visualize:
 
         if perspective == "topdown":
             line_color = fc[2] if self.moon else fc[1]
-            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=[2], color=line_color, primary=self.ps["planet"])
+            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=[2], color=line_color,
+                                   primary=self.ps["planet"])
             op.particles.set_color(line_color)
             op.particles.set_sizes([0])
 
-            rect = plt.Rectangle((-lim + ps_planet_coord1, ps_planet_coord2 - self.ps["planet"].r), lim, 2*self.ps["planet"].r, alpha=.8, zorder=2, fc='black')
-            ax.add_patch(rect)
+            #rect = plt.Rectangle((-lim + ps_planet_coord1, ps_planet_coord2 - self.ps["planet"].r), lim, 2*self.ps["planet"].r, alpha=.8, zorder=2, fc='black')
+            #ax.add_patch(rect)
 
         # Additional celestial objects
         numberAdditionalCelest = self.sim.N_active - 3 if self.moon else self.sim.N_active - 2
@@ -260,7 +274,7 @@ class Visualize:
                     ax.add_patch(major_obj)
 
                 elif perspective == "los":
-                    major_obj = plt.Circle((self.ps[additionalCelestFirstIndex + i].y,
+                    major_obj = plt.Circle((-self.ps[additionalCelestFirstIndex + i].y,
                                             self.ps[additionalCelestFirstIndex + i].z),
                                            self.ps[additionalCelestFirstIndex + i].r, alpha=0.7,
                                            fc=fc[additionalCelestFirstIndex + i], zorder=10)
@@ -344,6 +358,7 @@ class Visualize:
             "zorder": 1,
             "cfilter_coeff": 1,
             "vmin": None,
+            "vmax": None,
             "celest_colors": 'default',
             "show_planet": True,
             "show_moon": True
@@ -371,14 +386,17 @@ class Visualize:
             cmap = self.cmap
             cmap.set_bad(color='k', alpha=1.)
 
-        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, marker='.', vmin=kw['vmin'], s=2,
-                                      zorder=kw['zorder'])
+        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, marker='.', vmin=kw['vmin'],
+                                      vmax=kw['vmax'], s=2, zorder=kw['zorder'])
 
         divider = make_axes_locatable(ax_obj)
         cax = divider.append_axes('right', size='5%', pad=0.05)
         cax.tick_params(axis='both', which='major', labelsize=12)
         self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical', format=kw['cb_format'])
-        self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=12, loc='left', pad=12)
+        if perspective == 'los':
+            self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=12, loc='left', pad=12)
+        else:
+            self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=12, loc='left', pad=12)
 
     def add_triplot(self, ax, x, y, simplices, perspective, **kwargs):
         kw = {

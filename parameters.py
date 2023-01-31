@@ -30,7 +30,7 @@ class DefaultFields:
 
         "species1": Species("H2", n_th=0, n_sp=300, mass_per_sec=6.69, model_smyth_v_b=995)      #669    lifetime=7*86400
 
-        # self.species1 = Species("O", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b = 2500, odel_smyth_v_M = 10000)      #585    lifetime=2.26*86400
+        # self.species1 = Species("O", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b = 2500, model_smyth_v_M = 10000)      #585    lifetime=2.26*86400
         # self.species1 = Species("O2", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435    lifetime=3.3*86400
         # self.species1 = Species("H2", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b = 1200)      #669    lifetime=7*86400
         # self.species4 = Species("H", n_th=0, n_sp=0, mass_per_sec=3)

@@ -289,8 +289,8 @@ def create_particle(species_id, process, source, source_r, num=1, **kwargs):
     out = np.zeros((num, 6), dtype="float64")
 
     if valid_process[process] == 0:
-        ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="truncnorm", long_dist="uniform", a_long=0,
-                                                b_long=2 * np.pi, num = num)
+        ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="uniform", long_dist="uniform", a_long=0,
+                                                b_long=2 * np.pi, num=num)
         ran_temp = random_temp(source, temp_min, temp_max, ran_lat, ran_long)
 
         ran_vel_not_rotated_in_place = random_vel_thermal(species_id, ran_temp)

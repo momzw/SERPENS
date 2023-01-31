@@ -1,8 +1,12 @@
 /plots/
 /output/
+/matlab/
 /particles.txt
 /Parameters.txt
 /archive.bin
+/schedule_archive/
+/proc/
+/venv/
 archive.bin
 *.gif
 /hash_library.json
@@ -11,3 +15,5 @@ archive.bin
 *.xlsx
 /temporary.txt
 *.bin
+*.png
+*.nc

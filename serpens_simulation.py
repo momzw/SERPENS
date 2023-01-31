@@ -6,6 +6,8 @@ import multiprocess
 import multiprocessing
 import dill
 import copy
+import os as os
+import sys
 from src.create_particle import create_particle
 from parameters import Parameters
 import time
@@ -89,11 +91,10 @@ def set_pointers(reb_sim):
 
     # REBOUNDX ADDITIONAL FORCES
     # ==========================
-    rebx = reboundx.Extras(reb_sim)
-    rf = rebx.load_force("radiation_forces")
-    rebx.add_force(rf)
+    rebxdc = reboundx.Extras(reb_sim)
+    rf = rebxdc.load_force("radiation_forces")
+    rebxdc.add_force(rf)
     rf.params["c"] = 3.e8
-    reb_sim.particles["star"].params["radiation_source"] = 1
 
 
 def create(source_state, source_r, process, species):
@@ -160,8 +161,12 @@ class SerpensSimulation:
 
             # REBX: reb_sim, rebx = reb_setup(self.params)
             # REBX: self.__rebx = rebx
+
             self.__sim = reb_sim
             iter = 0
+
+            if os.path.exists("hash_library.pickle"):
+                os.remove("hash_library.pickle")
         else:
             arch = rebound.SimulationArchive(filename, process_warnings=False)
             self.__sim = arch[snapshot]
@@ -255,10 +260,20 @@ class SerpensSimulation:
     def __loss_per_advance(self):
 
         ## Check all particles
+        exception_counter = 0
         for particle in self.__sim.particles[self.__sim.N_active:]:
 
-            particle_weight = self.hash_dict[f"{particle.hash.value}"]["weight"]
-            species_id = self.hash_dict[f"{particle.hash.value}"]["id"]
+            try:
+                particle_weight = self.hash_dict[f"{particle.hash.value}"]["weight"]
+                species_id = self.hash_dict[f"{particle.hash.value}"]["id"]
+            except:
+                print("Particle not found.")
+                exception_counter += 1
+                if exception_counter == 20:
+                    raise Exception("Something went wrong..")
+                else:
+                    continue
+
             # REBX: particle_weight = particle.params["serpens_weight"]
             # REBX: species_id = particle.params["serpens_species"]
 
@@ -273,6 +288,9 @@ class SerpensSimulation:
                 if self.__check_shadow(particle.xyz):
                     if isinstance(species.tau_shielded, (float, int)):
                         chem_network = species.tau_shielded
+                    else:
+                        chem_network = species.network
+
                     if self.params.int_spec["radiation_pressure_shield"]:
                         particle.params["beta"] = 0
                 else:
@@ -373,10 +391,14 @@ class SerpensSimulation:
                 dc_remove = []
                 for particle in dc.particles[dc.N_active:]:
 
-                    w = self.hash_dict[f"{particle.hash.value}"]['weight']
-                    species_id = self.hash_dict[f"{particle.hash.value}"]['id']
-                    # REBX: w = particle.params["serpens_weight"]
-                    # REBX: species_id = particle.params["serpens_species"]
+                    try:
+                        w = self.hash_dict[f"{particle.hash.value}"]['weight']
+                        species_id = self.hash_dict[f"{particle.hash.value}"]['id']
+                        # REBX: w = particle.params["serpens_weight"]
+                        # REBX: species_id = particle.params["serpens_species"]
+                    except:
+                        print("Particle not found.")
+                        continue
 
                     species = self.params.get_species(id=species_id)
                     mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * self.var[
@@ -422,9 +444,10 @@ class SerpensSimulation:
 
             if self.var["iter"] % save_freq == 0:
                 print("Saving hash dict...")
-                self.hash_supdict[str(self.var["iter"] + 1)] = copy.deepcopy(self.hash_dict)
-                with open("hash_library.pickle", 'wb') as f:
-                    dill.dump(self.hash_supdict, f, dill.HIGHEST_PROTOCOL)
+                # self.hash_supdict[str(self.var["iter"] + 1)] = copy.deepcopy(self.hash_dict)
+                dict_saver = {f"{str(self.var['iter'] + 1)}": copy.deepcopy(self.hash_dict)}
+                with open("hash_library.pickle", 'ab') as f:
+                    dill.dump(dict_saver, f, dill.HIGHEST_PROTOCOL)
 
             self.var["iter"] += 1
 
@@ -438,7 +461,7 @@ class SerpensSimulation:
                 steady_state_counter = 0
 
             if steady_state_breaker is not None:
-                print(steady_state_breaker)
+                print(f"Advances left: {1/self.params.int_spec['sim_advance'] - steady_state_breaker}")
                 if steady_state_breaker == 1/self.params.int_spec["sim_advance"]:
                     break
                 else:

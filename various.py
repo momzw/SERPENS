@@ -7,9 +7,12 @@ import copy
 from serpens_analyzer import SerpensAnalyzer
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use('TkAgg')
-
 import scipy.optimize as sp
+
+matplotlib.use('TkAgg')
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+matplotlib.rc('text', usetex=True)
+#plt.style.use('seaborn')
 
 
 def orbit_sol():
@@ -130,7 +133,7 @@ def pngToGif(path, fps, name=None):
     TOOL TO COMBINE PNG TO GIF
     """
     import imageio
-    imageio.plugins.ffmpeg.download()
+    #imageio.plugins.ffmpeg.download()
 
     files = []
     for file in os.listdir(path):
@@ -146,33 +149,136 @@ def pngToGif(path, fps, name=None):
         for file in os.listdir(path):
             if os.path.isfile(os.path.join(path, file)) and f'{im}' in file:
                 im2 = os.path.join(path, file)
-                writer.append_data(imageio.imread(im2))
+                writer.append_data(imageio.v2.imread(im2))
     writer.close()
+# pngToGif('output/22022023--14-25_moonsource/plots', 5, name="test")
 
-    # pngToGif('output/09012023--22-39_moonsource/plots/LOS', 10, name="HD209-LOS")
+
+def calculate_vb(temperatures, v_M):
+
+    def func(x, v_M, T):
+        v_m = np.sqrt(3 * 1.380649e-23 * T / (23 * 1.660539066e-27))
+        v_m *= 1e-3
+        xi = 1/(v_M/np.sqrt(v_m**2 + x**2) - 1)
+        xi_term = np.sqrt(14/9 + 1/3 * xi - 1)
+        return v_m - x/xi_term
+
+    if isinstance(temperatures, (list, np.ndarray)) and isinstance(v_M, (list, np.ndarray)):
+        assert len(temperatures) == len(v_M)
+        roots = []
+        for i in range(len(temperatures)):
+            root = sp.fsolve(func, 2, args=(v_M[i], temperatures[i]))
+            roots.append(root)
+        return roots
+    elif isinstance(temperatures, (int, float)) and isinstance(v_M, (int, float)):
+        root = sp.fsolve(func, 2, args=(v_M, temperatures))
+        return root
+    else:
+        print("Invalid types for temperatures and/or maximal velocities")
+        return
+#calculate_vb(temperatures=[7754, 1400, 1120, 1740, 963, 1200, 1450, 1322], v_M=[46.62, 15.24, 11.86, 16.02, 12.43, 23.8, 17.82, 13.35])
 
 
-#def func(x, v_M, T):
-#    v_m = np.sqrt(3 * 1.380649e-23 * T / (23 * 1.660539066e-27))
-#    v_m *= 1e-3
-#    xi = 1/(v_M/np.sqrt(v_m**2 + x**2) - 1)
-#    xi_term = np.sqrt(14/9 + 1/3 * xi - 1)
-#    return v_m - x/xi_term
-#
-#temperatures = [7754, 14000, 11200, 17400, 9630, 12000, 14500, 13220]
-#maxVelocities = [46.62, 15.24, 11.86, 16.02, 12.43, 23.8, 17.82, 13.35]
-#for i in range(len(temperatures)):
-#    root = sp.fsolve(func, 2, args=(maxVelocities[i], temperatures[i]))
-#    print(root)
+def velocity_distributions():
+    from scipy.stats import maxwell
 
-sa = SerpensAnalyzer(save_output=False)
+    temp_eq = 1400  # W49
+    temp_tidal = 1902   # W49
+    m = 23 * 1.660539066e-27    # Na
+    k_B = 1.38066e-23
 
-#sa.top_down(timestep=71, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.3, lim=4,
+    # MAXWELL:
+    maxwell_scale_eq = np.sqrt((k_B * temp_eq) / m)
+    maxwell_scale_tidal = np.sqrt((k_B * temp_tidal) / m)
+    x = np.linspace(0, 8000, 300)
+
+    # SPUTTERING:
+
+    def phi(x, scale):
+        v_M = 15.24*1000
+        v_b = calculate_vb(temp_eq, v_M/1000) * 1000
+        a = scale
+
+        def phi_unnorm(x):
+            f_v = 1 / v_b * (x / v_b) ** 3 \
+                  * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
+                  * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
+            return f_v
+
+        def phi_int(x):
+            integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
+                    3 / 2) * v_b / v_M / (2 * a - 3) - x ** 4 / (2 * (a - 2)) - a * x ** 2 / (
+                                       2 * (a - 2) * (a - 1)) - 1 / (2 * (a - 2) * (a - 1))
+
+            f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
+            return f_v_integrated
+
+        upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
+        normalization = 1 / (phi_int(upper_bound) - phi_int(0))
+        f_pdf = normalization * phi_unnorm(x)
+        return f_pdf
+
+    fig, ax = plt.subplots(1, 1, figsize=(10,6), dpi=200)
+    #fig.suptitle("Velocity Distributions", fontsize='x-large')
+    ax.plot(x, maxwell.pdf(x, scale=maxwell_scale_eq), label=r'Maxwell $T_{\mathrm{eq}}$', color='blue')
+    ax.plot(x, maxwell.pdf(x, scale=maxwell_scale_tidal), label=r'Maxwell $T_{\mathrm{tidal}}$', color='cornflowerblue')
+    ax.plot(x, phi(x, scale=3), label=r'Sputtering $T_{\mathrm{eq}}$, $\alpha=3$', color='orange')
+    ax.plot(x, phi(x, scale=7/3), label=r'Sputtering $T_{\mathrm{eq}}$, $\alpha=7/3$', color='red')
+
+    from matplotlib import ticker
+    formatter = ticker.ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((-1, 1))
+    ax.yaxis.set_major_formatter(formatter)
+
+    ax.set_ylabel("Probability density", fontsize=16)
+    ax.set_xlabel("Velocity in m/s", fontsize=16)
+    ax.tick_params(axis='both', which='major', labelsize=12)
+    plt.legend(prop={'size': 14}, framealpha=1)
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig("veldist.png")
+    plt.show()
+
+    #import plotly.express as px
+    #df = pd.DataFrame({
+    #    'x': x,
+    #    'Maxwell T_eq': maxwell.pdf(x, scale=maxwell_scale_eq),
+    #    'Maxwell T_tidal': maxwell.pdf(x, scale=maxwell_scale_tidal),
+    #    'Sputtering alpha 3': phi(x, scale=3),
+    #    'Sputtering alpha 7/3': phi(x, scale=7/3)
+    #})
+    #
+    #fig = px.line(df, x='x', y=df.columns[1:])
+    #fig.write_image("fig1.png")
+    #fig.show()
+
+
+def read_nc():
+    import netCDF4
+    fp = 'density_177_183_00001412.nc'
+    data = netCDF4.Dataset(fp)
+    ntheta = data['ntheta'][:][0]
+    nphi = data['nphi'][:][0]
+    nr = data['nr'][:][0]
+    rmin, rmax = np.min(data['r_low'][0,0,:]), np.max(data['r_upp'][0, 0, :])
+
+
+sa = SerpensAnalyzer(save_output=False, reference_system="geocentric", r_cutoff=4)
+
+#sa.top_down(timestep=131, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.7, lim=4,
 #            celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-#            colormap=plt.cm.get_cmap("autumn"))
+#            colormap=plt.cm.get_cmap("afmhot"))
 
-#sa.los(timestep=71, show=True, show_planet=True, show_moon=True, lim=4,
-#       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=False, colormesh=True,
-#       colormap=plt.cm.plasma)
+#sa.los(timestep=131, show=True, show_planet=False, show_moon=False, lim=4,
+#       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=True, colormesh=False,
+#       colormap=plt.cm.autumn)
 
-sa.plot3d(71, log_cutoff=0.5)
+#sa.plot3d(121, log_cutoff=-5)
+
+sa.phase_curve(save_data=False, load_path='simulation-HD189-ExoIo-Na-physical-HighVel', part_dens=False, title='HD 189733')
+
+#dens = sa.get_densities(281)
+#pos, vel = sa.get_statevectors(281)
+#data = np.column_stack((pos[2:], vel[2:], dens))
+#np.savetxt("W39_90deg.txt", data)

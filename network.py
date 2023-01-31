@@ -8,7 +8,7 @@ class Network:
         self._network = None
         self._shielded_network = None
         self.e_scaling = e_scaling
-        u = 1.6726e-27
+        u = 1.660539066e-27
         e = 1.602e-19
 
         # Na (default network from Io!)
