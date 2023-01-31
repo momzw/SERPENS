@@ -467,8 +467,11 @@ class SerpensAnalyzer:
 
         return dens_max, dens_mean, los_max, los_mean
 
-
-
+    def testground(self):
+        advances_per_orbit = 1/self.params.int_spec["sim_advance"]
+        if len(self.sa) < advances_per_orbit:
+            print("No orbit has been completed.")
+            return
 
 
 

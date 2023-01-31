@@ -151,9 +151,9 @@ def pngToGif(path, fps, name=None):
 
 sa = SerpensAnalyzer(save_output=False)
 
-sa.top_down(timestep=370, d=2, colormesh=True, scatter=False, triplot=False, show=True, smoothing=.5, trialpha=.3, lim=4,
-            celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'],
-            colormap=plt.cm.get_cmap("autumn"))
+#sa.top_down(timestep=370, d=2, colormesh=True, scatter=False, triplot=False, show=True, smoothing=.5, trialpha=.3, lim=4,
+#            celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'],
+#            colormap=plt.cm.get_cmap("autumn"))
 
 #sa.los(timestep=390, show=True, show_planet=True, show_moon=True, lim=4,
 #       celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'], scatter=False, colormesh=True,
