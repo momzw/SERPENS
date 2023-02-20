@@ -6,13 +6,13 @@ class DefaultFields:
     # Integration specifics
     int_spec = {
         "moon": True,
-        "sim_advance": 1 / 40,
-        "num_sim_advances": 400,
-        "stop_at_steady_state": False,
+        "sim_advance": 1 / 100,
+        "num_sim_advances": 100,
+        "stop_at_steady_state": True,
         "gen_max": None,
         "r_max": 4,
         "random_walk": False,
-        "particle_interpolation": False
+        "radiation_pressure_shield": False
     }
 
     # Thermal evaporation parameters
@@ -28,7 +28,7 @@ class DefaultFields:
         #                    mass_per_sec=6.3e4, lifetime=6.7 * 60, model_smyth_v_b=2500,
         #                    model_smyth_v_M=30000)
 
-        "species1": Species("H2", n_th=0, n_sp=400, mass_per_sec=6.69, model_smyth_v_b=995)      #669    lifetime=7*86400
+        "species1": Species("H2", n_th=0, n_sp=300, mass_per_sec=6.69, model_smyth_v_b=995)      #669    lifetime=7*86400
 
         # self.species1 = Species("O", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b = 2500, odel_smyth_v_M = 10000)      #585    lifetime=2.26*86400
         # self.species1 = Species("O2", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435    lifetime=3.3*86400

@@ -84,8 +84,8 @@ def random_temp(source, temp_min, temp_max, latitude, longitude):
     :param longitude: float
     :return: temp: float
     """
-
-    longitude_wrt_sun = longitude + np.arctan2(source[0][1], source[0][0])
+    # TODO: Check sign
+    longitude_wrt_sun = longitude - np.arctan2(source[0][1], source[0][0])
 
     if not Params.therm_spec["spherical_symm_ejection"]:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!

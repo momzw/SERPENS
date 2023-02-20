@@ -56,17 +56,17 @@ def celestial_objects(moon, set=1):
         # WASP-49
         # -------
         celest2 = {
-            "planet": {"m": 0.378 * m_jup,
-                       "r": 1.115 * r_jup,
-                       "hash": 'planet'
-                       },
-            "star": {"m": 0 * m_sol,  # 0.72
-                     "a": 0.0378 * au,
+            "star": {"m": 0.72 * m_sol,  # 0.72
                      "hash": 'star',
-                     "primary": 'planet',
                      "r": 1.038 * r_sol
                      },
-            "moon": {"m": 3.8e24,
+            "planet": {"m": 0.378 * m_jup,
+                       "r": 1.115 * r_jup,
+                       "a": 0.0378 * au,
+                       "hash": 'planet',
+                       "primary": 'star'
+                       },
+            "moon": {"m": 8.8e22,
                      "a": 1.74 * 1.115 * r_jup,
                      "r": 6370e3,
                      "primary": 'planet',
@@ -87,7 +87,7 @@ def celestial_objects(moon, set=1):
                      "hash": 'star',
                      "primary": 'planet',
                      },
-            "moon": {"m": 3.8e24,
+            "moon": {"m": 8.8e22,
                      "a": 2.11 * 1.138 * r_jup,
                      "r": 6370e3,
                      "primary": 'planet',
@@ -108,7 +108,7 @@ def celestial_objects(moon, set=1):
                      "primary": 'planet',
                      "r": 1.203 * r_sol
                      },
-            "moon": {"m": 3.8e24,
+            "moon": {"m": 8.8e22,
                      "a": 1.93 * 1.38 * r_jup,
                      "r": 6370e3,
                      "primary": 'planet',
@@ -129,7 +129,7 @@ def celestial_objects(moon, set=1):
                        "primary": 'star',
                        "hash": 'planet'
                        },
-            "moon": {"m": 3.8e24,
+            "moon": {"m": 8.8e22,
                      "a": 2.28 * 1.319 * r_jup,
                      "r": 6370e3,
                      "primary": 'planet',
@@ -150,7 +150,7 @@ def celestial_objects(moon, set=1):
                      "hash": 'star',
                      "primary": 'planet',
                      },
-            "moon": {"m": 3.8e24,
+            "moon": {"m": 8.8e22,
                      "a": 1.79 * 90794840,
                      "r": 6370e3,
                      "primary": 'planet',

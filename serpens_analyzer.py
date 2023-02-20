@@ -2,6 +2,7 @@ import numpy as np
 import os as os
 import shutil
 import rebound
+import reboundx
 import dill
 import matplotlib.cm as cm
 import pandas as pd
@@ -34,6 +35,7 @@ class SerpensAnalyzer:
             raise Exception("hash_library.pickle and/or Parameters.pickle not found.")
 
         try:
+            # REBX: self.sa = reboundx.SimulationArchive("archive.bin", rebxfilename="rebx.bin", process_warnings=False)
             self.sa = rebound.SimulationArchive("archive.bin", process_warnings=False)
         except Exception:
             raise Exception("simulation archive not found.")
@@ -51,6 +53,7 @@ class SerpensAnalyzer:
         self._p_hashes = None
         self._p_species = None
         self._p_weights = None
+        self.cached_timestep = None
 
         self.z_cutoff = z_cutoff
         self.r_cutoff = r_cutoff
@@ -81,7 +84,9 @@ class SerpensAnalyzer:
                 print("\t ...done!")
 
     def __grid(self, timestep, plane='xy'):
+        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
+
         if self.moon_exists:
             boundary = self.params.int_spec["r_max"] * sim_instance.particles["moon"].calculate_orbit(
                 primary=sim_instance.particles["planet"]).a
@@ -118,7 +123,15 @@ class SerpensAnalyzer:
             return X, Y, Z
 
     def __pull_data(self, timestep):
+
+        if self.cached_timestep == timestep:
+            return
+        else:
+            self.cached_timestep = timestep
+
+        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
+
         self._p_positions = np.zeros((sim_instance.N, 3), dtype="float64")
         self._p_velocities = np.zeros((sim_instance.N, 3), dtype="float64")
         self._p_hashes = np.zeros(sim_instance.N, dtype="uint32")
@@ -133,30 +146,39 @@ class SerpensAnalyzer:
 
         for k1 in range(sim_instance.N_active, sim_instance.N):
             self._p_species[k1] = hash_dict_current[str(self._p_hashes[k1])]["id"]
-            particle_iter = hash_dict_current[str(self._p_hashes[k1])]["i"]
+            self._p_weights[k1] = hash_dict_current[str(self._p_hashes[k1])]["weight"]
 
-            if self.moon_exists:
-                particle_time = (timestep - particle_iter) * self.params.int_spec["sim_advance"] * \
-                                sim_instance.particles[
-                                    "moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
-            else:
-                particle_time = (timestep - particle_iter) * self.params.int_spec["sim_advance"] * \
-                                sim_instance.particles[
-                                    "planet"].P
+            # REBX:
+            # try:
+            #     self._p_species[k1] = sim_instance.particles[rebound.hash(int(self._p_hashes[k1]))].params["serpens_species"]
+            #     self._p_weights[k1] = sim_instance.particles[rebound.hash(int(self._p_hashes[k1]))].params["serpens_weight"]
+            # except AttributeError:
+            #     self._p_species[k1] = 0
+            #     self._p_weights[k1] = 0
+            #     print("Particle not weightable")
 
-            if self.params.get_species(id=self._p_species[k1]) is None:
-                continue
-
-            chem_network = self.params.get_species(id=self._p_species[k1]).network
-            reaction_rate = 0
-            if not isinstance(chem_network, (int, float)):
-                for l in range(np.size(chem_network[:, 0])):
-                    reaction_rate += 1 / float(chem_network[:, 0][l])
-            else:
-                reaction_rate = 1 / chem_network
-            self._p_weights[k1] = np.exp(-particle_time * reaction_rate)
-
-            #self._p_weights[k1] = hash_dict_current[str(self._p_hashes[k1])]["weight"]
+            #particle_iter = hash_dict_current[str(self._p_hashes[k1])]["i"]
+            #
+            #if self.moon_exists:
+            #    particle_time = (timestep - particle_iter) * self.params.int_spec["sim_advance"] * \
+            #                    sim_instance.particles[
+            #                        "moon"].calculate_orbit(primary=sim_instance.particles["planet"]).P
+            #else:
+            #    particle_time = (timestep - particle_iter) * self.params.int_spec["sim_advance"] * \
+            #                    sim_instance.particles[
+            #                        "planet"].P
+            #
+            #if self.params.get_species(id=self._p_species[k1]) is None:
+            #    continue
+            #
+            #chem_network = self.params.get_species(id=self._p_species[k1]).network
+            #reaction_rate = 0
+            #if not isinstance(chem_network, (int, float)):
+            #    for l in range(np.size(chem_network[:, 0])):
+            #        reaction_rate += 1 / float(chem_network[:, 0][l])
+            #else:
+            #    reaction_rate = 1 / chem_network
+            #self._p_weights[k1] = np.exp(-particle_time * reaction_rate)
 
         if self.z_cutoff is not None:
             assert isinstance(self.z_cutoff, (float, int))
@@ -180,6 +202,7 @@ class SerpensAnalyzer:
 
     def dtfe(self, species, timestep, d=2, grid=True, los=False):
         self.__pull_data(timestep)
+        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
 
         if self.moon_exists:
@@ -202,8 +225,6 @@ class SerpensAnalyzer:
         remaining_part = len(points[:, 0])
         mass_in_system = remaining_part / total_injected * species.mass_per_sec * simulation_time
         number_of_particles = mass_in_system / species.m
-
-        number_of_particles = 1e39
 
         phys_weights = number_of_particles * weights/np.sum(weights)
 
@@ -281,6 +302,7 @@ class SerpensAnalyzer:
 
         for ts in ts_list:
             self.__pull_data(ts)
+            # REBX: self._sim_instance, rebx = self.sa[ts]
             self._sim_instance = self.sa[ts]
 
             vis = Visualize(self._sim_instance, lim=kw["lim"], cmap=kw["colormap"], singlePlot=kw["single_plot"])
@@ -295,7 +317,7 @@ class SerpensAnalyzer:
                         print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
                     dens_grid, _ = self.dtfe(species, ts, d=2, grid=True)
                     X, Y = self.__grid(ts)
-                    self.__pull_data(ts)
+                    #self.__pull_data(ts)
                     vis.add_colormesh(k, X, Y, dens_grid, contour=kw["contour"], fill_contour=kw["fill_contour"], zorder=2, numlvls=25,
                                       celest_colors=kw["celest_colors"], lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'], cfilter_coeff=kw["smoothing"])
 
@@ -349,6 +371,7 @@ class SerpensAnalyzer:
 
         for ts in ts_list:
             self.__pull_data(ts)
+            # REBX: self._sim_instance, rebx = self.sa[ts]
             self._sim_instance = self.sa[ts]
 
             vis = Visualize(self._sim_instance, lim=kw["lim"], cmap=kw["colormap"])
@@ -366,7 +389,7 @@ class SerpensAnalyzer:
                                       show_planet=kw["show_planet"], show_moon=kw["show_moon"],
                                       celest_colors=kw["celest_colors"])
 
-                    vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
+                    vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=18)
 
                 if scatter:
                     species = self.params.get_species(num=k + 1)
@@ -390,15 +413,17 @@ class SerpensAnalyzer:
 
     def plot3d(self, timestep, species_num=1, log_cutoff=5):
         self.__pull_data(timestep)
+        # REBX: sim_instance, rebx = self.sa[timestep]
         sim_instance = self.sa[timestep]
-        pos = self._p_positions[3:]
+
+        pos = self._p_positions[sim_instance.N_active:]
         species = self.params.get_species(num=species_num)
         dens, _ = self.dtfe(species, timestep, d=3, grid=False)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
-        x = sim_instance.particles["planet"].r * np.sin(theta) * np.cos(phi)
-        y = sim_instance.particles["planet"].r * np.sin(theta) * np.sin(phi)
-        z = sim_instance.particles["planet"].r * np.cos(theta)
+        x = sim_instance.particles["planet"].r * np.sin(theta) * np.cos(phi) + sim_instance.particles["planet"].x
+        y = sim_instance.particles["planet"].r * np.sin(theta) * np.sin(phi) + sim_instance.particles["planet"].y
+        z = sim_instance.particles["planet"].r * np.cos(theta) + sim_instance.particles["planet"].z
 
         np.seterr(divide='ignore')
 
@@ -408,8 +433,9 @@ class SerpensAnalyzer:
             'z': pos[:, 2][np.log10(dens) > log_cutoff]
         })
 
-        fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens[np.log10(dens) > log_cutoff]), opacity=.5)
-        fig.add_trace(go.Surface(x=x, y=y, z=z, surfacecolor=x ** 2 + y ** 2 + z ** 2))
+        fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens[np.log10(dens) > log_cutoff]), opacity=.3)
+        fig.add_trace(go.Surface(x=x, y=y, z=z, surfacecolor=np.zeros(shape=x.shape), showscale=False))
+        fig.update_coloraxes(colorbar_exponentformat='e')
         fig.show()
 
         np.seterr(divide='warn')
@@ -437,10 +463,11 @@ class SerpensAnalyzer:
         elif isinstance(timestep, np.ndarray):
             ts_list = np.ndarray.tolist(timestep)
         else:
-            raise TypeError("top-down timestep has an invalid type.")
+            raise TypeError("timestep has an invalid type.")
 
         for ts in ts_list:
             self.__pull_data(ts)
+            # REBX: self._sim_instance, rebx = self.sa[ts]
             self._sim_instance = self.sa[ts]
 
             dens2d, _ = self.dtfe(species, ts, d=2, grid=True, los=True)
@@ -468,12 +495,31 @@ class SerpensAnalyzer:
         return dens_max, dens_mean, los_max, los_mean
 
     def testground(self):
+        import matplotlib.pyplot as plt
+        # REBX: instances, rebx = self.sa
+        instances = self.sa
+        first_instance = instances[0]
         advances_per_orbit = 1/self.params.int_spec["sim_advance"]
-        if len(self.sa) < advances_per_orbit:
+        if len(instances) < advances_per_orbit:
             print("No orbit has been completed.")
             return
+        timesteps = np.arange(len(instances)-advances_per_orbit, len(instances), 1, dtype=int)
+        phases = 2*np.pi / advances_per_orbit * np.arange(0, advances_per_orbit, 1)
+        shadow_phase = np.arctan2(first_instance.particles["planet"].r, first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"]).a)
+        ingress_timestep = advances_per_orbit / (2*np.pi) * (np.pi - shadow_phase)
+        egress_timestep = advances_per_orbit / (2*np.pi) * (np.pi + shadow_phase)
+        dens_max, dens_mean, los_max, los_mean = self.logDensities(timesteps)
 
+        fig, axs = plt.subplots(3, 1, figsize=(15, 10))
+        axs[0].plot(np.arange(0, advances_per_orbit, 1), np.sin(phases))
+        axs[0].vlines([ingress_timestep, egress_timestep], ymin=-1, ymax=1)
+        axs[1].plot(np.arange(0, advances_per_orbit, 1), los_max)
+        axs[1].vlines([ingress_timestep, egress_timestep], ymin=np.min(los_max), ymax=np.max(los_max))
+        axs[2].plot(np.arange(0, advances_per_orbit, 1), los_mean)
+        axs[2].vlines([ingress_timestep, egress_timestep], ymin=np.min(los_mean), ymax=np.max(los_mean))
+        plt.show()
 
+        #moon_period = self.sa[0].particles["moon"].calculate_orbit(primary=self.sa[0].particles["planet"]).P
 
 
 

@@ -6,6 +6,7 @@ class Network:
     def __init__(self, id, e_scaling=1):
         self._species_weights = None
         self._network = None
+        self._shielded_network = None
         self.e_scaling = e_scaling
         u = 1.6726e-27
         e = 1.602e-19
@@ -210,10 +211,12 @@ class Network:
 
         # CO2 (default network from WASP-39!)
         elif id == 10:
+            # CO2
             self._network = 2.47 * 60
 
         # K (default network from WASP-39!)
         elif id == 11:
+            # K
             self._network = 1.77 * 60
 
     def reaction(self, reac):
@@ -242,3 +245,14 @@ class Network:
             self._network = tau
         else:
             print("Could not set network lifetime")
+
+    @property
+    def shielded_network(self):
+        return self._shielded_network
+
+    @shielded_network.setter
+    def shielded_network(self, tau):
+        if isinstance(tau, (float, int)):
+            self._shielded_network = tau
+        else:
+            print("Could not set shielded network lifetime")

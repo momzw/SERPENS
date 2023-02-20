@@ -3,10 +3,13 @@ import rebound
 import os
 from tqdm import tqdm
 import pandas as pd
+import copy
 from serpens_analyzer import SerpensAnalyzer
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')
+
+import scipy.optimize as sp
 
 
 def orbit_sol():
@@ -149,14 +152,27 @@ def pngToGif(path, fps, name=None):
     # pngToGif('output/09012023--22-39_moonsource/plots/LOS', 10, name="HD209-LOS")
 
 
+#def func(x, v_M, T):
+#    v_m = np.sqrt(3 * 1.380649e-23 * T / (23 * 1.660539066e-27))
+#    v_m *= 1e-3
+#    xi = 1/(v_M/np.sqrt(v_m**2 + x**2) - 1)
+#    xi_term = np.sqrt(14/9 + 1/3 * xi - 1)
+#    return v_m - x/xi_term
+#
+#temperatures = [7754, 14000, 11200, 17400, 9630, 12000, 14500, 13220]
+#maxVelocities = [46.62, 15.24, 11.86, 16.02, 12.43, 23.8, 17.82, 13.35]
+#for i in range(len(temperatures)):
+#    root = sp.fsolve(func, 2, args=(maxVelocities[i], temperatures[i]))
+#    print(root)
+
 sa = SerpensAnalyzer(save_output=False)
 
-#sa.top_down(timestep=370, d=2, colormesh=True, scatter=False, triplot=False, show=True, smoothing=.5, trialpha=.3, lim=4,
-#            celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'],
+#sa.top_down(timestep=71, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.3, lim=4,
+#            celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
 #            colormap=plt.cm.get_cmap("autumn"))
 
-#sa.los(timestep=390, show=True, show_planet=True, show_moon=True, lim=4,
-#       celest_colors=['yellow', 'royalblue', 'yellow', 'yellow', 'green', 'green'], scatter=False, colormesh=True,
-#       colormap=plt.cm.inferno)
+#sa.los(timestep=71, show=True, show_planet=True, show_moon=True, lim=4,
+#       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=False, colormesh=True,
+#       colormap=plt.cm.plasma)
 
-sa.plot3d(400)
+sa.plot3d(71, log_cutoff=0.5)

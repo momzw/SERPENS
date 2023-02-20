@@ -92,6 +92,7 @@ class Species(SpeciesSpecifics):
         tau = kwargs.get("lifetime", None)
         if tau is not None:
             self.network = tau
+        self.tau_shielded = kwargs.get("shielded_lifetime", None)
 
         electron_density = kwargs.get("n_e", None)
         if electron_density is not None:
