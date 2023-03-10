@@ -74,141 +74,220 @@ ssch = SerpensScheduler()
 
 #######################################################################################################################
 
-ssch.schedule("W49-ExoIo-Na-physical",
-              species=[Species('Na', description=r'WASP-49 exo-Io $-$ Na', n_th=0, n_sp=2000,
-                               mass_per_sec=10**4.8, model_smyth_v_b=3.32,
-                               model_smyth_v_M=15.24, lifetime=4*60, beta=3.19,
-                               shielded_lifetime=3*3600)],
-              moon=True,
-              int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/100,
-                        "num_sim_advances": 5},
-              celest_set=2)
+#ssch.schedule("W49-ExoEnce-Na-physical-HV",
+#              species=[Species('Na', description=r'WASP-49 exo-Io $-$ Na', n_th=0, n_sp=500,
+#                               mass_per_sec=10**4.8, model_smyth_v_b=0.95*1000,
+#                               model_smyth_v_M=15.24*1000, lifetime=4*60, beta=3.19,
+#                               shielded_lifetime=3*3600)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/120,
+#                        "num_sim_advances": 360},
+#              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+#              celest_set=2)
 
-ssch.schedule("W49-ExoIo-Na-3h",
-              species=[Species('Na', description=r'WASP-49 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=1000,
-                               mass_per_sec=10**4.8, model_smyth_v_b=3.32,
-                               model_smyth_v_M=15.24, lifetime=3*3600, beta=3.19)],
-              moon=True,
-              int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/60,
-                        "num_sim_advances": 300},
-              celest_set=2)
-
-##############################################################################
-
-ssch.schedule("W39-ExoIo-Na-physical",
-              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na', n_th=0, n_sp=2000,
-                               mass_per_sec=10**5.8, model_smyth_v_b=3.06,
-                               model_smyth_v_M=11.86, lifetime=6.7*60, beta=1.70,
-                               shielded_lifetime=3*3600)],
-              moon=True,
-              int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/100,
-                        "num_sim_advances": 200},
-              celest_set=6)
-
-ssch.schedule("W39-ExoIo-Na-3h",
-              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=1000,
-                               mass_per_sec=10**5.8, model_smyth_v_b=3.06,
-                               model_smyth_v_M=11.86, lifetime=3*3600, beta=1.70)],
-              moon=True,
-              int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/60,
-                        "num_sim_advances": 300},
-              celest_set=6)
+#ssch.schedule("W49-ExoEnce-Na-3h-HV",
+#              species=[Species('Na', description=r'WASP-49 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+#                               mass_per_sec=10**4.8, model_smyth_v_b=0.95*1000,
+#                               model_smyth_v_M=15.24*1000, lifetime=3*3600, beta=3.19)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/120,
+#                        "num_sim_advances": 360},
+#              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+#              celest_set=2)
 
 ##############################################################################
 
-ssch.schedule("W17-ExoIo-Na-physical",
-              species=[Species('Na', description=r'WASP-17 exo-Io $-$ Na', n_th=0, n_sp=2000,
-                               mass_per_sec=10**4.4, model_smyth_v_b=3.74,
-                               model_smyth_v_M=16.02, lifetime=3.4*60, beta=5.37,
-                               shielded_lifetime=3*3600)],
+#ssch.schedule("W39-ExoEnce-Na-physical-HV",
+#              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na', n_th=0, n_sp=500,
+#                               mass_per_sec=10**5.8, model_smyth_v_b=0.85*1000,
+#                               model_smyth_v_M=11.86*1000, lifetime=6.7*60, beta=1.70,
+#                               shielded_lifetime=3*3600)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/120,
+#                        "num_sim_advances": 360},
+#              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+#              celest_set=6)
+#
+#ssch.schedule("W39-ExoEnce-Na-3h-HV",
+#              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+#                               mass_per_sec=10**5.8, model_smyth_v_b=0.85*1000,
+#                               model_smyth_v_M=11.86*1000, lifetime=3*3600, beta=1.70)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/120,
+#                        "num_sim_advances": 360},
+#              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+#              celest_set=6)
+
+#ssch.schedule("W39-ExoIo-SO2-physical-RAD-fast",
+#              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na', n_th=0, n_sp=500,
+#                               mass_per_sec=10**10, model_smyth_v_b=2000,
+#                               model_smyth_v_M=30000, lifetime=2.47*60, beta=1.70,
+#                               shielded_lifetime=3*3600)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/120,
+#                        "num_sim_advances": 360},
+#              celest_set=6)
+#
+#ssch.schedule("W39-ExoIo-SO2-3h-RAD-fast",
+#              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+#                               mass_per_sec=10**10, model_smyth_v_b=2000,
+#                               model_smyth_v_M=30000, lifetime=3*3600, beta=1.70)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/100,
+#                        "num_sim_advances": 400},
+#              celest_set=6)
+#
+#ssch.schedule("W39-ExoIo-SO2-physical-fast",
+#              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na', n_th=0, n_sp=500,
+#                               mass_per_sec=10**10, model_smyth_v_b=2000,
+#                               model_smyth_v_M=30000, lifetime=2.47*60, beta=0,
+#                               shielded_lifetime=3*3600)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/120,
+#                        "num_sim_advances": 360},
+#              celest_set=6)
+#
+#ssch.schedule("W39-ExoIo-SO2-3h-fast",
+#              species=[Species('Na', description=r'WASP-39 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+#                               mass_per_sec=10**10, model_smyth_v_b=2000,
+#                               model_smyth_v_M=30000, lifetime=3*3600, beta=0)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/100,
+#                        "num_sim_advances": 400},
+#              celest_set=6)
+
+#############################################################################
+
+#ssch.schedule("W17-ExoEnce-Na-physical-HV",
+#              species=[Species('Na', description=r'WASP-17 exo-Io $-$ Na', n_th=0, n_sp=1000,
+#                               mass_per_sec=10**4.4, model_smyth_v_b=1.06*1000,
+#                               model_smyth_v_M=16.02*1000, lifetime=3.4*60, beta=5.37,
+#                               shielded_lifetime=3*3600)],
+#              moon=True,
+#              int_spec={"radiation_pressure_shield": True,
+#                        "sim_advance": 1/150,
+#                        "num_sim_advances": 375},
+#              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+#              celest_set=7)
+
+ssch.schedule("W17-ExoEnce-Na-3h-HV",
+              species=[Species('Na', description=r'WASP-17 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+                               mass_per_sec=10**4.4, model_smyth_v_b=1.06*1000,
+                               model_smyth_v_M=16.02*1000, lifetime=3*3600, beta=5.37)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/100,
-                        "num_sim_advances": 200},
+                        "sim_advance": 1/150,
+                        "num_sim_advances": 375},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=7)
 
-ssch.schedule("W17-ExoIo-Na-3h",
-              species=[Species('Na', description=r'WASP-17 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=1000,
-                               mass_per_sec=10**4.4, model_smyth_v_b=3.74,
-                               model_smyth_v_M=16.02, lifetime=3*3600, beta=5.37)],
-              moon=True,
-              int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/60,
-                        "num_sim_advances": 300},
-              celest_set=7)
-
 ##############################################################################
 
-ssch.schedule("W69-ExoIo-Na-physical",
-              species=[Species('Na', description=r'WASP-69 exo-Io $-$ Na', n_th=0, n_sp=2000,
-                               mass_per_sec=10**6.6, model_smyth_v_b=2.76,
-                               model_smyth_v_M=12.43, lifetime=35.9*60, beta=1.27,
+ssch.schedule("W69-ExoEnce-Na-physical-HV",
+              species=[Species('Na', description=r'WASP-69 exo-Io $-$ Na', n_th=0, n_sp=500,
+                               mass_per_sec=10**6.6, model_smyth_v_b=0.79*1000,
+                               model_smyth_v_M=12.43*1000, lifetime=35.9*60, beta=1.27,
                                shielded_lifetime=3*3600)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/100,
-                        "num_sim_advances": 200},
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=8)
 
-ssch.schedule("W69-ExoIo-Na-3h",
-              species=[Species('Na', description=r'WASP-69 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=1000,
-                               mass_per_sec=10**6.6, model_smyth_v_b=2.76,
-                               model_smyth_v_M=12.43, lifetime=3*3600, beta=1.27)],
+ssch.schedule("W69-ExoEnce-Na-3h-HV",
+              species=[Species('Na', description=r'WASP-69 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+                               mass_per_sec=10**6.6, model_smyth_v_b=0.79*1000,
+                               model_smyth_v_M=12.43*1000, lifetime=3*3600, beta=1.27)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/60,
-                        "num_sim_advances": 300},
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=8)
 
 ##############################################################################
 
-ssch.schedule("HD189-ExoIo-Na-physical",
-              species=[Species('Na', description=r'HD-189733 exo-Io $-$ Na', n_th=0, n_sp=2000,
-                               mass_per_sec=10**5.5, model_smyth_v_b=2.88,
-                               model_smyth_v_M=23.80, lifetime=16.9*60, beta=2,
+ssch.schedule("HD189-ExoEnce-Na-physical-HV",
+              species=[Species('Na', description=r'HD-189733 exo-Io $-$ Na', n_th=0, n_sp=500,
+                               mass_per_sec=10**5.5, model_smyth_v_b=0.87*1000,
+                               model_smyth_v_M=23.80*1000, lifetime=16.9*60, beta=2,
                                shielded_lifetime=3*3600)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/100,
-                        "num_sim_advances": 200},
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=3)
 
-ssch.schedule("HD189-ExoIo-Na-3h",
-              species=[Species('Na', description=r'HD-189733 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=1000,
-                               mass_per_sec=10**5.5, model_smyth_v_b=2.88,
-                               model_smyth_v_M=23.80, lifetime=3*3600, beta=2)],
+ssch.schedule("HD189-ExoEnce-Na-3h-HV",
+              species=[Species('Na', description=r'HD-189733 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+                               mass_per_sec=10**5.5, model_smyth_v_b=0.87*1000,
+                               model_smyth_v_M=23.80*1000, lifetime=3*3600, beta=2)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/60,
-                        "num_sim_advances": 300},
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=3)
 
 ##############################################################################
 
-ssch.schedule("HD209-ExoIo-Na-physical",
-              species=[Species('Na', description=r'HD-209458 exo-Io $-$ Na', n_th=0, n_sp=2000,
-                               mass_per_sec=10**4.3, model_smyth_v_b=3.30,
-                               model_smyth_v_M=17.82, lifetime=5.7*60, beta=4,
+ssch.schedule("HD209-ExoEnce-Na-physical-HV",
+              species=[Species('Na', description=r'HD-209458 exo-Io $-$ Na', n_th=0, n_sp=500,
+                               mass_per_sec=10**4.3, model_smyth_v_b=0.97*1000,
+                               model_smyth_v_M=17.82*1000, lifetime=5.7*60, beta=4,
                                shielded_lifetime=3*3600)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/100,
-                        "num_sim_advances": 200},
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=4)
 
-ssch.schedule("HD209-ExoIo-Na-3h",
-              species=[Species('Na', description=r'HD-209458 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=1000,
-                               mass_per_sec=10**4.3, model_smyth_v_b=3.30,
-                               model_smyth_v_M=17.82, lifetime=3*3600, beta=4)],
+ssch.schedule("HD209-ExoEnce-Na-3h-HV",
+              species=[Species('Na', description=r'HD-209458 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+                               mass_per_sec=10**4.3, model_smyth_v_b=0.97*1000,
+                               model_smyth_v_M=17.82*1000, lifetime=3*3600, beta=4)],
               moon=True,
               int_spec={"radiation_pressure_shield": True,
-                        "sim_advance": 1/60,
-                        "num_sim_advances": 300},
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
               celest_set=4)
+
+##############################################################################
+
+ssch.schedule("HATP1-ExoEnce-Na-physical-HV",
+              species=[Species('Na', description=r'HAT-P-1 exo-Io $-$ Na', n_th=0, n_sp=500,
+                               mass_per_sec=10**4.3, model_smyth_v_b=0.93*1000,
+                               model_smyth_v_M=13.35*1000, lifetime=8.7*60, beta=2.62,
+                               shielded_lifetime=3*3600)],
+              moon=True,
+              int_spec={"radiation_pressure_shield": True,
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+              celest_set=5)
+
+ssch.schedule("HATP1-ExoEnce-Na-3h-HV",
+              species=[Species('Na', description=r'HAT-P-1 exo-Io $-$ Na ($\tau=3$h)', n_th=0, n_sp=500,
+                               mass_per_sec=10**5.3, model_smyth_v_b=0.93*1000,
+                               model_smyth_v_M=13.35*1000, lifetime=3*3600, beta=2.62)],
+              moon=True,
+              int_spec={"radiation_pressure_shield": True,
+                        "sim_advance": 1/120,
+                        "num_sim_advances": 360},
+              objects={'moon': {'m': 2.3e20, 'r': 250000}},
+              celest_set=5)
 
 ##############################################################################
 
