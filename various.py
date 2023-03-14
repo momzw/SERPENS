@@ -264,21 +264,42 @@ def read_nc():
     rmin, rmax = np.min(data['r_low'][0,0,:]), np.max(data['r_upp'][0, 0, :])
 
 
-sa = SerpensAnalyzer(save_output=False, reference_system="geocentric", r_cutoff=4)
+sa = SerpensAnalyzer(save_output=False, reference_system='geocentric', r_cutoff=4)
 
 #sa.top_down(timestep=131, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.7, lim=4,
 #            celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
 #            colormap=plt.cm.get_cmap("afmhot"))
 
-#sa.los(timestep=131, show=True, show_planet=False, show_moon=False, lim=4,
+#sa.los(timestep=211, show=True, show_planet=False, show_moon=False, lim=4,
 #       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=True, colormesh=False,
 #       colormap=plt.cm.autumn)
 
 #sa.plot3d(121, log_cutoff=-5)
 
-sa.phase_curve(save_data=False, load_path='simulation-HD189-ExoIo-Na-physical-HighVel', part_dens=False, title='HD 189733')
+#sa.phase_curve(save_data=False, load_path=['simulation-unnamed'],
+#               fig=True, part_dens=False)
 
-#dens = sa.get_densities(281)
-#pos, vel = sa.get_statevectors(281)
+sa.transit_curve('simulation-unnamed')
+
+
+
+
+#dens = sa.get_densities(151)
+#pos, vel = sa.get_statevectors(151)
 #data = np.column_stack((pos[2:], vel[2:], dens))
-#np.savetxt("W39_90deg.txt", data)
+#np.savetxt("W39_0deg-phys-RAD-fast.txt", data)
+#
+#dens = sa.get_densities(111)
+#pos, vel = sa.get_statevectors(111)
+#data = np.column_stack((pos[2:], vel[2:], dens))
+#np.savetxt("W39_270deg-phys-RAD-fast.txt", data)
+#
+#dens = sa.get_densities(76)
+#pos, vel = sa.get_statevectors(76)
+#data = np.column_stack((pos[2:], vel[2:], dens))
+#np.savetxt("W39_180deg-phys-RAD-fast.txt", data)
+#
+#dens = sa.get_densities(36)
+#pos, vel = sa.get_statevectors(36)
+#data = np.column_stack((pos[2:], vel[2:], dens))
+#np.savetxt("W39_90deg-phys-RAD-fast.txt", data)

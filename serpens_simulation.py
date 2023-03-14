@@ -398,6 +398,7 @@ class SerpensSimulation:
                         # REBX: species_id = particle.params["serpens_species"]
                     except:
                         print("Particle not found.")
+                        dc_remove.append(particle.hash)
                         continue
 
                     species = self.params.get_species(id=species_id)
@@ -462,7 +463,7 @@ class SerpensSimulation:
 
             if steady_state_breaker is not None:
                 print(f"Advances left: {1/self.params.int_spec['sim_advance'] - steady_state_breaker}")
-                if steady_state_breaker == 1/self.params.int_spec["sim_advance"]:
+                if steady_state_breaker == 5/4 * 1/self.params.int_spec["sim_advance"]:
                     break
                 else:
                     steady_state_breaker += 1

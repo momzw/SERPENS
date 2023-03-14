@@ -11,27 +11,33 @@ matplotlib.rc('text', usetex=True)
 #plt.style.use('seaborn')
 
 
-PATHS = ['simulation-HATP1-ExoIo-Na-3h',
-         'simulation-HATP1-ExoIo-Na-physical',
+PATHS = [#'simulation-HATP1-ExoIo-Na-3h',
+         #'simulation-HATP1-ExoIo-Na-physical',
          #'simulation-HD189-ExoIo-Na-physical',
-         'simulation-HD189-ExoIo-Na-3h-HighVel',
-         'simulation-HD189-ExoIo-Na-physical-HighVel',
-         'simulation-W17-ExoIo-Na-3h',
-         'simulation-W17-ExoIo-Na-3h-HighVel',
-         'simulation-W17-ExoIo-Na-physical',
-         'simulation-W17-ExoIo-Na-physical-HighVel',
-         'simulation-W39-ExoIo-Na-3h',
-         'simulation-W39-ExoIo-Na-3h-HighVel',
-         'simulation-W39-ExoIo-Na-physical',
-         'simulation-W39-ExoIo-Na-physical-HighVel',
-         'simulation-W49-ExoIo-Na-3h',
-         'simulation-W49-ExoIo-Na-3h-HighVel',
-         'simulation-W49-ExoIo-Na-physical',
-         'simulation-W49-ExoIo-Na-physical-HighVel',
-         #'simulation-W39-ExoIo-SO2-physical',
-         #'simulation-W39-ExoIo-SO2-physical-RAD',
-         #'simulation-W39-ExoIo-SO2-3h',
-         #'simulation-W39-ExoIo-SO2-3h-RAD',
+         #'simulation-HD189-ExoIo-Na-3h-HighVel',
+         #'simulation-HD189-ExoIo-Na-physical-HighVel',
+         #'simulation-W17-ExoIo-Na-3h',
+         #'simulation-W17-ExoIo-Na-3h-HighVel',
+         #'simulation-W17-ExoIo-Na-physical',
+         #'simulation-W17-ExoIo-Na-physical-HighVel',
+         #'simulation-W39-ExoIo-Na-3h',
+         #'simulation-W39-ExoIo-Na-3h-HighVel',
+         #'simulation-W39-ExoIo-Na-physical',
+         #'simulation-W39-ExoIo-Na-physical-HighVel',
+         #'simulation-W49-ExoIo-Na-3h',
+         #'simulation-W49-ExoIo-Na-3h-HighVel',
+         #'simulation-W49-ExoIo-Na-physical',
+         #'simulation-W49-ExoIo-Na-physical-HighVel',
+         #'simulation-W49-ExoEarth-Na-3h-HV',
+         #'simulation-W49-ExoEarth-Na-physical-HV',
+         #'simulation-W49-ExoIo-Na-3h-HV',
+         #'simulation-W49-ExoIo-Na-physical-HV',
+         #'simulation-W49-ExoEnce-Na-3h-HV',
+         #'simulation-W49-ExoEnce-Na-physical-HV',
+         #'simulation-W39-ExoIo-SO2-physical-fast',
+         #'simulation-W39-ExoIo-SO2-physical-RAD-fast',
+         #'simulation-W39-ExoIo-SO2-3h-fast',
+         #'simulation-W39-ExoIo-SO2-3h-RAD-fast',
          ]
 
 
@@ -40,13 +46,13 @@ def plot_run(path, top_down=True, LOS=False):
     print(f"Started {path[11:]}")
 
     print("\t copying ...")
-    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/archive.bin', f'{os.getcwd()}')
-    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/hash_library.pickle', f'{os.getcwd()}')
-    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.pickle', f'{os.getcwd()}')
-    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
+    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/archive.bin', f'{os.getcwd()}')
+    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/hash_library.pickle', f'{os.getcwd()}')
+    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.pickle', f'{os.getcwd()}')
+    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
     print("\t ... done!")
 
-    sa = SerpensAnalyzer(save_output=True, folder_name=path[11:], reference_system="geocentric", r_cutoff=4)
+    sa = SerpensAnalyzer(save_output=True, folder_name=path[11:], r_cutoff=4)
 
     print("\t Creating plots ...")
     if top_down:
@@ -54,13 +60,13 @@ def plot_run(path, top_down=True, LOS=False):
                     colormesh=False, scatter=True, triplot=False, show=False,
                     smoothing=.5, trialpha=.7, lim=4,
                     celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-                    colormap=plt.cm.get_cmap("afmhot"), lvlmin=0, lvlmax=15)
+                    colormap=plt.cm.get_cmap("afmhot"), lvlmax=11, lvlmin=-5)
     if LOS:
         sa.los(timestep=np.arange(11, len(sa.sa) - len(sa.sa) % 5 + 1, 5),
                colormesh=False, scatter=True, show=False,
                show_planet=False, show_moon=False, lim=4,
                celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-               colormap=plt.cm.autumn, lvlmax=18, lvlmin=0)
+               colormap=plt.cm.autumn, lvlmax=18, lvlmin=3)
 
     print("\t ... done!")
     print("____________________________________________")
@@ -84,7 +90,7 @@ def generate_phase_curves():
         sa = SerpensAnalyzer(save_output=False, reference_system="geocentric", r_cutoff=4)
 
         print("\t Calculating phase curve ...")
-        sa.phase_curve(title=path[11:], fig=True, savefig=True, save_data=False, load_path=path)
+        sa.phase_curve(title=path[11:], fig=True, savefig=True, save_data=True)
         print("\t ... done!")
         print("____________________________________________")
 
@@ -165,10 +171,8 @@ def read_pkl():
     plt.show()
 
 
-#for path in PATHS:
-#    #plot_run(path)
-#    plot_run(path, top_down=False, LOS=True)
+for path in PATHS:
+    plot_run(path, top_down=False, LOS=True)
 
-#plot_run()
-generate_phase_curves()
+#generate_phase_curves()
 #read_pkl()

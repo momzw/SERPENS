@@ -112,7 +112,7 @@ class Parameters:
             for index, arg in enumerate(args):
                 cls.species[f"species{index + 1}"] = arg
             cls.num_species = len(args)
-            print("Globally modified species.")
+            print("Species loaded.")
 
     @classmethod
     def modify_objects(cls, moon="default", set=1, object=None, as_new_source=False, new_properties=None):
