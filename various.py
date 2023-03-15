@@ -276,10 +276,16 @@ sa = SerpensAnalyzer(save_output=False, reference_system='geocentric', r_cutoff=
 
 #sa.plot3d(121, log_cutoff=-5)
 
-#sa.phase_curve(save_data=False, load_path=['simulation-unnamed'],
-#               fig=True, part_dens=False)
+#sa.phase_curve(save_data=False, load_path=['simulation-HD189-ExoEarth-Na-physical-HV',
+#                                           #'simulation-HD189-ExoEarth-Na-3h-HV',
+#                                           #'simulation-HD189-ExoIo-Na-3h-HV',
+#                                           #'simulation-HD189-ExoEnce-Na-3h-HV',
+#                                           'simulation-HD189-ExoIo-Na-physical-HV',
+#                                           'simulation-HD189-ExoEnce-Na-physical-HV',
+#                                           ],
+#               fig=True, part_dens=False, column_dens=True, title='HD-189733 b')
 
-sa.transit_curve('simulation-unnamed')
+sa.transit_curve('simulation-HD189-ExoIo-Na-physical-HV')
 
 
 

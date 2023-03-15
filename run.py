@@ -11,34 +11,44 @@ matplotlib.rc('text', usetex=True)
 #plt.style.use('seaborn')
 
 
-PATHS = [#'simulation-HATP1-ExoIo-Na-3h',
-         #'simulation-HATP1-ExoIo-Na-physical',
-         #'simulation-HD189-ExoIo-Na-physical',
-         #'simulation-HD189-ExoIo-Na-3h-HighVel',
-         #'simulation-HD189-ExoIo-Na-physical-HighVel',
-         #'simulation-W17-ExoIo-Na-3h',
-         #'simulation-W17-ExoIo-Na-3h-HighVel',
-         #'simulation-W17-ExoIo-Na-physical',
-         #'simulation-W17-ExoIo-Na-physical-HighVel',
-         #'simulation-W39-ExoIo-Na-3h',
-         #'simulation-W39-ExoIo-Na-3h-HighVel',
-         #'simulation-W39-ExoIo-Na-physical',
-         #'simulation-W39-ExoIo-Na-physical-HighVel',
-         #'simulation-W49-ExoIo-Na-3h',
-         #'simulation-W49-ExoIo-Na-3h-HighVel',
-         #'simulation-W49-ExoIo-Na-physical',
-         #'simulation-W49-ExoIo-Na-physical-HighVel',
-         #'simulation-W49-ExoEarth-Na-3h-HV',
-         #'simulation-W49-ExoEarth-Na-physical-HV',
-         #'simulation-W49-ExoIo-Na-3h-HV',
-         #'simulation-W49-ExoIo-Na-physical-HV',
-         #'simulation-W49-ExoEnce-Na-3h-HV',
-         #'simulation-W49-ExoEnce-Na-physical-HV',
-         #'simulation-W39-ExoIo-SO2-physical-fast',
-         #'simulation-W39-ExoIo-SO2-physical-RAD-fast',
-         #'simulation-W39-ExoIo-SO2-3h-fast',
-         #'simulation-W39-ExoIo-SO2-3h-RAD-fast',
-         ]
+#PATHS = [#'simulation-HATP1-ExoIo-Na-3h',
+#         #'simulation-HATP1-ExoIo-Na-physical',
+#         #'simulation-HD189-ExoIo-Na-physical',
+#         #'simulation-HD189-ExoIo-Na-3h-HighVel',
+#         #'simulation-HD189-ExoIo-Na-physical-HighVel',
+#         #'simulation-W17-ExoIo-Na-3h',
+#         #'simulation-W17-ExoIo-Na-3h-HighVel',
+#         #'simulation-W17-ExoIo-Na-physical',
+#         #'simulation-W17-ExoIo-Na-physical-HighVel',
+#         #'simulation-W39-ExoIo-Na-3h',
+#         #'simulation-W39-ExoIo-Na-3h-HighVel',
+#         #'simulation-W39-ExoIo-Na-physical',
+#         #'simulation-W39-ExoIo-Na-physical-HighVel',
+#         #'simulation-W49-ExoIo-Na-3h',
+#         #'simulation-W49-ExoIo-Na-3h-HighVel',
+#         #'simulation-W49-ExoIo-Na-physical',
+#         #'simulation-W49-ExoIo-Na-physical-HighVel',
+#         #'simulation-W49-ExoEarth-Na-3h-HV',
+#         #'simulation-W49-ExoEarth-Na-physical-HV',
+#         #'simulation-W49-ExoIo-Na-3h-HV',
+#         #'simulation-W49-ExoIo-Na-physical-HV',
+#         #'simulation-W49-ExoEnce-Na-3h-HV',
+#         #'simulation-W49-ExoEnce-Na-physical-HV',
+#         #'simulation-W39-ExoIo-SO2-physical-fast',
+#         #'simulation-W39-ExoIo-SO2-physical-RAD-fast',
+#         #'simulation-W39-ExoIo-SO2-3h-fast',
+#         #'simulation-W39-ExoIo-SO2-3h-RAD-fast',
+#]
+
+PATHS = [#'simulation-HD189-Test',
+         'simulation-HD189-ExoEarth-Na-physical-HV',
+         'simulation-HD189-ExoIo-Na-3h-HV',
+         'simulation-HD189-ExoIo-Na-physical-HV',
+         'simulation-HD189-ExoEnce-Na-3h-HV',
+         'simulation-HD189-ExoEnce-Na-physical-HV',
+         'simulation-HD189-ExoIo-Na-physical-HighVel',
+         'simulation-HD189-ExoIo-Na-physical',
+]
 
 
 def plot_run(path, top_down=True, LOS=False):
@@ -87,10 +97,10 @@ def generate_phase_curves():
         shutil.copy2(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
         print("\t ... done!")
 
-        sa = SerpensAnalyzer(save_output=False, reference_system="geocentric", r_cutoff=4)
+        sa = SerpensAnalyzer(save_output=False, reference_system='geocentric', r_cutoff=4)
 
         print("\t Calculating phase curve ...")
-        sa.phase_curve(title=path[11:], fig=True, savefig=True, save_data=True)
+        sa.phase_curve(title=path[11:], fig=False, savefig=False, save_data=True)
         print("\t ... done!")
         print("____________________________________________")
 
@@ -171,8 +181,8 @@ def read_pkl():
     plt.show()
 
 
-for path in PATHS:
-    plot_run(path, top_down=False, LOS=True)
+#for path in PATHS:
+#    plot_run(path, top_down=True, LOS=False)
 
-#generate_phase_curves()
+generate_phase_curves()
 #read_pkl()

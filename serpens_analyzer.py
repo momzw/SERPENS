@@ -66,6 +66,7 @@ class SerpensAnalyzer:
         self._p_species = None
         self._p_weights = None
         self.cached_timestep = None
+        self.rotated_timesteps = []
 
         self.z_cutoff = z_cutoff
         self.r_cutoff = r_cutoff
@@ -146,11 +147,13 @@ class SerpensAnalyzer:
         self._sim_instance = self.sa[timestep]
 
         if self.reference_system == "geocentric":
-            phase = np.arctan2(self._sim_instance.particles["planet"].y, self._sim_instance.particles["planet"].x)
+            if timestep not in self.rotated_timesteps:
+                self.rotated_timesteps.append(timestep)
+                phase = np.arctan2(self._sim_instance.particles["planet"].y, self._sim_instance.particles["planet"].x)
 
-            reb_rot = rebound.Rotation(angle=phase, axis='z')
-            for particle in self._sim_instance.particles:
-                particle.rotate(reb_rot.inverse())
+                reb_rot = rebound.Rotation(angle=phase, axis='z')
+                for particle in self._sim_instance.particles:
+                    particle.rotate(reb_rot.inverse())
 
         self._p_positions = np.zeros((self._sim_instance.N, 3), dtype="float64")
         self._p_velocities = np.zeros((self._sim_instance.N, 3), dtype="float64")
@@ -569,8 +572,8 @@ class SerpensAnalyzer:
                 primary=second_instance.particles["planet"]).theta * 180 / np.pi)
             orbit_first_index = len(self.sa) - (second_instance_index + 360 / orbit_phase * second_instance_index)
 
-            if (orbit_first_index - orbit_first_index % 5 + 1 - 25) > second_instance_index:
-                ts_list = np.arange(orbit_first_index - orbit_first_index % 5 + 1 - 25,
+            if (orbit_first_index - orbit_first_index % 5 + 1) > second_instance_index:
+                ts_list = np.arange(orbit_first_index - orbit_first_index % 5 + 1,
                                     len(self.sa) - len(self.sa) % 5 + 1, 5)
             else:
                 ts_list = np.arange(orbit_first_index - orbit_first_index % 5 + 1,
@@ -578,18 +581,25 @@ class SerpensAnalyzer:
 
         elif isinstance(timesteps, int):
             ts_list.append(timesteps)
+            ts_list = np.asarray(ts_list)
         elif isinstance(timesteps, list):
-            ts_list = timesteps
+            ts_list = np.asarray(timesteps)
         elif isinstance(timesteps, np.ndarray):
-            ts_list = np.ndarray.tolist(timesteps)
+            ts_list = timesteps
         else:
             raise TypeError("top-down timestep has an invalid type. Use 'int', 'list' or 'ndarray'")
 
+        exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
+        exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
         phases = []
         for timestep in ts_list:
             self.__pull_data(int(timestep))
             phase = self._sim_instance.particles["moon"].calculate_orbit(primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
-            phases.append(phase)
+            if self.reference_system == 'geocentric':
+                shift = (timestep * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
+                phases.append((phase + shift) % 360)
+            else:
+                phases.append(phase)
 
         sort_index = np.argsort(phases)
         phases = np.asarray(phases)[sort_index]
@@ -601,7 +611,6 @@ class SerpensAnalyzer:
         shadow_ingress_phase = (2 * np.pi - shadow_phase) * 180 / np.pi
         shadow_egress_phase = shadow_phase * 180 / np.pi
 
-        exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
         impact_parameter = 0
         radius_ratio = first_instance.particles["planet"].r / first_instance.particles["star"].r
         transit_duration_total = exoplanet_orbit.P / np.pi * \
@@ -627,12 +636,17 @@ class SerpensAnalyzer:
             if isinstance(load_path, str):
                 load_path = [load_path]
             for path in load_path:
-                df = pd.read_pickle(f"./schedule_archive/phaseCurves/data/PhaseCurveData-{path[11:]}.pkl")
-                phase_suparray.append(df["phases"].values)
+                df = pd.read_pickle(f"./output/phaseCurves/data/PhaseCurveData-{path[11:]}.pkl")
+                #timesteps = df["timestep"].values
+                #shifts = (timesteps * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
+                # IF GEOCENTRIC:
+                #phase_values = (df["phases"].values + shifts) % 360
+                phase_values = df["phases"].values
+                phase_suparray.append(phase_values)
                 los_mean_suparray.append(df["mean_los"].values)
                 dens_mean_suparray.append(df["mean_dens"].values)
 
-        if (fig or savefig) and (column_dens or part_dens):
+        if (fig or savefig) and (column_dens or part_dens) and (load_path is not None):
 
             color1 = matplotlib.colors.to_hex('ivory')
             color2 = matplotlib.colors.to_hex('darkorange')
@@ -660,7 +674,7 @@ class SerpensAnalyzer:
             if part_dens:
                 rows += 1
 
-            fig = plt.figure(figsize=(15, 5*rows))
+            fig = plt.figure(figsize=(15, 5*rows), dpi=130)
             axs = []
             axs_index = 0
             for i in range(rows):
@@ -681,13 +695,17 @@ class SerpensAnalyzer:
                     sig = load_path[ind][18:20]
                     if sig == "Ea":
                         label = "Exo-Earth"
+                        color = 'green'
                     elif sig == "Io":
                         label = "Exo-Io"
+                        color = 'yellow'
                     elif sig == "En":
                         label = "Exo-Enceladus"
+                        color = 'blue'
                     else:
                         label = ''
-                    axs[axs_index].plot(phase_suparray[ind], dens_mean_suparray[ind], label=label)
+                        color = 'k'
+                    axs[axs_index].plot(phase_suparray[ind], dens_mean_suparray[ind], label=label, color=color, linewidth=3)
                 axs[axs_index].set_ylabel(r"log $\bar{n}$ [cm$^{-3}$]", fontsize=18)
                 axs[axs_index].set_xlim(left=0, right=360)
                 axs[axs_index].tick_params(axis='both', which='major', labelsize=16)
@@ -697,20 +715,24 @@ class SerpensAnalyzer:
 
             if column_dens:
                 for ind in range(len(load_path)):
-                    sig = load_path[ind][18:20]
+                    sig = load_path[ind][11:][(load_path[ind][11:].index('-') + 4):(load_path[ind][11:].index('-') + 6)]
                     if sig == "Ea":
                         label = "Exo-Earth"
+                        color = 'green'
                     elif sig == "Io":
                         label = "Exo-Io"
+                        color = 'yellow'
                     elif sig == "En":
                         label = "Exo-Enceladus"
+                        color = 'blue'
                     else:
                         label = ''
-                    axs[axs_index].plot(phase_suparray[ind], los_mean_suparray[ind], label=label)
-                axs[axs_index].set_ylabel(r"log $\bar{N}$ [cm$^{-2}$]", fontsize=18)
+                        color = 'k'
+                    axs[axs_index].plot(phase_suparray[ind], los_mean_suparray[ind], label=label, color=color, linewidth=3)
+                axs[axs_index].set_ylabel(r"log $\bar{N}$ [cm$^{-2}$]", fontsize=20)
                 axs[axs_index].set_xlim(left=0, right=360)
-                axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=18)
-                axs[axs_index].tick_params(axis='both', which='major', labelsize=16)
+                axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=20)
+                axs[axs_index].tick_params(axis='both', which='major', labelsize=20)
 
             if part_dens:
                 axs[0].set_title(f"Phase-Density Curves: $\mathbf{{{title}}}$", fontsize=22, y=1.0, pad=-27)
@@ -726,14 +748,17 @@ class SerpensAnalyzer:
                 for k, ax in enumerate(axs):
                     ax.axvspan(first_range[i], first_range[i + 1], facecolor=colors2[i], alpha=0.8)
                     ax.axvspan(second_range[i], second_range[i + 1], facecolor=colors1[i], alpha=0.8)
-                    ax.axvspan(shadow_ingress_phase, 360, facecolor='dimgray', alpha=0.5, label="_"*i+"Shadow")
-                    ax.axvspan(0, shadow_egress_phase, facecolor='dimgray', alpha=0.5)
+                    ax.axvspan(shadow_ingress_phase, 360, facecolor='darkgray', alpha=0.5, label="_"*i+"Shadow")
+                    ax.axvspan(0, shadow_egress_phase, facecolor='darkgray', alpha=0.5)
                     if column_dens and k == axs_index:
-                        axs[k].axvspan(los_ingress_phase, los_egress_phase, facecolor='black', alpha=0.5,
-                                       hatch='/', fill=False, label="_" * i + "Hidden")
-                    leg = ax.legend(loc='upper right', framealpha=0.5, fontsize=16)
+                        #axs[k].axvspan(los_ingress_phase, los_egress_phase, facecolor='black', alpha=0.5,
+                        #               hatch='/', fill=False, label="_" * i + "Hidden")
+                        axs[k].axvline(los_ingress_phase, linestyle='--', color='k')
+                        axs[k].axvline(los_egress_phase, linestyle='--', color='k')
+                    leg = ax.legend(loc='lower right', framealpha=1, fontsize=16)
                     for lh in leg.legendHandles:
                         lh.set_alpha(1)
+                    ax.locator_params(axis='y', nbins=7)
 
             plt.tight_layout()
 
@@ -760,10 +785,9 @@ class SerpensAnalyzer:
 
         first_instance = self.sa[0]
 
-        df = pd.read_pickle(f"./schedule_archive/phaseCurves/data/PhaseCurveData-{phase_curve_datapath[11:]}.pkl")
+        df = pd.read_pickle(f"./output/phaseCurves/data/PhaseCurveData-{phase_curve_datapath[11:]}.pkl")
         exomoon_phase = df["phases"].values
         exomoon_los_mean = df["mean_los"].values
-
 
         exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
         exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
