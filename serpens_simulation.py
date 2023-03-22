@@ -430,7 +430,10 @@ class SerpensSimulation:
 
                 for hash in dc_remove:
                     dc.remove(hash=hash)
-                    del self.hash_dict[f"{hash.value}"]
+                    try:
+                        del self.hash_dict[f"{hash.value}"]
+                    except:
+                        continue
                     num_lost += 1
 
             t = self.__sim_deepcopies[0].t

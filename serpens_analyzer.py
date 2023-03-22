@@ -151,9 +151,34 @@ class SerpensAnalyzer:
                 self.rotated_timesteps.append(timestep)
                 phase = np.arctan2(self._sim_instance.particles["planet"].y, self._sim_instance.particles["planet"].x)
 
+                # TEMPORARY !!!!!!!
+                # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                inclinations = np.radians(90 - np.array([84.89, 85.51, 	86.59, 85.634, 87.83, 86.83, 86.71]))
+                system_name = self.params.species["species1"].description[:self.params.species["species1"].description.find(' ')]
+                if system_name == "WASP-49":
+                    inc = inclinations[0]
+                elif system_name == "HD-189733":
+                    inc = inclinations[1]
+                elif system_name == "HD-209458":
+                    inc = inclinations[2]
+                elif system_name == "HAT-P-1":
+                    inc = inclinations[3]
+                elif system_name == "WASP-39":
+                    inc = inclinations[4]
+                elif system_name == "WASP-17":
+                    inc = inclinations[5]
+                elif system_name == "WASP-69":
+                    inc = inclinations[6]
+                else:
+                    inc = 0
+                # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+                inc = np.radians(25)
                 reb_rot = rebound.Rotation(angle=phase, axis='z')
+                reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
                 for particle in self._sim_instance.particles:
                     particle.rotate(reb_rot.inverse())
+                    particle.rotate(reb_rot_inc)
 
         self._p_positions = np.zeros((self._sim_instance.N, 3), dtype="float64")
         self._p_velocities = np.zeros((self._sim_instance.N, 3), dtype="float64")
@@ -592,18 +617,6 @@ class SerpensAnalyzer:
         exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
         exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
         phases = []
-        for timestep in ts_list:
-            self.__pull_data(int(timestep))
-            phase = self._sim_instance.particles["moon"].calculate_orbit(primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
-            if self.reference_system == 'geocentric':
-                shift = (timestep * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
-                phases.append((phase + shift) % 360)
-            else:
-                phases.append(phase)
-
-        sort_index = np.argsort(phases)
-        phases = np.asarray(phases)[sort_index]
-        ts_list = ts_list[sort_index]
 
         shadow_phase = np.arctan2(first_instance.particles["planet"].r, first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"]).a)
         los_ingress_phase = (np.pi - shadow_phase) * 180 / np.pi
@@ -626,6 +639,21 @@ class SerpensAnalyzer:
         los_max_suparray = []
         dens_max_suparray = []
         if load_path is None:
+
+            for timestep in ts_list:
+                self.__pull_data(int(timestep))
+                phase = self._sim_instance.particles["moon"].calculate_orbit(
+                    primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
+                if self.reference_system == 'geocentric':
+                    shift = (timestep * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
+                    phases.append((phase + shift) % 360)
+                else:
+                    phases.append(phase)
+
+            sort_index = np.argsort(phases)
+            phases = np.asarray(phases)[sort_index]
+            ts_list = ts_list[sort_index]
+
             dens_max, dens_mean, los_max, los_mean = self.logDensities(ts_list)
             phase_suparray.append(phases)
             los_mean_suparray.append(los_mean)
@@ -674,7 +702,7 @@ class SerpensAnalyzer:
             if part_dens:
                 rows += 1
 
-            fig = plt.figure(figsize=(15, 5*rows), dpi=130)
+            fig = plt.figure(figsize=(12, 6*rows), dpi=150)
             axs = []
             axs_index = 0
             for i in range(rows):
@@ -690,6 +718,15 @@ class SerpensAnalyzer:
                                     fontsize=16)
                 axs[axs_index].add_artist(transit_arrow)
 
+                if '3h' in load_path[0]:
+                    axs[axs_index].text(.25, .9, r'$\tau = 3\mathrm{h}$',
+                                        ha='center', transform=axs[axs_index].transAxes,
+                                        fontsize=27, color='r')
+                else:
+                    axs[axs_index].text(.25, .9, r'$\tau = \tau_\gamma$',
+                                        ha='center', transform=axs[axs_index].transAxes,
+                                        fontsize=27, color='r')
+
             if part_dens:
                 for ind in range(len(load_path)):
                     sig = load_path[ind][18:20]
@@ -698,7 +735,7 @@ class SerpensAnalyzer:
                         color = 'green'
                     elif sig == "Io":
                         label = "Exo-Io"
-                        color = 'yellow'
+                        color = 'orangered'
                     elif sig == "En":
                         label = "Exo-Enceladus"
                         color = 'blue'
@@ -708,7 +745,7 @@ class SerpensAnalyzer:
                     axs[axs_index].plot(phase_suparray[ind], dens_mean_suparray[ind], label=label, color=color, linewidth=3)
                 axs[axs_index].set_ylabel(r"log $\bar{n}$ [cm$^{-3}$]", fontsize=18)
                 axs[axs_index].set_xlim(left=0, right=360)
-                axs[axs_index].tick_params(axis='both', which='major', labelsize=16)
+                axs[axs_index].tick_params(axis='both', which='major', labelsize=19)
                 if rows == 1:
                     axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=18)
                 axs_index += 1
@@ -721,18 +758,26 @@ class SerpensAnalyzer:
                         color = 'green'
                     elif sig == "Io":
                         label = "Exo-Io"
-                        color = 'yellow'
+                        color = 'orangered'
                     elif sig == "En":
                         label = "Exo-Enceladus"
                         color = 'blue'
                     else:
                         label = ''
                         color = 'k'
+                    #if ind == 0:
+                    #    label = "Exo-Io"
+                    #    color = 'yellow'
                     axs[axs_index].plot(phase_suparray[ind], los_mean_suparray[ind], label=label, color=color, linewidth=3)
                 axs[axs_index].set_ylabel(r"log $\bar{N}$ [cm$^{-2}$]", fontsize=20)
                 axs[axs_index].set_xlim(left=0, right=360)
                 axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=20)
-                axs[axs_index].tick_params(axis='both', which='major', labelsize=20)
+                axs[axs_index].tick_params(axis='both', which='major', labelsize=22)
+
+                axs[axs_index].axvline(los_ingress_phase, linestyle='--', color='k')
+                axs[axs_index].axvline(los_egress_phase, linestyle='--', color='k')
+                # axs[k].axvspan(los_ingress_phase, los_egress_phase, facecolor='black', alpha=0.5,
+                #               hatch='/', fill=False, label="_" * i + "Hidden")
 
             if part_dens:
                 axs[0].set_title(f"Phase-Density Curves: $\mathbf{{{title}}}$", fontsize=22, y=1.0, pad=-27)
@@ -750,15 +795,12 @@ class SerpensAnalyzer:
                     ax.axvspan(second_range[i], second_range[i + 1], facecolor=colors1[i], alpha=0.8)
                     ax.axvspan(shadow_ingress_phase, 360, facecolor='darkgray', alpha=0.5, label="_"*i+"Shadow")
                     ax.axvspan(0, shadow_egress_phase, facecolor='darkgray', alpha=0.5)
-                    if column_dens and k == axs_index:
-                        #axs[k].axvspan(los_ingress_phase, los_egress_phase, facecolor='black', alpha=0.5,
-                        #               hatch='/', fill=False, label="_" * i + "Hidden")
-                        axs[k].axvline(los_ingress_phase, linestyle='--', color='k')
-                        axs[k].axvline(los_egress_phase, linestyle='--', color='k')
-                    leg = ax.legend(loc='lower right', framealpha=1, fontsize=16)
-                    for lh in leg.legendHandles:
-                        lh.set_alpha(1)
-                    ax.locator_params(axis='y', nbins=7)
+
+            for k, ax in enumerate(axs):
+                ax.locator_params(axis='y', nbins=7, tight=True)
+                leg = ax.legend(loc='lower right', framealpha=1, fontsize=18)
+                for lh in leg.legendHandles:
+                    lh.set_alpha(1)
 
             plt.tight_layout()
 
@@ -791,14 +833,19 @@ class SerpensAnalyzer:
 
         exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
         exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
-        data_length = np.around(len(exomoon_phase) * exoplanet_orbit.P / exomoon_orbit.P).astype(int)
+        #data_length = np.around(len(exomoon_phase) * exoplanet_orbit.P / exomoon_orbit.P).astype(int)
+
+        delta_t = 5 * self.params.int_spec["sim_advance"] * exomoon_orbit.P
+        exoplanet_jump = 360/exoplanet_orbit.P * delta_t
+        exoplanet_phases = np.arange(-180, 180, exoplanet_jump)
+        data_length = len(exoplanet_phases)
 
         # Exomoon:
         exomoon_transit_depth_array = []
         exomoon_los_mean = np.concatenate((np.array_split(exomoon_los_mean, 2)[::-1]))
         exomoon_los_mean_array = np.array_split(np.resize(exomoon_los_mean, 5*data_length), 5)
         for i in range(len(exomoon_los_mean_array)):
-            exomoon_transit_depth_array.append(np.exp(-10**exomoon_los_mean_array[i] * 4.62e-12))
+            exomoon_transit_depth_array.append(np.exp(-10**exomoon_los_mean_array[i] * 9.84e-13))
 
         # Exoplanet:
         exoplanet_shadow_phase = np.arctan2(first_instance.particles["star"].r,
@@ -807,65 +854,60 @@ class SerpensAnalyzer:
         transit_ingress_phase = -exoplanet_shadow_phase * 180 / np.pi
         transit_egress_phase = exoplanet_shadow_phase * 180 / np.pi
         exoplanet_star_radius_ratio = first_instance.particles["planet"].r / first_instance.particles["star"].r
-        exoplanet_phases = np.linspace(-np.pi, np.pi, data_length) * 180 / np.pi
+        #exoplanet_phases = np.linspace(-np.pi, np.pi, data_length) * 180 / np.pi
         exoplanet_transit_depth = np.ones(data_length)
         exoplanet_transit_depth[np.where((exoplanet_phases > transit_ingress_phase) & (exoplanet_phases < transit_egress_phase))] = 1 - exoplanet_star_radius_ratio**2
 
-        fig = plt.figure(figsize=(12,8), dpi=200)
-        gs = fig.add_gridspec(2, 5, wspace=0.01, hspace=0)
+        fig = plt.figure(figsize=(12,3), dpi=200)
+        #gs = fig.add_gridspec(2, 5, wspace=0.01, hspace=0)
+        gs = fig.add_gridspec(1, 5, wspace=0.01)
         axs = gs.subplots(sharex=True)
-        #fig.suptitle('Transit Curve including an Exomoon')
 
         d = .5  # proportion of vertical to horizontal extent of the slanted line
         kwargs = dict(marker=[(-1, -d), (1, d)], markersize=12,
                       linestyle="none", color='k', mec='k', mew=1, clip_on=False, zorder=10)
         for i in range(5):
-            axs[0][i].plot(exoplanet_phases, exoplanet_transit_depth, label='Exoplanet', color='k')
-            axs[0][i].plot(exoplanet_phases, exomoon_transit_depth_array[i], label='Exomoon', color='orange')
-            axs[0][i].set_xlim(-50, 50)
-            axs[0][i].set_ylim(0.978, 1.001)
+            axs[i].plot(exoplanet_phases, exoplanet_transit_depth, label='Exoplanet', color='k')
+            axs[i].plot(exoplanet_phases, exomoon_transit_depth_array[i], label='Exomoon', color='orange')
+            axs[i].set_xlim(-50, 50)
+            axs[i].set_ylim(0.978, 1.001)
 
-            axs[1][i].plot(exoplanet_phases, exoplanet_transit_depth, color='k')
-            axs[1][i].set_xlim(-50, 50)
-            axs[1][i].set_ylim(0.978, 0.985)
+            #axs[1][i].plot(exoplanet_phases, exoplanet_transit_depth, color='k')
+            #axs[1][i].set_xlim(-50, 50)
+            #axs[1][i].set_ylim(0.978, 0.985)
 
-            axs[0][i].spines.bottom.set_visible(False)
-            axs[1][i].spines['top'].set_linestyle('dashed')
-            axs[1][i].spines['top'].set_capstyle("butt")
-            axs[0][i].xaxis.tick_top()
-            axs[0][i].tick_params(labeltop=False)  # don't put tick labels at the top
-            axs[1][i].xaxis.tick_bottom()
+            #axs[i].spines.bottom.set_visible(False)
+            #axs[1][i].spines['top'].set_linestyle('dashed')
+            #axs[1][i].spines['top'].set_capstyle("butt")
+            #axs[i].xaxis.tick_top()
+            axs[i].tick_params(labeltop=False)  # don't put tick labels at the top
+            #axs[1][i].xaxis.tick_bottom()
             if i > 0:
-                axs[0][i].get_yaxis().set_visible(False)
-                axs[0][i].spines['left'].set_linestyle('dashed')
-                axs[0][i].spines['left'].set_capstyle("butt")
-                axs[1][i].get_yaxis().set_visible(False)
-                axs[1][i].spines['left'].set_linestyle('dashed')
-                axs[1][i].spines['left'].set_capstyle("butt")
+                axs[i].get_yaxis().set_visible(False)
+                axs[i].spines['left'].set_linestyle('dashed')
+                axs[i].spines['left'].set_capstyle("butt")
+                #axs[1][i].get_yaxis().set_visible(False)
+                #axs[1][i].spines['left'].set_linestyle('dashed')
+                #axs[1][i].spines['left'].set_capstyle("butt")
             if i < 4:
-                axs[0][i].spines.right.set_visible(False)
-                axs[1][i].spines.right.set_visible(False)
-                axs[1][i].plot([1.01, 1], [0, 2], transform=axs[1][i].transAxes, **kwargs)
-            axs[1][i].locator_params(axis='x', nbins=5)
-            axs[0][i].zorder = 5 - i
-            axs[1][i].zorder = 5 - i
-            axs[1][i].tick_params(axis='x', which='major', labelsize=8)
+                axs[i].spines.right.set_visible(False)
+                #axs[1][i].spines.right.set_visible(False)
+                #axs[1][i].plot([1.01, 1], [0, 2], transform=axs[1][i].transAxes, **kwargs)
 
-        axs[0][0].set_ylabel(r"$\delta$")
-        axs[1][0].set_ylabel(r"$\delta$")
-        axs[0][-1].legend(loc='upper center', fontsize=8, framealpha=1)
-        axs[0][0].plot([0], [0], transform=axs[0][0].transAxes, **kwargs)
-        axs[0][0].locator_params(axis='y', nbins=4)
+            axs[i].zorder = 5 - i
+            axs[i].locator_params(axis='x', nbins=5)
+            # axs[1][i].locator_params(axis='x', nbins=5)
+            #axs[1][i].zorder = 5 - i
+            #axs[1][i].tick_params(axis='x', which='major', labelsize=8)
 
-        #plt.plot(exoplanet_phases[5:][masking(exoplanet_phases[5:])], exomoon_transit_depth[:-5][masking(exoplanet_phases[5:])] - 1*(1 - np.min(exomoon_transit_depth)), label='Modification 1', color='blue')
-        #plt.plot(exoplanet_phases[10:][masking(exoplanet_phases[10:])], exomoon_transit_depth[:-10][masking(exoplanet_phases[10:])] - 2*(1 - np.min(exomoon_transit_depth)), label='Modification 2', color='mediumblue')
-        #plt.plot(exoplanet_phases[15:][masking(exoplanet_phases[15:])], exomoon_transit_depth[:-15][masking(exoplanet_phases[15:])] - 3*(1 - np.min(exomoon_transit_depth)), label='Modification 3', color='darkblue')
-        #plt.plot(exoplanet_phases[20:][masking(exoplanet_phases[20:])], exomoon_transit_depth[:-20][masking(exoplanet_phases[20:])] - 4*(1 - np.min(exomoon_transit_depth)), label='Modification 4', color='navy')
-        #plt.plot(exoplanet_phases[25:][masking(exoplanet_phases[25:])], exomoon_transit_depth[:-25][masking(exoplanet_phases[25:])] - 5*(1 - np.min(exomoon_transit_depth)), label='Modification 5', color='midnightblue')
-        #plt.arrow(-10, np.max(exomoon_transit_depth), exoplanet_phases[10] - exoplanet_phases[0],
-        #          -2*(1-np.min(exomoon_transit_depth)),
-        #          width=0.0001/2, head_width=0.0001, head_length=1, fc='k', ec='k', zorder=10, alpha=.4, label='Shift')
-        fig.text(0.5, 0.03, r'Phase angle $\phi$ [$^{\circ}$]', ha='center')
+        axs[0].set_ylabel(r"$\delta$")
+        #axs[1][0].set_ylabel(r"$\delta$")
+        axs[-1].legend(loc='upper center', fontsize=8, framealpha=1)
+        #axs[0].plot([0], [0], transform=axs[0].transAxes, **kwargs)
+        axs[0].locator_params(axis='y', nbins=5)
+
+        fig.text(0.09, 0.04, r'$\phi$ [$^{\circ}$]:', ha='left')
+
         plt.show()
 
 

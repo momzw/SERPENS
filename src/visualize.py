@@ -94,7 +94,7 @@ class Visualize:
         if show_bool:
             if not len(by_label) == 0:
                 legend.remove()
-                #self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.735, 0.83), fontsize=10)
+                self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.735, 0.83), fontsize=10)
 
             if self.cf is None and self.c is None and self.scatter is None:
                 self.interactive = False
@@ -159,8 +159,8 @@ class Visualize:
             ps_planet_coord1 = self.ps["planet"].x
             ps_planet_coord2 = self.ps["planet"].y
 
-            ax.set_xlabel("x-distance in planetary radii", fontsize=15, labelpad=15)
-            ax.set_ylabel("y-distance in planetary radii", fontsize=15, labelpad=15)
+            ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15)
+            ax.set_ylabel("y-distance in planetary radii", fontsize=20, labelpad=15)
 
         elif perspective == "los":
             ps_star_coord1 = -self.ps["star"].y
@@ -168,8 +168,8 @@ class Visualize:
             ps_planet_coord1 = -self.ps["planet"].y
             ps_planet_coord2 = self.ps["planet"].z
 
-            ax.set_xlabel("y-distance in planetary radii", fontsize=15, labelpad=8)
-            ax.set_ylabel("z-distance in planetary radii", fontsize=15, labelpad=15)
+            ax.set_xlabel("y-distance in planetary radii", fontsize=20, labelpad=8)
+            ax.set_ylabel("z-distance in planetary radii", fontsize=20, labelpad=15)
 
         else:
             raise ValueError("Invalid perspective in plotting.")
@@ -217,8 +217,34 @@ class Visualize:
                 t1 = plt.Polygon([apex[:2], left_flank[:2], right_flank[:2]], color='black', alpha=0.7, zorder=10)
                 ax.add_patch(t1)
 
-                #star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), self.ps[0].r, fc=fc[0], zorder=10, label="star")
+                # ADDITIONAL STUFF
+                # =======
+                #star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), self.ps[0].r, fc=fc[0], zorder=3, label="star")
                 #ax.add_patch(star_patch)
+                #
+                #phase_planet = self.ps["planet"].theta
+                #phase_moon = self.ps["moon"].calculate_orbit(primary=self.ps["planet"]).theta
+                #arc_angles_planet = np.linspace(0, phase_planet, 20)
+                #arc_angles_moon = np.linspace(0, phase_moon, 80)
+                #arc_xs_planet = np.linalg.norm(self.ps["planet"].xyz[:2])/3 * np.cos(arc_angles_planet)
+                #arc_ys_planet = np.linalg.norm(self.ps["planet"].xyz[:2])/3 * np.sin(arc_angles_planet)
+                #arc_xs_moon = self.ps["planet"].x + np.linalg.norm(np.asarray(self.ps["moon"].xyz[:2]) - np.asarray(self.ps["planet"].xyz[:2])) * 3 * np.cos(arc_angles_moon)
+                #arc_ys_moon = self.ps["planet"].y + np.linalg.norm(np.asarray(self.ps["moon"].xyz[:2]) - np.asarray(self.ps["planet"].xyz[:2])) * 3 * np.sin(arc_angles_moon)
+                #ax.plot(arc_xs_planet, arc_ys_planet, color='whitesmoke', alpha=.8)
+                #ax.plot(arc_xs_moon, arc_ys_moon, color='whitesmoke', alpha=.8)
+                #ax.annotate(r"$\phi_P$", (np.take(arc_xs_planet, arc_xs_planet.size // 2), np.take(arc_ys_planet, arc_ys_planet.size // 2)),
+                #            color='whitesmoke', fontsize='xx-large', xytext=(10, 0), textcoords='offset points')
+                #ax.annotate(r"$\phi_s$", (np.take(arc_xs_moon, arc_xs_moon.size // 2), np.take(arc_ys_moon, arc_ys_moon.size // 2)),
+                #            color='whitesmoke', fontsize='xx-large', xytext=(-15, 5), textcoords='offset points')
+                #ax.plot([0, 2*self.ps["planet"].x], [0, 0], color="whitesmoke", alpha=.8)
+                #ax.plot([0, 0], [0, 2*self.ps["planet"].y], color="whitesmoke", alpha=.8)
+                #ax.plot([self.ps["planet"].x, self.ps["planet"].x + 10 * np.linalg.norm(np.asarray(self.ps["moon"].xyz[:2]) - np.asarray(self.ps["planet"].xyz[:2]))],
+                #        [self.ps["planet"].y, self.ps["planet"].y],
+                #        color="whitesmoke", alpha=.8, linestyle='--')
+                #ax.plot([self.ps["planet"].x, self.ps["planet"].x],
+                #        [self.ps["planet"].y, self.ps["planet"].y + 10 * np.linalg.norm(np.asarray(self.ps["moon"].xyz[:2]) - np.asarray(self.ps["planet"].xyz[:2]))],
+                #        color="whitesmoke", alpha=.8, linestyle='--')
+
 
         else:
             xlocs = np.linspace(-lim, lim, 13)
@@ -289,7 +315,7 @@ class Visualize:
                 axis='y',  # changes apply to the x-axis
                 which='both',  # both major and minor ticks are affected
                 left=False)
-        ax.tick_params(axis='both', which='major', labelsize=12)
+        ax.tick_params(axis='both', which='major', labelsize=20)
         #ax.set_xlabel('')
         #ax.set_ylabel('')
 
@@ -391,12 +417,12 @@ class Visualize:
 
         divider = make_axes_locatable(ax_obj)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        cax.tick_params(axis='both', which='major', labelsize=12)
+        cax.tick_params(axis='both', which='major', labelsize=20)
         self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical', format=kw['cb_format'])
         if perspective == 'los':
-            self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=12, loc='left', pad=12)
+            self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=20, loc='left', pad=12)
         else:
-            self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=12, loc='left', pad=12)
+            self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=20, loc='left', pad=12)
 
     def add_triplot(self, ax, x, y, simplices, perspective, **kwargs):
         kw = {

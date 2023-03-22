@@ -40,14 +40,43 @@ matplotlib.rc('text', usetex=True)
 #         #'simulation-W39-ExoIo-SO2-3h-RAD-fast',
 #]
 
-PATHS = [#'simulation-HD189-Test',
-         'simulation-HD189-ExoEarth-Na-physical-HV',
-         'simulation-HD189-ExoIo-Na-3h-HV',
-         'simulation-HD189-ExoIo-Na-physical-HV',
+PATHS = [#'simulation-HD189-ExoIo-Na-physical-UHV',
+         #'simulation-HD189-ExoEarth-Na-physical-HV',
+         #'simulation-HD189-ExoEarth-Na-3h-HV',
+         #'simulation-HD189-ExoIo-Na-3h-HV',
+         #'simulation-HD189-ExoIo-Na-physical-HV',
          'simulation-HD189-ExoEnce-Na-3h-HV',
-         'simulation-HD189-ExoEnce-Na-physical-HV',
-         'simulation-HD189-ExoIo-Na-physical-HighVel',
-         'simulation-HD189-ExoIo-Na-physical',
+         #'simulation-HD189-ExoEnce-Na-physical-HV',
+         #'simulation-W17-ExoEarth-Na-physical-HV',
+         #'simulation-W17-ExoEarth-Na-3h-HV',
+         #'simulation-W17-ExoIo-Na-physical-HV',
+         #'simulation-W17-ExoIo-Na-3h-HV',
+         #'simulation-W17-ExoEnce-Na-physical-HV',
+         #'simulation-W17-ExoEnce-Na-3h-HV',
+         #'simulation-W49-ExoEarth-Na-physical-HV',
+         #'simulation-W49-ExoEarth-Na-3h-HV',
+         #'simulation-W49-ExoIo-Na-physical-HV',
+         #'simulation-W49-ExoIo-Na-3h-HV',
+         #'simulation-W49-ExoEnce-Na-physical-HV',
+         #'simulation-W49-ExoEnce-Na-3h-HV',
+         #'simulation-W69-ExoEarth-Na-physical-HV',
+         #'simulation-W69-ExoEarth-Na-3h-HV',
+         #'simulation-W69-ExoIo-Na-physical-HV',
+         #'simulation-W69-ExoIo-Na-3h-HV',
+         #'simulation-W69-ExoEnce-Na-physical-HV',
+         #'simulation-W69-ExoEnce-Na-3h-HV',
+         #'simulation-HD209-ExoEarth-Na-physical-HV',
+         #'simulation-HD209-ExoEarth-Na-3h-HV',
+         #'simulation-HD209-ExoIo-Na-physical-HV',
+         #'simulation-HD209-ExoIo-Na-3h-HV',
+         #'simulation-HD209-ExoEnce-Na-physical-HV',
+         #'simulation-HD209-ExoEnce-Na-3h-HV',
+         #'simulation-HATP1-ExoEarth-Na-physical-HV',
+         #'simulation-HATP1-ExoEarth-Na-3h-HV',          # ???
+         #'simulation-HATP1-ExoIo-Na-physical-HV',
+         #'simulation-HATP1-ExoIo-Na-3h-HV',
+         #'simulation-HATP1-ExoEnce-Na-physical-HV',
+         #'simulation-HATP1-ExoEnce-Na-3h-HV',
 ]
 
 
@@ -62,7 +91,7 @@ def plot_run(path, top_down=True, LOS=False):
     shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
     print("\t ... done!")
 
-    sa = SerpensAnalyzer(save_output=True, folder_name=path[11:], r_cutoff=4)
+    sa = SerpensAnalyzer(save_output=True, folder_name=path[11:], reference_system='geocentric', r_cutoff=4)
 
     print("\t Creating plots ...")
     if top_down:
@@ -70,13 +99,13 @@ def plot_run(path, top_down=True, LOS=False):
                     colormesh=False, scatter=True, triplot=False, show=False,
                     smoothing=.5, trialpha=.7, lim=4,
                     celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-                    colormap=plt.cm.get_cmap("afmhot"), lvlmax=11, lvlmin=-5)
+                    colormap=plt.cm.get_cmap("afmhot"))
     if LOS:
         sa.los(timestep=np.arange(11, len(sa.sa) - len(sa.sa) % 5 + 1, 5),
                colormesh=False, scatter=True, show=False,
                show_planet=False, show_moon=False, lim=4,
                celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-               colormap=plt.cm.autumn, lvlmax=18, lvlmin=3)
+               colormap=plt.cm.autumn)
 
     print("\t ... done!")
     print("____________________________________________")
@@ -181,8 +210,8 @@ def read_pkl():
     plt.show()
 
 
-#for path in PATHS:
-#    plot_run(path, top_down=True, LOS=False)
+for path in PATHS:
+    plot_run(path, top_down=True, LOS=False)
 
-generate_phase_curves()
+#generate_phase_curves()
 #read_pkl()

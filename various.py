@@ -179,6 +179,53 @@ def calculate_vb(temperatures, v_M):
 #calculate_vb(temperatures=[7754, 1400, 1120, 1740, 963, 1200, 1450, 1322], v_M=[46.62, 15.24, 11.86, 16.02, 12.43, 23.8, 17.82, 13.35])
 
 
+def calculate_dsync():
+    import objects
+    w_init = 1.77e-4
+    alpha = 0.26
+    Q_diss = 1e6
+    gc = 6.6743e-11
+    tau_sync = 100e6 * 3.154e7
+    d_sync_au = []
+    for i in range(2, 10):
+        celest = objects.celestial_objects(moon=True, set=i)
+        star_mass = celest["star"]["m"]
+        planet_mass = celest["planet"]["m"]
+        planet_radius = celest["planet"]["r"]
+        d = (9/4 * 1/(alpha*Q_diss) * gc*planet_mass/planet_radius**3 * 1/w_init * star_mass**2/planet_mass**2 * planet_radius**6 * tau_sync)**(1/6)
+        d_sync_au.append(d * 6.68459e-12)
+    return d_sync_au
+
+
+def calculate_alfven(eta=.3):
+    import objects
+    gc = 6.6743e-11
+    ages = np.array([5, 4.3, 3.5, 3.6, 5, 3, 2, 9.4])
+    spt = np.array(['G', 'K', 'G', 'G', 'G', 'F', 'K', 'G'])
+    lxuv = np.zeros(8)
+    for i, type in enumerate(spt):
+        if type == 'G':
+            lxuv[i] = 0.19 * 10**29.35 * ages[i]**(-1.69)
+        elif type == 'K':
+            lxuv[i] = 0.234 * 10**28.87 * ages[i]**(-1.72)
+        elif type == 'F':
+            lxuv[i] = 0.155 * 10**29.83 * ages[i]**(-1.72)
+
+    dmdt_therm = []
+    for j in range(2, 10):
+        celest = objects.celestial_objects(moon=True, set=j)
+        star_mass = celest["star"]["m"]
+        planet_mass = celest["planet"]["m"]
+        planet_radius = celest["planet"]["r"]
+        semimajor = celest["planet"]["a"]
+        xi = semimajor * (1/(3*planet_radius**3) * planet_mass/star_mass)**(1/3)
+        k = 1 - 3/2 * xi - 1/(2 * xi**3)
+        mass_loss = eta/(4 * gc * k) * planet_radius**3/(semimajor**2 * planet_mass) * lxuv[j-2]*1e-7 * 1e3
+        dmdt_therm.append(mass_loss)
+
+    return np.asarray(dmdt_therm)
+
+
 def velocity_distributions():
     from scipy.stats import maxwell
 
@@ -218,7 +265,7 @@ def velocity_distributions():
         f_pdf = normalization * phi_unnorm(x)
         return f_pdf
 
-    fig, ax = plt.subplots(1, 1, figsize=(10,6), dpi=200)
+    fig, ax = plt.subplots(1, 1, figsize=(10,6), dpi=150)
     #fig.suptitle("Velocity Distributions", fontsize='x-large')
     ax.plot(x, maxwell.pdf(x, scale=maxwell_scale_eq), label=r'Maxwell $T_{\mathrm{eq}}$', color='blue')
     ax.plot(x, maxwell.pdf(x, scale=maxwell_scale_tidal), label=r'Maxwell $T_{\mathrm{tidal}}$', color='cornflowerblue')
@@ -231,10 +278,10 @@ def velocity_distributions():
     formatter.set_powerlimits((-1, 1))
     ax.yaxis.set_major_formatter(formatter)
 
-    ax.set_ylabel("Probability density", fontsize=16)
-    ax.set_xlabel("Velocity in m/s", fontsize=16)
-    ax.tick_params(axis='both', which='major', labelsize=12)
-    plt.legend(prop={'size': 14}, framealpha=1)
+    ax.set_ylabel(r"Probability density [10$^{-4}$]", fontsize=22)
+    ax.set_xlabel("Velocity in m/s", fontsize=22)
+    ax.tick_params(axis='both', which='major', labelsize=20)
+    plt.legend(prop={'size': 22}, framealpha=1)
     plt.grid()
     plt.tight_layout()
     plt.savefig("veldist.png")
@@ -261,33 +308,39 @@ def read_nc():
     ntheta = data['ntheta'][:][0]
     nphi = data['nphi'][:][0]
     nr = data['nr'][:][0]
-    rmin, rmax = np.min(data['r_low'][0,0,:]), np.max(data['r_upp'][0, 0, :])
+    rmin, rmax = np.min(data['r_low'][0, 0, :]), np.max(data['r_upp'][0, 0, :])
 
 
-sa = SerpensAnalyzer(save_output=False, reference_system='geocentric', r_cutoff=4)
+#mass_loss_therm = calculate_alfven(.15)
+#alfven_radii = (1e6/(-mass_loss_therm))**(1/5) * 19.8
+#print(np.log10(-mass_loss_therm))
+#print(alfven_radii)
 
-#sa.top_down(timestep=131, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.7, lim=4,
-#            celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
+
+sa = SerpensAnalyzer(save_output=False, reference_system="geocentric", r_cutoff=4)
+
+#sa.top_down(timestep=221, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.7, lim=4,
+#            celest_colors=['orange', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
 #            colormap=plt.cm.get_cmap("afmhot"))
 
-#sa.los(timestep=211, show=True, show_planet=False, show_moon=False, lim=4,
+#sa.los(timestep=351, show=True, show_planet=False, show_moon=False, lim=4,
 #       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=True, colormesh=False,
 #       colormap=plt.cm.autumn)
 
 #sa.plot3d(121, log_cutoff=-5)
 
-#sa.phase_curve(save_data=False, load_path=['simulation-HD189-ExoEarth-Na-physical-HV',
-#                                           #'simulation-HD189-ExoEarth-Na-3h-HV',
-#                                           #'simulation-HD189-ExoIo-Na-3h-HV',
-#                                           #'simulation-HD189-ExoEnce-Na-3h-HV',
-#                                           'simulation-HD189-ExoIo-Na-physical-HV',
-#                                           'simulation-HD189-ExoEnce-Na-physical-HV',
-#                                           ],
-#               fig=True, part_dens=False, column_dens=True, title='HD-189733 b')
+sa.phase_curve(save_data=False, load_path=['simulation-W49-ExoEarth-Na-physical-HV',
+                                           'simulation-W49-ExoIo-Na-physical-HV',
+                                           'simulation-W49-ExoEnce-Na-physical-HV',
+                                           #'simulation-HD189-ExoIo-Na-physical-UHV',
+                                           #'simulation-W69-ExoEnce-Na-3h-HV',
+                                           #'simulation-W69-ExoEarth-Na-physical-HV',
+                                           #'simulation-W69-ExoIo-Na-physical-HV',
+                                           #'simulation-W69-ExoEnce-Na-physical-HV',
+                                           ],
+               fig=True, part_dens=False, column_dens=True, title='HD-189733 b')
 
-sa.transit_curve('simulation-HD189-ExoIo-Na-physical-HV')
-
-
+#sa.transit_curve('simulation-HD189-ExoIo-Na-physical-HV')
 
 
 #dens = sa.get_densities(151)

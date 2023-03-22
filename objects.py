@@ -1,5 +1,6 @@
-__all__ = ['celestial_objects']
+import numpy as np
 
+__all__ = ['celestial_objects']
 
 def celestial_objects(moon, set=1):
     m_sol = 1.988e30
@@ -194,6 +195,27 @@ def celestial_objects(moon, set=1):
                        },
             "moon": {"m": 8.8e22,
                      "a": 1.94 * 1.06 * r_jup,
+                     "r": 1820e3,
+                     "primary": 'planet',
+                     "hash": 'moon'
+                     }
+        }
+
+        # WASP-96
+        # -------
+        celest9 = {
+            "star": {"m": 1.06 * m_sol,  # 0.83
+                     "r": 8.51 * 1.20 * r_jup,
+                     "hash": 'star',
+                     },
+            "planet": {"m": 0.48 * m_jup,
+                       "r": 1.20 * r_jup,
+                       "a": 9.28 * 8.51 * 1.20 * r_jup,
+                       "hash": 'planet',
+                       "primary": 'star',
+                       },
+            "moon": {"m": 8.8e22,
+                     "a": 2.10 * 1.20 * r_jup,
                      "r": 1820e3,
                      "primary": 'planet',
                      "hash": 'moon'
