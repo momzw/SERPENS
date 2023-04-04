@@ -3,11 +3,13 @@ import os as os
 import glob
 import shutil
 import rebound
-import reboundx
 import dill
 import matplotlib
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
 from matplotlib.patches import FancyArrowPatch
+from scipy.interpolate import make_interp_spline
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -15,6 +17,12 @@ from datetime import datetime
 from src import DTFE, DTFE3D
 from parameters import Parameters
 from src.visualize import Visualize
+
+matplotlib.use('TkAgg')
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
+#plt.style.use('seaborn-v0_8')
 
 
 class SerpensAnalyzer:
@@ -153,7 +161,7 @@ class SerpensAnalyzer:
 
                 # TEMPORARY !!!!!!!
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                inclinations = np.radians(90 - np.array([84.89, 85.51, 	86.59, 85.634, 87.83, 86.83, 86.71]))
+                inclinations = np.radians(90 - np.array([84.89, 85.51, 	86.59, 85.634, 87.83, 86.83, 86.71,	85.6, 88.7]))
                 system_name = self.params.species["species1"].description[:self.params.species["species1"].description.find(' ')]
                 if system_name == "WASP-49":
                     inc = inclinations[0]
@@ -169,11 +177,14 @@ class SerpensAnalyzer:
                     inc = inclinations[5]
                 elif system_name == "WASP-69":
                     inc = inclinations[6]
+                elif system_name == "WASP-96":
+                    inc = inclinations[7]
+                elif system_name == "XO-2N":
+                    inc = inclinations[8]
                 else:
                     inc = 0
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-                inc = np.radians(25)
                 reb_rot = rebound.Rotation(angle=phase, axis='z')
                 reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
                 for particle in self._sim_instance.particles:
@@ -334,7 +345,9 @@ class SerpensAnalyzer:
             "colormap": cm.afmhot,
             "single_plot": False,
             "fill_contour": True,
-            "contour": True
+            "contour": True,
+            "show_planet": True,
+            "show_moon": True
         }
         kw.update(kwargs)
 
@@ -367,23 +380,27 @@ class SerpensAnalyzer:
                     X, Y = self.__grid(ts)
                     self.__pull_data(ts)
                     vis.add_colormesh(k, X, Y, dens_grid, contour=kw["contour"], fill_contour=kw["fill_contour"], zorder=2, numlvls=25,
-                                      celest_colors=kw["celest_colors"], lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'], cfilter_coeff=kw["smoothing"])
+                                      celest_colors=kw["celest_colors"], lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'],
+                                      cfilter_coeff=kw["smoothing"], show_planet=kw["show_planet"], show_moon=kw["show_moon"])
 
                 if scatter:
                     vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, perspective="topdown",
                                            cb_format='%.2f', zorder=1, celest_colors=kw["celest_colors"],
-                                           vmin=kw["lvlmin"], vmax=kw["lvlmax"])
+                                           vmin=kw["lvlmin"], vmax=kw["lvlmax"], show_planet=kw["show_planet"], show_moon=kw["show_moon"])
 
                 if triplot:
                     if d == 3:
                         vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3], perspective="topdown",
-                                        alpha=kw["trialpha"], celest_colors=kw["celest_colors"])
+                                        alpha=kw["trialpha"], celest_colors=kw["celest_colors"],
+                                        show_planet=kw["show_planet"], show_moon=kw["show_moon"])
                     elif d == 2:
                         vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices, perspective="topdown",
-                                        zorder=2, alpha=kw["trialpha"], celest_colors=kw["celest_colors"])
+                                        zorder=2, alpha=kw["trialpha"], celest_colors=kw["celest_colors"],
+                                        show_planet=kw["show_planet"], show_moon=kw["show_moon"])
 
                 if d == 2:
                     vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
+                    vis.set_title("")
                 elif d == 3:
                     vis.set_title(r"Particle Densities $log_{10} (n[\mathrm{cm}^{-3}])$ around Planetary Body", size=25)
 
@@ -486,8 +503,8 @@ class SerpensAnalyzer:
     def plot3d(self, timestep, species_num=1, log_cutoff=None):
         self.__pull_data(timestep)
 
-        pos = self._p_positions[self._sim_instance.N_active:]
         species = self.params.get_species(num=species_num)
+        pos = self._p_positions[np.where(self._p_species == species.id)]
         dens, _ = self.dtfe(species, timestep, d=3, grid=False)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
@@ -514,7 +531,7 @@ class SerpensAnalyzer:
 
         fig.add_trace(go.Surface(x=x, y=y, z=z, surfacecolor=np.zeros(shape=x.shape), showscale=False))
         fig.update_coloraxes(colorbar_exponentformat='e')
-        fig.update_layout(scene_aspectmode='cube')
+        fig.update_layout(scene_aspectmode='data')
         fig.show()
 
         np.seterr(divide='warn')
@@ -577,250 +594,6 @@ class SerpensAnalyzer:
             los_mean.append(np.mean(logDens2dInvSort))
 
         return dens_max, dens_mean, los_max, los_mean
-
-    def phase_curve(self, timesteps='auto', title='unnamed', fig=True, savefig=False, save_data=False,
-                    load_path=None, column_dens=True, part_dens=True):
-        import matplotlib.pyplot as plt
-        # REBX: instances, rebx = self.sa
-        first_instance = self.sa[0]
-        advances_per_orbit = 1/self.params.int_spec["sim_advance"]
-
-        if len(self.sa) < advances_per_orbit:
-            print("No orbit has been completed.")
-            return
-
-        ts_list = []
-        if timesteps == 'auto':
-            second_instance_index = int(list(self.hash_supdict.keys())[1])
-            second_instance = self.sa[second_instance_index]
-            orbit_phase = np.around(second_instance.particles["moon"].calculate_orbit(
-                primary=second_instance.particles["planet"]).theta * 180 / np.pi)
-            orbit_first_index = len(self.sa) - (second_instance_index + 360 / orbit_phase * second_instance_index)
-
-            if (orbit_first_index - orbit_first_index % 5 + 1) > second_instance_index:
-                ts_list = np.arange(orbit_first_index - orbit_first_index % 5 + 1,
-                                    len(self.sa) - len(self.sa) % 5 + 1, 5)
-            else:
-                ts_list = np.arange(orbit_first_index - orbit_first_index % 5 + 1,
-                                    len(self.sa) - len(self.sa) % 5 + 1, 5)
-
-        elif isinstance(timesteps, int):
-            ts_list.append(timesteps)
-            ts_list = np.asarray(ts_list)
-        elif isinstance(timesteps, list):
-            ts_list = np.asarray(timesteps)
-        elif isinstance(timesteps, np.ndarray):
-            ts_list = timesteps
-        else:
-            raise TypeError("top-down timestep has an invalid type. Use 'int', 'list' or 'ndarray'")
-
-        exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
-        exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
-        phases = []
-
-        shadow_phase = np.arctan2(first_instance.particles["planet"].r, first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"]).a)
-        los_ingress_phase = (np.pi - shadow_phase) * 180 / np.pi
-        los_egress_phase = (np.pi + shadow_phase) * 180 / np.pi
-        shadow_ingress_phase = (2 * np.pi - shadow_phase) * 180 / np.pi
-        shadow_egress_phase = shadow_phase * 180 / np.pi
-
-        impact_parameter = 0
-        radius_ratio = first_instance.particles["planet"].r / first_instance.particles["star"].r
-        transit_duration_total = exoplanet_orbit.P / np.pi * \
-                                 np.arcsin(first_instance.particles["star"].r/exoplanet_orbit.a *
-                                           np.sqrt((1 + radius_ratio)**2 - impact_parameter**2)
-                                           / np.sin(np.pi/2 - exoplanet_orbit.inc))
-        phases_per_transit = 2*np.pi / first_instance.particles["moon"].calculate_orbit(
-            primary=first_instance.particles["planet"]).P * transit_duration_total
-
-        phase_suparray = []
-        los_mean_suparray = []
-        dens_mean_suparray = []
-        los_max_suparray = []
-        dens_max_suparray = []
-        if load_path is None:
-
-            for timestep in ts_list:
-                self.__pull_data(int(timestep))
-                phase = self._sim_instance.particles["moon"].calculate_orbit(
-                    primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
-                if self.reference_system == 'geocentric':
-                    shift = (timestep * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
-                    phases.append((phase + shift) % 360)
-                else:
-                    phases.append(phase)
-
-            sort_index = np.argsort(phases)
-            phases = np.asarray(phases)[sort_index]
-            ts_list = ts_list[sort_index]
-
-            dens_max, dens_mean, los_max, los_mean = self.logDensities(ts_list)
-            phase_suparray.append(phases)
-            los_mean_suparray.append(los_mean)
-            dens_mean_suparray.append(dens_mean)
-            los_max_suparray.append(los_max)
-            dens_max_suparray.append(dens_max)
-        else:
-            if isinstance(load_path, str):
-                load_path = [load_path]
-            for path in load_path:
-                df = pd.read_pickle(f"./output/phaseCurves/data/PhaseCurveData-{path[11:]}.pkl")
-                #timesteps = df["timestep"].values
-                #shifts = (timesteps * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
-                # IF GEOCENTRIC:
-                #phase_values = (df["phases"].values + shifts) % 360
-                phase_values = df["phases"].values
-                phase_suparray.append(phase_values)
-                los_mean_suparray.append(df["mean_los"].values)
-                dens_mean_suparray.append(df["mean_dens"].values)
-
-        if (fig or savefig) and (column_dens or part_dens) and (load_path is not None):
-
-            color1 = matplotlib.colors.to_hex('ivory')
-            color2 = matplotlib.colors.to_hex('darkorange')
-
-            def hex_to_RGB(hex_str):
-                """ #FFFFFF -> [255,255,255]"""
-                # Pass 16 to the integer function for change of base
-                return [int(hex_str[i:i + 2], 16) for i in range(1, 6, 2)]
-
-            def get_color_gradient(c1, c2, n):
-                """
-                Given two hex colors, returns a color gradient
-                with n colors.
-                """
-                assert n > 1
-                c1_rgb = np.array(hex_to_RGB(c1)) / 255
-                c2_rgb = np.array(hex_to_RGB(c2)) / 255
-                mix_pcts = [x / (n - 1) for x in range(n)]
-                rgb_colors = [((1 - mix) * c1_rgb + (mix * c2_rgb)) for mix in mix_pcts]
-                return ["#" + "".join([format(int(round(val * 255)), "02x") for val in item]) for item in rgb_colors]
-
-            rows = 0
-            if column_dens:
-                rows += 1
-            if part_dens:
-                rows += 1
-
-            fig = plt.figure(figsize=(12, 6*rows), dpi=150)
-            axs = []
-            axs_index = 0
-            for i in range(rows):
-                ax = fig.add_subplot(rows, 1, i+1)
-                axs.append(ax)
-                transit_arrow = FancyArrowPatch(posA=(35 / 360, .1),
-                                                posB=((35 + phases_per_transit * 180 / np.pi) / 360, .1),
-                                                arrowstyle='|-|', color='k',
-                                                shrinkA=0, shrinkB=0, mutation_scale=10, zorder=10,
-                                                transform=axs[axs_index].transAxes)
-                axs[axs_index].text((35 + (phases_per_transit * 180 / np.pi) / 2) / 360, 0.11, 'Transit',
-                                    ha='center', transform=axs[axs_index].transAxes,
-                                    fontsize=16)
-                axs[axs_index].add_artist(transit_arrow)
-
-                if '3h' in load_path[0]:
-                    axs[axs_index].text(.25, .9, r'$\tau = 3\mathrm{h}$',
-                                        ha='center', transform=axs[axs_index].transAxes,
-                                        fontsize=27, color='r')
-                else:
-                    axs[axs_index].text(.25, .9, r'$\tau = \tau_\gamma$',
-                                        ha='center', transform=axs[axs_index].transAxes,
-                                        fontsize=27, color='r')
-
-            if part_dens:
-                for ind in range(len(load_path)):
-                    sig = load_path[ind][18:20]
-                    if sig == "Ea":
-                        label = "Exo-Earth"
-                        color = 'green'
-                    elif sig == "Io":
-                        label = "Exo-Io"
-                        color = 'orangered'
-                    elif sig == "En":
-                        label = "Exo-Enceladus"
-                        color = 'blue'
-                    else:
-                        label = ''
-                        color = 'k'
-                    axs[axs_index].plot(phase_suparray[ind], dens_mean_suparray[ind], label=label, color=color, linewidth=3)
-                axs[axs_index].set_ylabel(r"log $\bar{n}$ [cm$^{-3}$]", fontsize=18)
-                axs[axs_index].set_xlim(left=0, right=360)
-                axs[axs_index].tick_params(axis='both', which='major', labelsize=19)
-                if rows == 1:
-                    axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=18)
-                axs_index += 1
-
-            if column_dens:
-                for ind in range(len(load_path)):
-                    sig = load_path[ind][11:][(load_path[ind][11:].index('-') + 4):(load_path[ind][11:].index('-') + 6)]
-                    if sig == "Ea":
-                        label = "Exo-Earth"
-                        color = 'green'
-                    elif sig == "Io":
-                        label = "Exo-Io"
-                        color = 'orangered'
-                    elif sig == "En":
-                        label = "Exo-Enceladus"
-                        color = 'blue'
-                    else:
-                        label = ''
-                        color = 'k'
-                    #if ind == 0:
-                    #    label = "Exo-Io"
-                    #    color = 'yellow'
-                    axs[axs_index].plot(phase_suparray[ind], los_mean_suparray[ind], label=label, color=color, linewidth=3)
-                axs[axs_index].set_ylabel(r"log $\bar{N}$ [cm$^{-2}$]", fontsize=20)
-                axs[axs_index].set_xlim(left=0, right=360)
-                axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=20)
-                axs[axs_index].tick_params(axis='both', which='major', labelsize=22)
-
-                axs[axs_index].axvline(los_ingress_phase, linestyle='--', color='k')
-                axs[axs_index].axvline(los_egress_phase, linestyle='--', color='k')
-                # axs[k].axvspan(los_ingress_phase, los_egress_phase, facecolor='black', alpha=0.5,
-                #               hatch='/', fill=False, label="_" * i + "Hidden")
-
-            if part_dens:
-                axs[0].set_title(f"Phase-Density Curves: $\mathbf{{{title}}}$", fontsize=22, y=1.0, pad=-27)
-            else:
-                axs[0].set_title(f"Phase-Density Curves: $\mathbf{{{title}}}$", fontsize=22)
-
-            colors1 = get_color_gradient(color1, color2, 20)
-            colors2 = get_color_gradient(color2, color1, 20)
-
-            for i in range(0, 19):
-                first_range = np.linspace(shadow_egress_phase, los_ingress_phase, 20)
-                second_range = np.linspace(los_egress_phase, shadow_ingress_phase, 20)
-                for k, ax in enumerate(axs):
-                    ax.axvspan(first_range[i], first_range[i + 1], facecolor=colors2[i], alpha=0.8)
-                    ax.axvspan(second_range[i], second_range[i + 1], facecolor=colors1[i], alpha=0.8)
-                    ax.axvspan(shadow_ingress_phase, 360, facecolor='darkgray', alpha=0.5, label="_"*i+"Shadow")
-                    ax.axvspan(0, shadow_egress_phase, facecolor='darkgray', alpha=0.5)
-
-            for k, ax in enumerate(axs):
-                ax.locator_params(axis='y', nbins=7, tight=True)
-                leg = ax.legend(loc='lower right', framealpha=1, fontsize=18)
-                for lh in leg.legendHandles:
-                    lh.set_alpha(1)
-
-            plt.tight_layout()
-
-            if not os.path.exists(f'output/phaseCurves'):
-                os.makedirs(f'output/phaseCurves')
-
-            if savefig:
-                plt.savefig(f'output/phaseCurves/{title}.png', bbox_inches='tight')
-            else:
-                plt.show()
-
-        if save_data and (load_path is None):
-            d = {"phases": phases, "timestep": ts_list, "max_dens": dens_max_suparray[0], "max_los": los_max_suparray[0],
-                 "mean_dens": dens_mean_suparray[0], "mean_los": los_mean_suparray[0]}
-            df = pd.DataFrame(data=d)
-
-            if not os.path.exists(f'output/phaseCurves/data'):
-                os.makedirs(f'output/phaseCurves/data')
-
-            df.to_pickle(f"./output/phaseCurves/data/PhaseCurveData-{title}.pkl")
 
     def transit_curve(self, phase_curve_datapath):
         import matplotlib.pyplot as plt
@@ -911,6 +684,344 @@ class SerpensAnalyzer:
         plt.show()
 
 
+class PhaseCurve(SerpensAnalyzer):
+
+    def __init__(self, title='unnamed', archive_from=None):
+        self.title = title
+
+        if archive_from is not None:
+            if "simulation-" not in archive_from:
+                print("Error, wrong format in archive_from argument.")
+                print("Please enter a 'simulation-' folder name that has a previously run serpens simulation archive inside.")
+                print("Example: 'simulation-W49-ExoIo-Na-3h-HV' \n")
+                raise Exception()
+
+            print("\t copying ...")
+            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/archive.bin', f'{os.getcwd()}')
+            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/hash_library.pickle', f'{os.getcwd()}')
+            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/Parameters.pickle', f'{os.getcwd()}')
+            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/Parameters.txt', f'{os.getcwd()}')
+            print("\t ... done!")
+
+        super().__init__(reference_system="geocentric")
+
+    def calculate_curve(self, save_data=True):
+
+        print("Calculating phase curve for present simulation instance... ")
+
+        second_instance_index = int(list(self.hash_supdict.keys())[1])
+        step = second_instance_index - 1
+        second_instance = self.sa[second_instance_index]
+        orbit_phase = np.around(second_instance.particles["moon"].calculate_orbit(primary=second_instance.particles["planet"]).theta * 180 / np.pi)
+        orbit_first_index = len(self.sa) - (second_instance_index + 360 / orbit_phase * second_instance_index)
+
+        if (orbit_first_index - orbit_first_index % step + 1) > second_instance_index:
+            ts_list = np.arange(orbit_first_index - orbit_first_index % step + 1,
+                                len(self.sa) - len(self.sa) % step + 1, step)
+        else:
+            ts_list = np.arange(orbit_first_index - orbit_first_index % step + 1,
+                                len(self.sa) - len(self.sa) % step + 1, step)
+
+        first_instance = self.sa[0]
+        exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
+        exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
+
+        phases = np.zeros(len(ts_list))
+
+        for i, timestep in enumerate(ts_list):
+            self.__pull_data(int(timestep))
+            phase = self._sim_instance.particles["moon"].calculate_orbit(
+                primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
+            if self.reference_system == 'geocentric':
+                shift = (timestep * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
+                phases[i] = (phase + shift) % 360
+            else:
+                phases[i] = phase
+        sort_index = np.argsort(phases)
+        phases = np.asarray(phases)[sort_index]
+        ts_list = ts_list[sort_index]
+
+        dens_max, dens_mean, los_max, los_mean = self.logDensities(ts_list)
+
+        if save_data:
+            d = {"phases": phases, "timestep": ts_list, "max_dens": dens_max, "max_los": los_max,
+                 "mean_dens": dens_mean, "mean_los": los_mean}
+            df = pd.DataFrame(data=d)
+
+            if not os.path.exists(f'output/phaseCurves/data'):
+                os.makedirs(f'output/phaseCurves/data')
+
+            df.to_pickle(f"./output/phaseCurves/data/PhaseCurveData-{self.title}.pkl")
+
+    def plot_curve_local(self):
+        pass
+
+    @staticmethod
+    def plot_curve_external(exoplanet_system, lifetime='photo', title='unnamed',
+                            savefig=False, column_dens=True, part_dens=False):
+        import objects
 
 
+        def hex_to_RGB(hex_str):
+            """ #FFFFFF -> [255,255,255]"""
+            # Pass 16 to the integer function for change of base
+            return [int(hex_str[i:i + 2], 16) for i in range(1, 6, 2)]
 
+        def get_color_gradient(c1, c2, n):
+            """
+            Given two hex colors, returns a color gradient
+            with n colors.
+            """
+            assert n > 1
+            c1_rgb = np.array(hex_to_RGB(c1)) / 255
+            c2_rgb = np.array(hex_to_RGB(c2)) / 255
+            mix_pcts = [x / (n - 1) for x in range(n)]
+            rgb_colors = [((1 - mix) * c1_rgb + (mix * c2_rgb)) for mix in mix_pcts]
+            return ["#" + "".join([format(int(round(val * 255)), "02x") for val in item]) for item in rgb_colors]
+
+        def lighten_color(color, amount=0.5):
+            """
+            Lightens the given color by multiplying (1-luminosity) by the given amount.
+            Input can be matplotlib color string, hex string, or RGB tuple.
+
+            Examples:
+            >> lighten_color('g', 0.3)
+            >> lighten_color('#F034A3', 0.6)
+            >> lighten_color((.3,.55,.1), 0.5)
+            """
+            import matplotlib.colors as mc
+            import colorsys
+            try:
+                c = mc.cnames[color]
+            except:
+                c = color
+            c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+            return colorsys.hls_to_rgb(c[0], 1 - amount * (1 - c[1]), c[2])
+
+
+        if lifetime == 'photo':
+            tau = 'physical'
+        elif lifetime == '3h':
+            tau = '3h'
+        else:
+            print("Please set 'lifetime' to either be 'photo' or '3h' to continue.")
+            return
+
+            # Set up link of exoplanet to data file
+        implemented = {'WASP-49': 'W49',
+                       'HD-189733': 'HD189',
+                       'HD-209458': 'HD209',
+                       'HAT-P-1': 'HATP1',
+                       'WASP-39': 'W39',
+                       'WASP-17': 'W17',
+                       'WASP-69': 'W69',
+                       'WASP-96': 'W96',
+                       'XO-2N': 'XO2N'}
+
+        # Get celestial object parameters
+        obj = objects.celestial_objects(moon=True, set=exoplanet_system)
+        star_r = obj["star"]["r"]
+        star_m = obj["star"]["m"]
+        planet_a = obj["planet"]["a"]
+        planet_r = obj["planet"]["r"]
+        planet_m = obj["planet"]["m"]
+        moon_a = obj["moon"]["a"]
+
+        # Get inclination
+        if "inc" in obj["planet"]:
+            planet_inc = obj["planet"]["inc"]
+        else:
+            planet_inc = 0
+
+        # Calculate orbital periods
+        G = 6.6743e-11
+        planet_P = 2 * np.pi * np.sqrt(planet_a ** 3 / (G * star_m))
+        moon_P = 2 * np.pi * np.sqrt(moon_a ** 3 / (G * planet_m))
+
+        # Calculate shadow and LOS blockade
+        shadow_phase = np.arctan2(planet_r, moon_a)
+        los_ingress_phase = (np.pi - shadow_phase) * 180 / np.pi
+        los_egress_phase = (np.pi + shadow_phase) * 180 / np.pi
+        shadow_ingress_phase = (2 * np.pi - shadow_phase) * 180 / np.pi
+        shadow_egress_phase = shadow_phase * 180 / np.pi
+
+        # Calculate transit duration
+        impact_parameter = 0
+        radius_ratio = planet_r / star_r
+        transit_duration_total = planet_P / np.pi * \
+                                 np.arcsin(star_r / planet_a *
+                                           np.sqrt((1 + radius_ratio) ** 2 - impact_parameter ** 2)
+                                           / np.sin(np.pi / 2 - planet_inc))
+        phases_per_transit = 2 * np.pi / moon_P * transit_duration_total
+
+        # Set up data retrieval paths
+        load_paths = [f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEarth-Na-{tau}-HV',
+                      f'simulation-{implemented[f"{exoplanet_system}"]}-ExoIo-Na-{tau}-HV',
+                      f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEnce-Na-{tau}-HV']
+
+        # Retrieve data
+        phase_suparray = []
+        los_mean_suparray = []
+        dens_mean_suparray = []
+        for path in load_paths:
+            df = pd.read_pickle(f"./output/phaseCurves/data/PhaseCurveData-{path[11:]}.pkl")
+            phase_values = df["phases"].values
+            phase_suparray.append(phase_values)
+            los_mean_suparray.append(df["mean_los"].values)
+            dens_mean_suparray.append(df["mean_dens"].values)
+
+        # Colors for background color gradient
+        color1 = matplotlib.colors.to_hex('ivory')
+        color2 = matplotlib.colors.to_hex('darkorange')
+
+        # Number of subplots
+        rows = 0
+        if column_dens:
+            rows += 1
+        if part_dens:
+            rows += 1
+
+        # Plot figure
+        fig = plt.figure(figsize=(12, 6 * rows), dpi=150)
+        axs = []
+        axs_index = 0
+        for i in range(rows):
+            ax = fig.add_subplot(rows, 1, i + 1)
+            axs.append(ax)
+            transit_arrow = FancyArrowPatch(posA=(35 / 360, .1),
+                                            posB=((35 + phases_per_transit * 180 / np.pi) / 360, .1),
+                                            arrowstyle='|-|', color='k',
+                                            shrinkA=0, shrinkB=0, mutation_scale=10, zorder=10,
+                                            transform=axs[axs_index].transAxes,
+                                            linewidth=1.5)
+            axs[axs_index].text((35 + (phases_per_transit * 180 / np.pi) / 2) / 360, 0.11, 'Transit',
+                                ha='center', transform=axs[axs_index].transAxes,
+                                fontsize=20)
+            axs[axs_index].add_artist(transit_arrow)
+
+            if '3h' in load_paths[0]:
+                axs[axs_index].text(.25, .6, r'$\tau = 3\mathrm{h}$',
+                                    ha='center', transform=axs[axs_index].transAxes,
+                                    fontsize=27, color='r')
+            else:
+                axs[axs_index].text(.25, .9, r'$\tau = \tau_\gamma$',
+                                    ha='center', transform=axs[axs_index].transAxes,
+                                    fontsize=27, color='r')
+
+        if part_dens:
+            for ind in range(len(load_paths)):
+                sig = load_paths[ind][11:][(load_paths[ind][11:].index('-') + 4):(load_paths[ind][11:].index('-') + 6)]
+                if sig == "Ea":
+                    label = r"$(M,R)_\oplus$"
+                    color = 'springgreen'
+                elif sig == "Io":
+                    label = r"$(M,R)_\mathrm{Io}$"
+                    color = "orangered"
+                elif sig == "En":
+                    label = r"$(M,R)_\mathrm{Enc}$"
+                    color = 'deepskyblue'
+                else:
+                    label = ''
+                    color = 'k'
+
+                step_size = np.ediff1d(phase_suparray[ind])
+                phases = []
+                dens_mean = []
+                for p in range(len(phase_suparray[ind]) - 1):
+                    if np.abs(phase_suparray[ind][p + 1] - phase_suparray[ind][p]) >= np.mean(step_size):
+                        phases.append(phase_suparray[ind][p])
+                        dens_mean.append(dens_mean_suparray[ind][p])
+
+                # Smooth the curve and plot
+                spl = make_interp_spline(phases, dens_mean, k=3)
+                X_ = np.linspace(min(phases), max(phases), 200)
+                Y_ = spl(X_)
+                axs[axs_index].plot(X_, Y_, label=label, color=color, linewidth=3, alpha=.9)
+                # axs[axs_index].plot(phase_suparray[ind], dens_mean_suparray[ind], label=label, color=color, linewidth=3)
+
+            axs[axs_index].set_ylabel(r"log $\bar{n}$ [cm$^{-3}$]", fontsize=18)
+            axs[axs_index].set_xlim(left=0, right=360)
+            axs[axs_index].tick_params(axis='both', which='major', labelsize=19)
+            if rows == 1:
+                axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=18)
+            axs_index += 1
+
+        if column_dens:
+            for ind in range(len(load_paths)):
+                sig = load_paths[ind][11:][(load_paths[ind][11:].index('-') + 4):(load_paths[ind][11:].index('-') + 6)]
+                if sig == "Ea":
+                    label = r"$(M,R)_\oplus$"
+                    color = 'springgreen'
+                elif sig == "Io":
+                    label = r"$(M,R)_\mathrm{Io}$"
+                    color = 'orangered'
+                elif sig == "En":
+                    label = r"$(M,R)_\mathrm{Enc}$"
+                    color = 'deepskyblue'
+                else:
+                    label = ''
+                    color = 'k'
+
+                step_size = np.ediff1d(phase_suparray[ind])
+                phases = []
+                los_mean = []
+                for p in range(len(phase_suparray[ind]) - 1):
+                    if np.abs(phase_suparray[ind][p + 1] - phase_suparray[ind][p]) >= .5 * np.mean(step_size):
+                        phases.append(phase_suparray[ind][p])
+                        los_mean.append(los_mean_suparray[ind][p])
+                spl = make_interp_spline(phases, los_mean, k=3)
+                X_ = np.linspace(min(phases), max(phases), 200)
+                Y_ = spl(X_)
+                axs[axs_index].plot(X_, Y_, label=label, color=color, linewidth=3, alpha=.9)
+
+            axs[axs_index].set_ylabel(r"log $\bar{N}$ [cm$^{-2}$]", fontsize=20)
+            axs[axs_index].set_xlim(left=0, right=360)
+            axs[axs_index].set_xlabel(r"exomoon phase $\phi \in$ [0, 360]$^\circ$", fontsize=20)
+            axs[axs_index].tick_params(axis='both', which='major', labelsize=22)
+
+            axs[axs_index].axvline(los_ingress_phase, linestyle='--', color='k')
+            axs[axs_index].axvline(los_egress_phase, linestyle='--', color='k')
+            # axs[k].axvspan(los_ingress_phase, los_egress_phase, facecolor='black', alpha=0.5,
+            #               hatch='/', fill=False, label="_" * i + "Hidden")
+
+        if part_dens:
+            axs[0].set_title(f"Phase-Density Curves: $\mathbf{{{title}}}$", fontsize=22)
+        else:
+            axs[0].set_title(f"Phase-Density Curves: $\mathbf{{{title}}}$", fontsize=22)
+
+        colors1 = get_color_gradient(color1, color2, 60)
+        colors2 = get_color_gradient(color2, color1, 60)
+        first_range = np.linspace(shadow_egress_phase, 180, 60)
+        second_range = np.linspace(180, shadow_ingress_phase, 60)
+
+        for i in range(0, 59):
+            for k, ax in enumerate(axs):
+                ax.axvspan(first_range[i], first_range[i + 1], facecolor=colors2[i], alpha=0.8)
+                ax.axvspan(second_range[i], second_range[i + 1], facecolor=colors1[i], alpha=0.8)
+
+        colors_shadow = get_color_gradient(matplotlib.colors.to_hex('black'), matplotlib.colors.to_hex('saddlebrown'),
+                                           20)
+        first_shadow_range = np.linspace(0, shadow_egress_phase, 20)
+        second_shadow_range = np.linspace(shadow_ingress_phase, 360, 20)
+        for i in range(0, 19):
+            for k, ax in enumerate(axs):
+                ax.axvspan(second_shadow_range[i], second_shadow_range[i + 1], facecolor=np.flip(colors_shadow)[i],
+                           alpha=1,
+                           label="_" * abs(i - 8) + "Shadow")
+                ax.axvspan(first_shadow_range[i], first_shadow_range[i + 1], facecolor=colors_shadow[i], alpha=1)
+
+        for k, ax in enumerate(axs):
+            ax.locator_params(axis='y', nbins=7, tight=True)
+            leg = ax.legend(loc=(.75, .05), framealpha=1, fontsize=19)
+            for lh in leg.legendHandles:
+                lh.set_alpha(1)
+
+        plt.tight_layout()
+
+        if not os.path.exists(f'output/phaseCurves'):
+            os.makedirs(f'output/phaseCurves')
+
+        if savefig:
+            plt.savefig(f'output/phaseCurves/{title}.png', dpi=1000, bbox_inches='tight')
+        else:
+            plt.show()

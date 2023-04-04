@@ -1,6 +1,6 @@
-import numpy as np
 
 __all__ = ['celestial_objects']
+
 
 def celestial_objects(moon, set=1):
     m_sol = 1.988e30
@@ -8,6 +8,22 @@ def celestial_objects(moon, set=1):
     r_sol = 696340e3
     r_jup = 69911e3
     au = 149597870700
+
+    if isinstance(set, str):
+        implemented = ['WASP-49',
+                       'HD-189733',
+                       'HD-209458',
+                       'HAT-P-1',
+                       'WASP-39',
+                       'WASP-17',
+                       'WASP-69',
+                       'WASP-96',
+                       'XO-2N']
+        try:
+            set = implemented.index(set) + 2
+        except:
+            print(f'System "{set}" has not been set up in the objects file. Implemented systems:')
+            print(implemented)
 
     if moon:
         # Jovian system
@@ -216,6 +232,27 @@ def celestial_objects(moon, set=1):
                        },
             "moon": {"m": 8.8e22,
                      "a": 2.10 * 1.20 * r_jup,
+                     "r": 1820e3,
+                     "primary": 'planet',
+                     "hash": 'moon'
+                     }
+        }
+
+        # XO-2 N
+        # -------
+        celest10 = {
+            "star": {"m": 0.98 * m_sol,  # 0.83
+                     "r": 9.64 * 0.97 * r_jup,
+                     "hash": 'star',
+                     },
+            "planet": {"m": 0.62 * m_jup,
+                       "r": 0.97 * r_jup,
+                       "a": 8.23 * 9.64 * 0.97 * r_jup,
+                       "hash": 'planet',
+                       "primary": 'star',
+                       },
+            "moon": {"m": 8.8e22,
+                     "a": 2.07 * 0.97 * r_jup,
                      "r": 1820e3,
                      "primary": 'planet',
                      "hash": 'moon'

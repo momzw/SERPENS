@@ -10,11 +10,16 @@ from parameters import Parameters
 from scipy.ndimage.filters import gaussian_filter
 from matplotlib.widgets import Slider, RangeSlider
 matplotlib.use('TkAgg')
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
+#plt.style.use('seaborn')
 
 
 class Visualize:
 
     # TODO (FOR LATER): Check out VISPY for fast interactive plots running on GPU
+    # TODO (FOR LATER): Check out Plotly as alternative
 
     def __init__(self, rebsim, interactive=True, cmap=plt.cm.afmhot, lim=35, singlePlot=False):
         params = Parameters()
@@ -32,7 +37,7 @@ class Visualize:
             self.subplot_columns = 1
             self.single = True
 
-        self.fig = plt.figure(figsize=(15, 15))
+        self.fig = plt.figure(figsize=(15, 15), dpi=200)
         gs1 = gridspec.GridSpec(self.subplot_rows, self.subplot_columns)
         gs1.update(wspace=0.2, hspace=0.1)
 
@@ -425,10 +430,13 @@ class Visualize:
             self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=20, loc='left', pad=12)
 
     def add_triplot(self, ax, x, y, simplices, perspective, **kwargs):
+        from matplotlib.ticker import AutoMinorLocator
         kw = {
             "zorder": 1,
             "celest_colors": ['royalblue', 'sandybrown', 'yellow'],
-            "alpha": .8
+            "alpha": .8,
+            "show_planet": True,
+            "show_moon": True
         }
         kw.update(kwargs)
 

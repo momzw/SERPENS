@@ -1,18 +1,20 @@
 import numpy as np
 import rebound
 import os
+import shutil
 from tqdm import tqdm
 import pandas as pd
 import copy
-from serpens_analyzer import SerpensAnalyzer
+from serpens_analyzer import SerpensAnalyzer, PhaseCurve
 import matplotlib.pyplot as plt
 import matplotlib
 import scipy.optimize as sp
 
 matplotlib.use('TkAgg')
-matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
 matplotlib.rc('text', usetex=True)
-#plt.style.use('seaborn')
+matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
+#plt.style.use('seaborn-v0_8')
 
 
 def orbit_sol():
@@ -64,6 +66,24 @@ def orbit_sol():
                       ["2023-02-22 11:50", 2459997.99590420],
                       ["2023-02-25 06:36", 2460000.77765964],
                       ["2023-02-28 01:22", 2460003.55941073],
+                      ["2023-10-11 09:04", 2460228.87978633],
+                      ["2023-10-25 06:52", 2460242.78908222],
+                      ["2023-11-08 04:41", 2460256.69894613],
+                      ["2023-11-19 07:43", 2460267.82587894],
+                      ["2023-11-22 02:29", 2460270.60793891],
+                      ["2023-12-03 05:32", 2460281.73539485],
+                      ["2023-12-14 08:35", 2460292.86269663],
+                      ["2023-12-17 03:20", 2460295.64397583],
+                      ["2023-12-28 06:23", 2460306.77107229],
+                      ["2023-12-31 01:09", 2460309.5529942],
+                      ["2024-01-11 04:12", 2460320.67988477],
+                      ["2024-01-22 07:15", 2460331.80661763],
+                      ["2024-01-25 02:00", 2460334.58775701],
+                      ["2024-02-05 05:03", 2460345.71431384],
+                      ["2024-02-19 02:52", 2460359.62251892],
+                      ["2024-03-04 00:40", 2460373.52989522],
+                      ["2024-03-15 03:43", 2460384.65615342],
+                      ["2024-03-29 01:31", 2460398.56343303],
                       ])
 
     # BJD and time after first BJD (t0)
@@ -187,7 +207,7 @@ def calculate_dsync():
     gc = 6.6743e-11
     tau_sync = 100e6 * 3.154e7
     d_sync_au = []
-    for i in range(2, 10):
+    for i in range(2, 11):
         celest = objects.celestial_objects(moon=True, set=i)
         star_mass = celest["star"]["m"]
         planet_mass = celest["planet"]["m"]
@@ -197,12 +217,21 @@ def calculate_dsync():
     return d_sync_au
 
 
+def calculate_massloss_sat(los_obs, tau, cel_set):
+    import objects
+    amu = 1.660539066e-27
+    celest = objects.celestial_objects(moon=True, set=cel_set)
+    star_radius = celest["star"]["r"]
+    mass_loss = los_obs*10000 * np.pi * star_radius**2 * 23 * amu / tau
+    return np.log10(mass_loss)
+
+
 def calculate_alfven(eta=.3):
     import objects
     gc = 6.6743e-11
-    ages = np.array([5, 4.3, 3.5, 3.6, 5, 3, 2, 9.4])
-    spt = np.array(['G', 'K', 'G', 'G', 'G', 'F', 'K', 'G'])
-    lxuv = np.zeros(8)
+    ages = np.array([5, 4.3, 3.5, 3.6, 5, 3, 2, 9.4, 6.3])
+    spt = np.array(['G', 'K', 'G', 'G', 'G', 'F', 'K', 'G', 'K'])
+    lxuv = np.zeros(9)
     for i, type in enumerate(spt):
         if type == 'G':
             lxuv[i] = 0.19 * 10**29.35 * ages[i]**(-1.69)
@@ -212,7 +241,8 @@ def calculate_alfven(eta=.3):
             lxuv[i] = 0.155 * 10**29.83 * ages[i]**(-1.72)
 
     dmdt_therm = []
-    for j in range(2, 10):
+    r_alf = []
+    for j in range(2, 11):
         celest = objects.celestial_objects(moon=True, set=j)
         star_mass = celest["star"]["m"]
         planet_mass = celest["planet"]["m"]
@@ -222,8 +252,9 @@ def calculate_alfven(eta=.3):
         k = 1 - 3/2 * xi - 1/(2 * xi**3)
         mass_loss = eta/(4 * gc * k) * planet_radius**3/(semimajor**2 * planet_mass) * lxuv[j-2]*1e-7 * 1e3
         dmdt_therm.append(mass_loss)
+        r_alf.append((1e6/-mass_loss)**(1/5) * 19.8 * 69911e3 / planet_radius)
 
-    return np.asarray(dmdt_therm)
+    return np.asarray(dmdt_therm), np.asarray(r_alf)
 
 
 def velocity_distributions():
@@ -301,64 +332,28 @@ def velocity_distributions():
     #fig.show()
 
 
-def read_nc():
-    import netCDF4
-    fp = 'density_177_183_00001412.nc'
-    data = netCDF4.Dataset(fp)
-    ntheta = data['ntheta'][:][0]
-    nphi = data['nphi'][:][0]
-    nr = data['nr'][:][0]
-    rmin, rmax = np.min(data['r_low'][0, 0, :]), np.max(data['r_upp'][0, 0, :])
+#sa = SerpensAnalyzer(save_output=False, r_cutoff=4)
 
+#sa.top_down(timestep=31, d=2, colormesh=False, scatter=False, triplot=True, show=True, smoothing=.5, trialpha=1, lim=4,
+#            celest_colors=['orange', 'bisque', 'white', 'yellow', 'green', 'green'],
+#            colormap=plt.cm.get_cmap("afmhot"), show_moon=False)
 
-#mass_loss_therm = calculate_alfven(.15)
-#alfven_radii = (1e6/(-mass_loss_therm))**(1/5) * 19.8
-#print(np.log10(-mass_loss_therm))
-#print(alfven_radii)
-
-
-sa = SerpensAnalyzer(save_output=False, reference_system="geocentric", r_cutoff=4)
-
-#sa.top_down(timestep=221, d=3, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=.7, lim=4,
-#            celest_colors=['orange', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-#            colormap=plt.cm.get_cmap("afmhot"))
-
-#sa.los(timestep=351, show=True, show_planet=False, show_moon=False, lim=4,
+#sa.los(timestep=201, show=True, show_planet=True, show_moon=False, lim=4,
 #       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=True, colormesh=False,
-#       colormap=plt.cm.autumn)
+#       colormap=plt.cm.afmhot)
 
 #sa.plot3d(121, log_cutoff=-5)
-
-sa.phase_curve(save_data=False, load_path=['simulation-W49-ExoEarth-Na-physical-HV',
-                                           'simulation-W49-ExoIo-Na-physical-HV',
-                                           'simulation-W49-ExoEnce-Na-physical-HV',
-                                           #'simulation-HD189-ExoIo-Na-physical-UHV',
-                                           #'simulation-W69-ExoEnce-Na-3h-HV',
-                                           #'simulation-W69-ExoEarth-Na-physical-HV',
-                                           #'simulation-W69-ExoIo-Na-physical-HV',
-                                           #'simulation-W69-ExoEnce-Na-physical-HV',
-                                           ],
-               fig=True, part_dens=False, column_dens=True, title='HD-189733 b')
-
 #sa.transit_curve('simulation-HD189-ExoIo-Na-physical-HV')
 
+pc = PhaseCurve()
+pc.plot_curve_external('XO-2N', part_dens=True, column_dens=True)
+#sa.phase_curve(load_path=[#'simulation-W17-ExoEarth-Na-physical-HV',
+#                          #'simulation-W17-ExoIo-Na-physical-HV',
+#                          #'simulation-W17-ExoEnce-Na-physical-HV',
+#                          'simulation-W69-ExoEarth-Na-3h-HV',
+#                          'simulation-W69-ExoIo-Na-3h-HV',
+#                          'simulation-W69-ExoEnce-Na-3h-HV',
+#                          ],
+#               fig=True, part_dens=True, column_dens=False, title=r'WASP-69 b - 3h', savefig=False)
 
-#dens = sa.get_densities(151)
-#pos, vel = sa.get_statevectors(151)
-#data = np.column_stack((pos[2:], vel[2:], dens))
-#np.savetxt("W39_0deg-phys-RAD-fast.txt", data)
-#
-#dens = sa.get_densities(111)
-#pos, vel = sa.get_statevectors(111)
-#data = np.column_stack((pos[2:], vel[2:], dens))
-#np.savetxt("W39_270deg-phys-RAD-fast.txt", data)
-#
-#dens = sa.get_densities(76)
-#pos, vel = sa.get_statevectors(76)
-#data = np.column_stack((pos[2:], vel[2:], dens))
-#np.savetxt("W39_180deg-phys-RAD-fast.txt", data)
-#
-#dens = sa.get_densities(36)
-#pos, vel = sa.get_statevectors(36)
-#data = np.column_stack((pos[2:], vel[2:], dens))
-#np.savetxt("W39_90deg-phys-RAD-fast.txt", data)
+

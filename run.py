@@ -10,42 +10,12 @@ matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 matplotlib.rc('text', usetex=True)
 #plt.style.use('seaborn')
 
-
-#PATHS = [#'simulation-HATP1-ExoIo-Na-3h',
-#         #'simulation-HATP1-ExoIo-Na-physical',
-#         #'simulation-HD189-ExoIo-Na-physical',
-#         #'simulation-HD189-ExoIo-Na-3h-HighVel',
-#         #'simulation-HD189-ExoIo-Na-physical-HighVel',
-#         #'simulation-W17-ExoIo-Na-3h',
-#         #'simulation-W17-ExoIo-Na-3h-HighVel',
-#         #'simulation-W17-ExoIo-Na-physical',
-#         #'simulation-W17-ExoIo-Na-physical-HighVel',
-#         #'simulation-W39-ExoIo-Na-3h',
-#         #'simulation-W39-ExoIo-Na-3h-HighVel',
-#         #'simulation-W39-ExoIo-Na-physical',
-#         #'simulation-W39-ExoIo-Na-physical-HighVel',
-#         #'simulation-W49-ExoIo-Na-3h',
-#         #'simulation-W49-ExoIo-Na-3h-HighVel',
-#         #'simulation-W49-ExoIo-Na-physical',
-#         #'simulation-W49-ExoIo-Na-physical-HighVel',
-#         #'simulation-W49-ExoEarth-Na-3h-HV',
-#         #'simulation-W49-ExoEarth-Na-physical-HV',
-#         #'simulation-W49-ExoIo-Na-3h-HV',
-#         #'simulation-W49-ExoIo-Na-physical-HV',
-#         #'simulation-W49-ExoEnce-Na-3h-HV',
-#         #'simulation-W49-ExoEnce-Na-physical-HV',
-#         #'simulation-W39-ExoIo-SO2-physical-fast',
-#         #'simulation-W39-ExoIo-SO2-physical-RAD-fast',
-#         #'simulation-W39-ExoIo-SO2-3h-fast',
-#         #'simulation-W39-ExoIo-SO2-3h-RAD-fast',
-#]
-
 PATHS = [#'simulation-HD189-ExoIo-Na-physical-UHV',
          #'simulation-HD189-ExoEarth-Na-physical-HV',
          #'simulation-HD189-ExoEarth-Na-3h-HV',
          #'simulation-HD189-ExoIo-Na-3h-HV',
          #'simulation-HD189-ExoIo-Na-physical-HV',
-         'simulation-HD189-ExoEnce-Na-3h-HV',
+         #'simulation-HD189-ExoEnce-Na-3h-HV',
          #'simulation-HD189-ExoEnce-Na-physical-HV',
          #'simulation-W17-ExoEarth-Na-physical-HV',
          #'simulation-W17-ExoEarth-Na-3h-HV',
@@ -66,17 +36,30 @@ PATHS = [#'simulation-HD189-ExoIo-Na-physical-UHV',
          #'simulation-W69-ExoEnce-Na-physical-HV',
          #'simulation-W69-ExoEnce-Na-3h-HV',
          #'simulation-HD209-ExoEarth-Na-physical-HV',
-         #'simulation-HD209-ExoEarth-Na-3h-HV',
+         'simulation-HD209-ExoEarth-Na-3h-HV',
          #'simulation-HD209-ExoIo-Na-physical-HV',
-         #'simulation-HD209-ExoIo-Na-3h-HV',
+         'simulation-HD209-ExoIo-Na-3h-HV',
          #'simulation-HD209-ExoEnce-Na-physical-HV',
-         #'simulation-HD209-ExoEnce-Na-3h-HV',
+         'simulation-HD209-ExoEnce-Na-3h-HV',
          #'simulation-HATP1-ExoEarth-Na-physical-HV',
          #'simulation-HATP1-ExoEarth-Na-3h-HV',          # ???
          #'simulation-HATP1-ExoIo-Na-physical-HV',
          #'simulation-HATP1-ExoIo-Na-3h-HV',
          #'simulation-HATP1-ExoEnce-Na-physical-HV',
          #'simulation-HATP1-ExoEnce-Na-3h-HV',
+         #'simulation-W96-ExoEarth-Na-physical-HV',
+         #'simulation-W96-ExoEarth-Na-3h-HV',
+         #'simulation-W96-ExoIo-Na-physical-HV',
+         #'simulation-W96-ExoIo-Na-3h-HV',
+         #'simulation-W96-ExoEnce-Na-physical-HV',
+         #'simulation-W96-ExoEnce-Na-3h-HV',
+         #'simulation-XO2N-ExoEarth-Na-physical-HV',
+         #'simulation-XO2N-ExoEarth-Na-3h-HV',
+         #'simulation-XO2N-ExoIo-Na-physical-HV',
+         #'simulation-XO2N-ExoIo-Na-3h-HV',
+         #'simulation-XO2N-ExoEnce-Na-physical-HV',
+         #'simulation-XO2N-ExoEnce-Na-3h-HV',
+         #'simulation-W39-ExoIo-SO2-3h'
 ]
 
 
@@ -102,10 +85,11 @@ def plot_run(path, top_down=True, LOS=False):
                     colormap=plt.cm.get_cmap("afmhot"))
     if LOS:
         sa.los(timestep=np.arange(11, len(sa.sa) - len(sa.sa) % 5 + 1, 5),
-               colormesh=False, scatter=True, show=False,
-               show_planet=False, show_moon=False, lim=4,
+               colormesh=True, scatter=False, show=False,
+               show_planet=True, show_moon=False, lim=4,
                celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-               colormap=plt.cm.autumn)
+               lvlmin=13*np.log(10), lvlmax=21*np.log(10),
+               colormap=plt.cm.afmhot)
 
     print("\t ... done!")
     print("____________________________________________")
@@ -130,6 +114,86 @@ def generate_phase_curves():
 
         print("\t Calculating phase curve ...")
         sa.phase_curve(title=path[11:], fig=False, savefig=False, save_data=True)
+        print("\t ... done!")
+        print("____________________________________________")
+
+        del sa
+
+
+def plot_phase_curves():
+    plotting_paths = [
+        ['simulation-W17-ExoEarth-Na-physical-HV',  # 1
+         'simulation-W17-ExoIo-Na-physical-HV',
+         'simulation-W17-ExoEnce-Na-physical-HV'],
+        ['simulation-W17-ExoEarth-Na-3h-HV',
+         'simulation-W17-ExoIo-Na-3h-HV',
+         'simulation-W17-ExoEnce-Na-3h-HV'],
+        ['simulation-W49-ExoEarth-Na-physical-HV',  # 2
+         'simulation-W49-ExoIo-Na-physical-HV',
+         'simulation-W49-ExoEnce-Na-physical-HV'],
+        ['simulation-W49-ExoEarth-Na-3h-HV',
+         'simulation-W49-ExoIo-Na-3h-HV',
+         'simulation-W49-ExoEnce-Na-3h-HV'],
+        ['simulation-W69-ExoEarth-Na-physical-HV',  # 3
+         'simulation-W69-ExoIo-Na-physical-HV',
+         'simulation-W69-ExoEnce-Na-physical-HV'],
+        ['simulation-W69-ExoEarth-Na-3h-HV',
+         'simulation-W69-ExoIo-Na-3h-HV',
+         'simulation-W69-ExoEnce-Na-3h-HV'],
+        ['simulation-W96-ExoEarth-Na-physical-HV',  # 4
+         'simulation-W96-ExoIo-Na-physical-HV',
+         'simulation-W96-ExoEnce-Na-physical-HV'],
+        ['simulation-W96-ExoEarth-Na-3h-HV',
+         'simulation-W96-ExoIo-Na-3h-HV',
+         'simulation-W96-ExoEnce-Na-3h-HV'],
+        ['simulation-HD189-ExoEarth-Na-physical-HV',  # 5
+         'simulation-HD189-ExoIo-Na-physical-HV',
+         'simulation-HD189-ExoEnce-Na-physical-HV'],
+        ['simulation-HD189-ExoEarth-Na-3h-HV',
+         'simulation-HD189-ExoIo-Na-3h-HV',
+         'simulation-HD189-ExoEnce-Na-3h-HV'],
+        ['simulation-HD209-ExoEarth-Na-physical-HV',  # 6
+         'simulation-HD209-ExoIo-Na-physical-HV',
+         'simulation-HD209-ExoEnce-Na-physical-HV'],
+        ['simulation-HD209-ExoEarth-Na-3h-HV',
+         'simulation-HD209-ExoIo-Na-3h-HV',
+         'simulation-HD209-ExoEnce-Na-3h-HV'],
+        ['simulation-HATP1-ExoEarth-Na-physical-HV',  # 7
+         'simulation-HATP1-ExoIo-Na-physical-HV',
+         'simulation-HATP1-ExoEnce-Na-physical-HV'],
+        ['simulation-HATP1-ExoEarth-Na-3h-HV',
+         'simulation-HATP1-ExoIo-Na-3h-HV',
+         'simulation-HATP1-ExoEnce-Na-3h-HV'],
+        ['simulation-XO2N-ExoEarth-Na-physical-HV',  # 8
+         'simulation-XO2N-ExoIo-Na-physical-HV',
+         'simulation-XO2N-ExoEnce-Na-physical-HV'],
+        ['simulation-XO2N-ExoEarth-Na-3h-HV',
+         'simulation-XO2N-ExoIo-Na-3h-HV',
+         'simulation-XO2N-ExoEnce-Na-3h-HV'],
+    ]
+    titles = ['WASP-17 b', 'WASP-17 b - 3h',
+              'WASP-49 b', 'WASP-49 b - 3h',
+              'WASP-69 b', 'WASP-69 b - 3h',
+              'WASP-96 b', 'WASP-96 b - 3h',
+              'HD-189733 b', 'HD-189733 b - 3h',
+              'HD-209458 b', 'HD-209458 b - 3h',
+              'HAT-P-1 b', 'HAT-P-1 b - 3h',
+              'XO-2N b', 'XO-2N b - 3h',
+              ]
+    for j, paths in enumerate(plotting_paths):
+        print(f"Started {titles[j]}")
+
+        print("\t copying ...")
+        shutil.copy2(f'{os.getcwd()}/schedule_archive/{paths[0]}/archive.bin', f'{os.getcwd()}')
+        shutil.copy2(f'{os.getcwd()}/schedule_archive/{paths[0]}/hash_library.pickle', f'{os.getcwd()}')
+        shutil.copy2(f'{os.getcwd()}/schedule_archive/{paths[0]}/Parameters.pickle', f'{os.getcwd()}')
+        shutil.copy2(f'{os.getcwd()}/schedule_archive/{paths[0]}/Parameters.txt', f'{os.getcwd()}')
+        print("\t ... done!")
+
+        sa = SerpensAnalyzer(save_output=False, reference_system='geocentric', r_cutoff=4)
+        print("\t Plotting phase curve ...")
+        sa.phase_curve(load_path=paths, fig=True, part_dens=True, column_dens=False,
+                       title=titles[j], savefig=True)
         print("\t ... done!")
         print("____________________________________________")
 
@@ -210,8 +274,11 @@ def read_pkl():
     plt.show()
 
 
-for path in PATHS:
-    plot_run(path, top_down=True, LOS=False)
+plot_phase_curves()
 
+#for path in PATHS:
+#    plot_run(path, top_down=True, LOS=False)
 #generate_phase_curves()
 #read_pkl()
+
+
