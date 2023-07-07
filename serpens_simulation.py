@@ -57,12 +57,15 @@ def reb_setup(params):
     reb_sim.dt = 500
 
     for k, v in Parameters.celest.items():
-        primary = v.pop("primary", 0)
-        if reb_sim.N == 0:
-            reb_sim.add(**v)
+        if not type(v) == dict:
+            continue
         else:
-            reb_sim.add(**v, primary=reb_sim.particles[primary])
-    reb_sim.N_active = len(Parameters.celest)
+            primary = v.pop("primary", 0)
+            if reb_sim.N == 0:
+                reb_sim.add(**v)
+            else:
+                reb_sim.add(**v, primary=reb_sim.particles[primary])
+    reb_sim.N_active = len(Parameters.celest) - 1
 
     reb_sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 

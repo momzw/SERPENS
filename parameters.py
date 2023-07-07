@@ -1,42 +1,59 @@
 from species import Species
-from objects import *
+import json
 
 
 class DefaultFields:
     # Integration specifics
-    int_spec = {
-        "moon": True,
-        "sim_advance": 1 / 100,
-        "num_sim_advances": 100,
-        "stop_at_steady_state": True,
-        "gen_max": None,
-        "r_max": 4,
-        "random_walk": False,
-        "radiation_pressure_shield": False
-    }
+    #int_spec = {
+    #    "integration_specifics": {
+    #        "moon": True,
+    #        "sim_advance": 1 / 100,
+    #        "num_sim_advances": 100,
+    #        "stop_at_steady_state": True,
+    #        "gen_max": None,
+    #        "r_max": 4,
+    #        "random_walk": False,
+    #        "radiation_pressure_shield": False}
+    #}
 
     # Thermal evaporation parameters
-    therm_spec = {
-        "source_temp_max": 2703,  # 125, #2703, 130
-        "source_temp_min": 1609,  # 50, #1609, 90
-        "spherical_symm_ejection": True,
-    }
+    #therm_spec = {
+    #    "thermal_evap_parameters": {
+    #        "source_temp_max": 2703,  # 125, #2703, 130
+    #        "source_temp_min": 1609,  # 50, #1609, 90
+    #        "spherical_symm_ejection": True}
+    #}
 
-    celest = celestial_objects(int_spec["moon"], set=1)
-    species = {
-        #"species1": Species('Na', description='Na--6.3e4kg/s--2.5-30km/s--tau6.7min', n_th=0, n_sp=1000,
-        #                    mass_per_sec=6.3e4, lifetime=6.7 * 60, model_smyth_v_b=2500,
-        #                    model_smyth_v_M=30000)
+    #species_dict = {
+    #    "species1": {
+    #        "name": "H2",
+    #        "n_th": 0,
+    #        "n_sp": 300,
+    #        "mass_per_sec": 6.69,
+    #        "model_smyth_v_b": 995
+    #    }
+    #}
+    #num_species = len(species_dict)
 
-        "species1": Species("H2", n_th=0, n_sp=300, mass_per_sec=6.69, model_smyth_v_b=995)      #669    lifetime=7*86400
+    #with open('file.txt', 'w') as file:
+    #    file.write(json.dumps(int_spec))
+    #    file.write("\n")
+    #    file.write(json.dumps(therm_spec))
+    #    file.write("\n")
+    #    file.write(json.dumps(species_dict))
 
-        # self.species1 = Species("O", n_th=0, n_sp=500, mass_per_sec=5.845, model_smyth_v_b = 2500, model_smyth_v_M = 10000)      #585    lifetime=2.26*86400
-        # self.species1 = Species("O2", n_th=0, n_sp=500, mass_per_sec=14.35, model_smyth_v_b = 4700)    #1435    lifetime=3.3*86400
-        # self.species1 = Species("H2", n_th=0, n_sp=1000, mass_per_sec=6.69, model_smyth_v_b = 1200)      #669    lifetime=7*86400
-        # self.species4 = Species("H", n_th=0, n_sp=0, mass_per_sec=3)
+    species = {}
+    with open('resources/input_parameters.txt') as f:
+        data = f.read().splitlines(True)
+        int_spec = json.loads(data[["integration_specifics" in s for s in data].index(True)])["integration_specifics"]
+        therm_spec = json.loads(data[["thermal_evap_parameters" in s for s in data].index(True)])["thermal_evap_parameters"]
+        for k, v in json.loads(data[-1]).items():
+            species[f"{k}"] = Species(**v)
+        num_species = len(species)
 
-    }
-    num_species = len(species)
+    with open('resources/objects.txt') as f:
+        data = f.read().splitlines(True)
+        celest = json.loads(data[["Jupiter" in s for s in data].index(True)])
 
     @classmethod
     def change_defaults(cls, **kwargs):
@@ -115,11 +132,13 @@ class Parameters:
             print("Species loaded.")
 
     @classmethod
-    def modify_objects(cls, moon="default", set=1, object=None, as_new_source=False, new_properties=None):
+    def modify_objects(cls, moon="default", celestial_name="Jupiter", object=None, as_new_source=False, new_properties=None):
 
         if isinstance(moon, bool):
             cls.int_spec["moon"] = moon
-            cls.celest = celestial_objects(moon, set=set)
+            with open('resources/objects.txt') as f:
+                saved_objects = f.read().splitlines(True)
+                cls.celest = json.loads(saved_objects[[f"{celestial_name}" in s for s in saved_objects].index(True)])
 
         if as_new_source and object is not None:
             temp = cls.celest["moon"]
@@ -174,23 +193,19 @@ class NewParams:
     therm_spec: dict
         update thermal evaporation parameters. Only the specific dict parameter can be passed.
 
-    celest_set: int
-        Change celestial object set according to objects.py.
-        NOTE: Only works if 'moon: bool' is also defined.
-
     """
 
-    def __init__(self, species=None, objects=None, moon=None, int_spec=None, therm_spec=None, celest_set=1):
+    def __init__(self, species=None, objects=None, moon=None, int_spec=None, therm_spec=None, celestial_name="Jupiter"):
         self.species = species
         self.object_instructions = objects
         self.moon = moon
-        self.celest_set = celest_set
+        self.celestial_name = celestial_name
         self.int_spec = int_spec
         self.therm_spec = therm_spec
 
         Parameters.reset()
 
-        if celest_set != 1 and moon is None:
+        if celestial_name != "Jupiter" and moon is None:
             print("Please state if there is a moon for a new celestial body set using bool: 'moon'.")
 
     def __call__(self):
@@ -199,7 +214,7 @@ class NewParams:
             Parameters.modify_species(*self.species)
 
         if self.moon is not None:
-            Parameters.modify_objects(moon=self.moon, set=self.celest_set)
+            Parameters.modify_objects(moon=self.moon, celestial_name=self.celestial_name)
 
         if isinstance(self.object_instructions, dict):
             for k1, v1 in self.object_instructions.items():

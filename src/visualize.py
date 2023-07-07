@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.colors as colors
 import matplotlib
-import time
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from parameters import Parameters
 from scipy.ndimage.filters import gaussian_filter
@@ -37,7 +36,9 @@ class Visualize:
             self.subplot_columns = 1
             self.single = True
 
-        self.fig = plt.figure(figsize=(15, 15), dpi=200)
+        # colorbar: dpi: 800, facecolor w, colors at colorbar k
+        self.fig = plt.figure(figsize=(15, 15), dpi=400)
+        self.fig.patch.set_facecolor('k')
         gs1 = gridspec.GridSpec(self.subplot_rows, self.subplot_columns)
         gs1.update(wspace=0.2, hspace=0.1)
 
@@ -45,17 +46,18 @@ class Visualize:
         for ax_num in range(len(self.axs)):
             if ax_num >= params.num_species:
                 self.axs[ax_num].remove()
+                self.axs[ax_num].grid(False)
             else:
                 species_name = params.get_species(num=ax_num + 1).description
                 self.axs[ax_num].set_facecolor('k')
                 self.axs[ax_num].set_title(f"{species_name}", c='k', size=12, pad=15)
 
         if self.moon:
-            self.fig.suptitle("Serpens Simulation around Planetary Body")
+            #self.fig.suptitle("Serpens Simulation around Planetary Body")
             self.boundary = params.int_spec["r_max"] * rebsim.particles["moon"].calculate_orbit(
                 primary=rebsim.particles["planet"]).a
         else:
-            self.fig.suptitle("Serpens Simulation around Stellar Body")
+            #self.fig.suptitle("Serpens Simulation around Stellar Body")
             self.boundary = params.int_spec["r_max"] * rebsim.particles["planet"].a
 
         self.cmap = cmap
@@ -72,9 +74,9 @@ class Visualize:
         handles, labels = self.axs[0].get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
 
-        legend = self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.79, 0.83), fontsize=16)
-        if len(by_label) == 0:
-            legend.remove()
+        #legend = self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.75, 0.80), fontsize=25, labelcolor='white')
+        #if len(by_label) == 0:
+        #    legend.remove()
 
         #self.fig.text(0.2, 0.5, "y-distance in primary radii", rotation="vertical", verticalalignment='center',
         #              horizontalalignment='right', fontsize='x-large', transform=self.fig.transFigure)
@@ -89,17 +91,17 @@ class Visualize:
             else:
                 orbit_phase = np.around(self.sim.particles["planet"].calculate_orbit(
                     primary=self.sim.particles[0]).theta * 180 / np.pi)
-            frame_identifier = f"SERPENS_{fn}_{orbit_phase}"
+            frame_identifier = f"SERPENS_{fn}"
             plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png', bbox_inches='tight')
             print(f"\t plotted {fn}")
             if not show_bool:
                 plt.close('all')
-            time.sleep(1)
+            #time.sleep(1)
 
         if show_bool:
-            if not len(by_label) == 0:
-                legend.remove()
-                self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.735, 0.83), fontsize=10)
+            #if not len(by_label) == 0:
+            #    legend.remove()
+                #self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.735, 0.83), fontsize=10)
 
             if self.cf is None and self.c is None and self.scatter is None:
                 self.interactive = False
@@ -140,8 +142,16 @@ class Visualize:
                 plt.show()
 
     def __del__(self):
-        plt.clf()
+        plt.figure().clear()
         plt.close()
+        plt.cla()
+        plt.clf()
+
+    def clear(self):
+        plt.figure().clear()
+        plt.close()
+        plt.cla()
+        plt.clf()
 
     def set_title(self, title_string, size='xx-large'):
         self.fig.suptitle(title_string, size=size)
@@ -164,8 +174,8 @@ class Visualize:
             ps_planet_coord1 = self.ps["planet"].x
             ps_planet_coord2 = self.ps["planet"].y
 
-            ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15)
-            ax.set_ylabel("y-distance in planetary radii", fontsize=20, labelpad=15)
+            ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15, color='w')
+            ax.set_ylabel("y-distance in planetary radii", fontsize=20, labelpad=15, color='w')
 
         elif perspective == "los":
             ps_star_coord1 = -self.ps["star"].y
@@ -173,8 +183,8 @@ class Visualize:
             ps_planet_coord1 = -self.ps["planet"].y
             ps_planet_coord2 = self.ps["planet"].z
 
-            ax.set_xlabel("y-distance in planetary radii", fontsize=20, labelpad=8)
-            ax.set_ylabel("z-distance in planetary radii", fontsize=20, labelpad=15)
+            ax.set_xlabel("y-distance in planetary radii", fontsize=20, labelpad=8, color='w')
+            ax.set_ylabel("z-distance in planetary radii", fontsize=20, labelpad=15, color='w')
 
         else:
             raise ValueError("Invalid perspective in plotting.")
@@ -200,8 +210,9 @@ class Visualize:
                 ps_moon_coord1 = -self.ps["moon"].y
                 ps_moon_coord2 = self.ps["moon"].z
 
-            xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, 13)
-            ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, 13)
+            loc_num = 2 * self.lim + 1
+            xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, loc_num)
+            ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, loc_num)
             xlabels = np.around((np.array(xlocs) - ps_planet_coord1) / self.ps["planet"].r, 1)
             ylabels = np.around((np.array(ylocs) - ps_planet_coord2) / self.ps["planet"].r, 1)
 
@@ -211,15 +222,15 @@ class Visualize:
 
             # Show direction to star and shadow:
             if perspective == "topdown":
-                ax.plot([ps_star_coord1, ps_moon_coord1], [ps_star_coord2, ps_moon_coord2], color='bisque',
-                        linestyle=':', linewidth=1, zorder=10)
+                #ax.plot([ps_star_coord1, ps_moon_coord1], [ps_star_coord2, ps_moon_coord2], color='bisque',
+                #        linestyle=':', linewidth=1, zorder=10)
 
                 apex = np.asarray(self.ps["planet"].xyz) * (1 + self.ps["planet"].r / (self.ps["star"].r - self.ps["planet"].r))
                 orthogonal_vector_to_pos = np.array([-ps_planet_coord2, ps_planet_coord1, 0]) / np.linalg.norm(np.array([-ps_planet_coord2, ps_planet_coord1, 0]))
                 left_flank = self.ps["planet"].r * orthogonal_vector_to_pos + np.asarray(self.ps["planet"].xyz)
                 right_flank = - self.ps["planet"].r * orthogonal_vector_to_pos + np.asarray(self.ps["planet"].xyz)
 
-                t1 = plt.Polygon([apex[:2], left_flank[:2], right_flank[:2]], color='black', alpha=0.7, zorder=10)
+                t1 = plt.Polygon([apex[:2], left_flank[:2], right_flank[:2]], color='black', alpha=0.3, zorder=10)
                 ax.add_patch(t1)
 
                 # ADDITIONAL STUFF
@@ -249,21 +260,20 @@ class Visualize:
                 #ax.plot([self.ps["planet"].x, self.ps["planet"].x],
                 #        [self.ps["planet"].y, self.ps["planet"].y + 10 * np.linalg.norm(np.asarray(self.ps["moon"].xyz[:2]) - np.asarray(self.ps["planet"].xyz[:2]))],
                 #        color="whitesmoke", alpha=.8, linestyle='--')
-
-
         else:
-            xlocs = np.linspace(-lim, lim, 13)
-            ylocs = np.linspace(-lim, lim, 13)
+            loc_num = 2 * self.lim + 1
+            xlocs = np.linspace(-lim, lim, loc_num)
+            ylocs = np.linspace(-lim, lim, loc_num)
             xlabels = np.around(np.array(xlocs) / self.ps[0].r, 2)
             ylabels = np.around(np.array(ylocs) / self.ps[0].r, 2)
 
             star_patch = plt.Circle((ps_star_coord1, ps_star_coord2), self.ps[0].r, fc=fc[0], zorder=10, label="star")
             ax.add_patch(star_patch)
 
-        ax.set_xticks(xlocs)
-        ax.set_xticklabels([str(x) for x in xlabels])
-        ax.set_yticks(ylocs)
-        ax.set_yticklabels([str(y) for y in ylabels])
+        ax.set_xticks(xlocs[1:-1])
+        ax.set_xticklabels([str(x) for x in xlabels][1:-1])
+        ax.set_yticks(ylocs[1:-1])
+        ax.set_yticklabels([str(y) for y in ylabels][1:-1])
 
         if kw['show_planet']:
             planet_patch = plt.Circle((ps_planet_coord1, ps_planet_coord2), self.ps["planet"].r, fc=fc[1], ec='k',
@@ -281,7 +291,7 @@ class Visualize:
             op.particles.set_color(line_color)
             op.particles.set_sizes([0])
 
-            #rect = plt.Rectangle((-lim + ps_planet_coord1, ps_planet_coord2 - self.ps["planet"].r), lim, 2*self.ps["planet"].r, alpha=.8, zorder=2, fc='black')
+            #rect = plt.Rectangle((-lim + ps_planet_coord1, ps_planet_coord2 - self.ps["planet"].r), lim, 2*self.ps["planet"].r, alpha=.4, zorder=8, fc='black')
             #ax.add_patch(rect)
 
         # Additional celestial objects
@@ -291,11 +301,13 @@ class Visualize:
 
             celestial_indices = [i+additionalCelestFirstIndex for i in range(numberAdditionalCelest)]
             op_add = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=celestial_indices,
-                                       color=fc[additionalCelestFirstIndex:], primary=self.ps["planet"])
+                                       color=fc[additionalCelestFirstIndex:], primary=self.ps["planet"], orbit_style="trail", lw=.5)
             op_add.particles.set_color(fc[additionalCelestFirstIndex:])
             op_add.particles.set_sizes([0 for _ in fc[additionalCelestFirstIndex:]])
 
             for i in range(numberAdditionalCelest):
+
+                #op_add.orbits[i].set_alpha(.5)
 
                 if perspective == "topdown":
                     major_obj = plt.Circle((self.ps[additionalCelestFirstIndex + i].x,
@@ -320,7 +332,10 @@ class Visualize:
                 axis='y',  # changes apply to the x-axis
                 which='both',  # both major and minor ticks are affected
                 left=False)
-        ax.tick_params(axis='both', which='major', labelsize=20)
+        ax.tick_params(axis='both', which='major', labelsize=18, pad=10, colors='w')
+        #ax.xaxis.label.set_color('white')
+        #ax.yaxis.label.set_color('white')
+
         #ax.set_xlabel('')
         #ax.set_ylabel('')
 
@@ -352,7 +367,7 @@ class Visualize:
                                np.log(gaussian_filter(self.dens, smoothing_slider.val, mode='constant')), 0)
             np.seterr(divide='warn')
             self.cf = self.axs[0].contourf(self.X, self.Y, logdens / np.log(10), levels=lvls, cmap=cmap,
-                                           vmin=slider.val[0], vmax=slider.val[1], zorder=1)
+                                           vmin=slider.val[0], vmax=slider.val[1], zorder=5, alpha=1)
 
         if self.c is not None:
             for tpc in self.c.collections:
@@ -362,7 +377,7 @@ class Visualize:
                                np.log(gaussian_filter(self.dens, smoothing_slider.val, mode='constant')), 0)
             np.seterr(divide='warn')
             self.c = self.axs[0].contour(self.X, self.Y, logdens / np.log(10), levels=lvls, cmap=cmap,
-                                         vmin=slider.val[0], vmax=slider.val[1], zorder=1)
+                                         vmin=slider.val[0], vmax=slider.val[1], zorder=4, alpha=1)
 
         if self.cb_interact is not None:
             self.cb_interact.norm.vmin = slider.val[0]
@@ -374,7 +389,7 @@ class Visualize:
             logdens = self.scatlogd[(slider.val[0] < self.scatlogd/np.log(10)) & (self.scatlogd/np.log(10) < slider.val[1])]
             x = self.scatx[(slider.val[0] < self.scatlogd/np.log(10)) & (self.scatlogd/np.log(10) < slider.val[1])]
             y = self.scaty[(slider.val[0] < self.scatlogd/np.log(10)) & (self.scatlogd/np.log(10) < slider.val[1])]
-            xy = np.vstack((x,y))
+            xy = np.vstack((x, y))
 
             self.scatter.set_offsets(xy.T)
             self.scatter.set_array(logdens / np.log(10))
@@ -417,20 +432,20 @@ class Visualize:
             cmap = self.cmap
             cmap.set_bad(color='k', alpha=1.)
 
-        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, marker='.', vmin=kw['vmin'],
-                                      vmax=kw['vmax'], s=2, zorder=kw['zorder'])
+        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, vmin=kw['vmin'],
+                                      vmax=kw['vmax'], s=.2, zorder=kw['zorder'])
 
         divider = make_axes_locatable(ax_obj)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        cax.tick_params(axis='both', which='major', labelsize=20)
+        cax.tick_params(axis='both', which='major', labelsize=24, color='k', colors='w')
         self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical', format=kw['cb_format'])
+        self.cb_interact.ax.locator_params(nbins=12)
         if perspective == 'los':
-            self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=20, loc='left', pad=12)
+            self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=22, loc='left', pad=20, color='w')
         else:
-            self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=20, loc='left', pad=12)
+            self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=22, loc='left', pad=20, color='w')
 
     def add_triplot(self, ax, x, y, simplices, perspective, **kwargs):
-        from matplotlib.ticker import AutoMinorLocator
         kw = {
             "zorder": 1,
             "celest_colors": ['royalblue', 'sandybrown', 'yellow'],
@@ -500,6 +515,6 @@ class Visualize:
 
         divider = make_axes_locatable(ax_obj)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        cax.tick_params(axis='both', which='major', labelsize=12)
+        cax.tick_params(axis='both', which='major', labelsize=15)
         self.cb_interact = plt.colorbar(self.cf, cax=cax, orientation='vertical', format=kw['cb_format'])
-        self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=12, loc='left', pad=12)
+        self.cb_interact.ax.set_title(r' log N [cm$^{-2}$]', fontsize=18, loc='left', pad=12)

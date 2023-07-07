@@ -1,20 +1,16 @@
 import numpy as np
 import rebound
-import os
-import shutil
 from tqdm import tqdm
 import pandas as pd
-import copy
 from serpens_analyzer import SerpensAnalyzer, PhaseCurve
 import matplotlib.pyplot as plt
 import matplotlib
-import scipy.optimize as sp
 
 matplotlib.use('TkAgg')
-matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 matplotlib.rc('text', usetex=True)
 matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
-#plt.style.use('seaborn-v0_8')
+plt.style.use('seaborn-dark')
 
 
 def orbit_sol():
@@ -147,206 +143,22 @@ def orbit_sol():
     df = pd.DataFrame(all_output)
     df.to_excel('temporary.xlsx', index=False, header=False)
 
+#sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
 
-def pngToGif(path, fps, name=None):
-    """
-    TOOL TO COMBINE PNG TO GIF
-    """
-    import imageio
-    #imageio.plugins.ffmpeg.download()
+#sa.top_down(timestep=1, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1, lim=5,
+#            celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
+#            colormap=plt.cm.get_cmap("afmhot"), show_moon=True, lvlmin=-10, lvlmax=15)
 
-    files = []
-    for file in os.listdir(path):
-        if file.startswith('SERPENS_'):
-            cutoff = file[::-1].find('_')
-            files.append(file[:-cutoff])
-
-    if name is None:
-        name = path[path.find('--')+2:path.find('/p')]
-    writer = imageio.get_writer(f'sim_{name}.mp4', fps=fps, macro_block_size=None)
-
-    for im in sorted(files, key=len):
-        for file in os.listdir(path):
-            if os.path.isfile(os.path.join(path, file)) and f'{im}' in file:
-                im2 = os.path.join(path, file)
-                writer.append_data(imageio.v2.imread(im2))
-    writer.close()
-# pngToGif('output/22022023--14-25_moonsource/plots', 5, name="test")
-
-
-def calculate_vb(temperatures, v_M):
-
-    def func(x, v_M, T):
-        v_m = np.sqrt(3 * 1.380649e-23 * T / (23 * 1.660539066e-27))
-        v_m *= 1e-3
-        xi = 1/(v_M/np.sqrt(v_m**2 + x**2) - 1)
-        xi_term = np.sqrt(14/9 + 1/3 * xi - 1)
-        return v_m - x/xi_term
-
-    if isinstance(temperatures, (list, np.ndarray)) and isinstance(v_M, (list, np.ndarray)):
-        assert len(temperatures) == len(v_M)
-        roots = []
-        for i in range(len(temperatures)):
-            root = sp.fsolve(func, 2, args=(v_M[i], temperatures[i]))
-            roots.append(root)
-        return roots
-    elif isinstance(temperatures, (int, float)) and isinstance(v_M, (int, float)):
-        root = sp.fsolve(func, 2, args=(v_M, temperatures))
-        return root
-    else:
-        print("Invalid types for temperatures and/or maximal velocities")
-        return
-#calculate_vb(temperatures=[7754, 1400, 1120, 1740, 963, 1200, 1450, 1322], v_M=[46.62, 15.24, 11.86, 16.02, 12.43, 23.8, 17.82, 13.35])
-
-
-def calculate_dsync():
-    import objects
-    w_init = 1.77e-4
-    alpha = 0.26
-    Q_diss = 1e6
-    gc = 6.6743e-11
-    tau_sync = 100e6 * 3.154e7
-    d_sync_au = []
-    for i in range(2, 11):
-        celest = objects.celestial_objects(moon=True, set=i)
-        star_mass = celest["star"]["m"]
-        planet_mass = celest["planet"]["m"]
-        planet_radius = celest["planet"]["r"]
-        d = (9/4 * 1/(alpha*Q_diss) * gc*planet_mass/planet_radius**3 * 1/w_init * star_mass**2/planet_mass**2 * planet_radius**6 * tau_sync)**(1/6)
-        d_sync_au.append(d * 6.68459e-12)
-    return d_sync_au
-
-
-def calculate_massloss_sat(los_obs, tau, cel_set):
-    import objects
-    amu = 1.660539066e-27
-    celest = objects.celestial_objects(moon=True, set=cel_set)
-    star_radius = celest["star"]["r"]
-    mass_loss = los_obs*10000 * np.pi * star_radius**2 * 23 * amu / tau
-    return np.log10(mass_loss)
-
-
-def calculate_alfven(eta=.3):
-    import objects
-    gc = 6.6743e-11
-    ages = np.array([5, 4.3, 3.5, 3.6, 5, 3, 2, 9.4, 6.3])
-    spt = np.array(['G', 'K', 'G', 'G', 'G', 'F', 'K', 'G', 'K'])
-    lxuv = np.zeros(9)
-    for i, type in enumerate(spt):
-        if type == 'G':
-            lxuv[i] = 0.19 * 10**29.35 * ages[i]**(-1.69)
-        elif type == 'K':
-            lxuv[i] = 0.234 * 10**28.87 * ages[i]**(-1.72)
-        elif type == 'F':
-            lxuv[i] = 0.155 * 10**29.83 * ages[i]**(-1.72)
-
-    dmdt_therm = []
-    r_alf = []
-    for j in range(2, 11):
-        celest = objects.celestial_objects(moon=True, set=j)
-        star_mass = celest["star"]["m"]
-        planet_mass = celest["planet"]["m"]
-        planet_radius = celest["planet"]["r"]
-        semimajor = celest["planet"]["a"]
-        xi = semimajor * (1/(3*planet_radius**3) * planet_mass/star_mass)**(1/3)
-        k = 1 - 3/2 * xi - 1/(2 * xi**3)
-        mass_loss = eta/(4 * gc * k) * planet_radius**3/(semimajor**2 * planet_mass) * lxuv[j-2]*1e-7 * 1e3
-        dmdt_therm.append(mass_loss)
-        r_alf.append((1e6/-mass_loss)**(1/5) * 19.8 * 69911e3 / planet_radius)
-
-    return np.asarray(dmdt_therm), np.asarray(r_alf)
-
-
-def velocity_distributions():
-    from scipy.stats import maxwell
-
-    temp_eq = 1400  # W49
-    temp_tidal = 1902   # W49
-    m = 23 * 1.660539066e-27    # Na
-    k_B = 1.38066e-23
-
-    # MAXWELL:
-    maxwell_scale_eq = np.sqrt((k_B * temp_eq) / m)
-    maxwell_scale_tidal = np.sqrt((k_B * temp_tidal) / m)
-    x = np.linspace(0, 8000, 300)
-
-    # SPUTTERING:
-
-    def phi(x, scale):
-        v_M = 15.24*1000
-        v_b = calculate_vb(temp_eq, v_M/1000) * 1000
-        a = scale
-
-        def phi_unnorm(x):
-            f_v = 1 / v_b * (x / v_b) ** 3 \
-                  * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a \
-                  * (1 - np.sqrt((x ** 2 + v_b ** 2) / (v_M ** 2)))
-            return f_v
-
-        def phi_int(x):
-            integral_bracket = (1 + x ** 2) ** (5 / 2) * v_b / v_M / (2 * a - 5) - (1 + x ** 2) ** (
-                    3 / 2) * v_b / v_M / (2 * a - 3) - x ** 4 / (2 * (a - 2)) - a * x ** 2 / (
-                                       2 * (a - 2) * (a - 1)) - 1 / (2 * (a - 2) * (a - 1))
-
-            f_v_integrated = integral_bracket * (1 + x ** 2) ** (-a)
-            return f_v_integrated
-
-        upper_bound = np.sqrt((v_M / v_b) ** 2 - 1)
-        normalization = 1 / (phi_int(upper_bound) - phi_int(0))
-        f_pdf = normalization * phi_unnorm(x)
-        return f_pdf
-
-    fig, ax = plt.subplots(1, 1, figsize=(10,6), dpi=150)
-    #fig.suptitle("Velocity Distributions", fontsize='x-large')
-    ax.plot(x, maxwell.pdf(x, scale=maxwell_scale_eq), label=r'Maxwell $T_{\mathrm{eq}}$', color='blue')
-    ax.plot(x, maxwell.pdf(x, scale=maxwell_scale_tidal), label=r'Maxwell $T_{\mathrm{tidal}}$', color='cornflowerblue')
-    ax.plot(x, phi(x, scale=3), label=r'Sputtering $T_{\mathrm{eq}}$, $\alpha=3$', color='orange')
-    ax.plot(x, phi(x, scale=7/3), label=r'Sputtering $T_{\mathrm{eq}}$, $\alpha=7/3$', color='red')
-
-    from matplotlib import ticker
-    formatter = ticker.ScalarFormatter(useMathText=True)
-    formatter.set_scientific(True)
-    formatter.set_powerlimits((-1, 1))
-    ax.yaxis.set_major_formatter(formatter)
-
-    ax.set_ylabel(r"Probability density [10$^{-4}$]", fontsize=22)
-    ax.set_xlabel("Velocity in m/s", fontsize=22)
-    ax.tick_params(axis='both', which='major', labelsize=20)
-    plt.legend(prop={'size': 22}, framealpha=1)
-    plt.grid()
-    plt.tight_layout()
-    plt.savefig("veldist.png")
-    plt.show()
-
-    #import plotly.express as px
-    #df = pd.DataFrame({
-    #    'x': x,
-    #    'Maxwell T_eq': maxwell.pdf(x, scale=maxwell_scale_eq),
-    #    'Maxwell T_tidal': maxwell.pdf(x, scale=maxwell_scale_tidal),
-    #    'Sputtering alpha 3': phi(x, scale=3),
-    #    'Sputtering alpha 7/3': phi(x, scale=7/3)
-    #})
-    #
-    #fig = px.line(df, x='x', y=df.columns[1:])
-    #fig.write_image("fig1.png")
-    #fig.show()
-
-
-#sa = SerpensAnalyzer(save_output=False, r_cutoff=4)
-
-#sa.top_down(timestep=31, d=2, colormesh=False, scatter=False, triplot=True, show=True, smoothing=.5, trialpha=1, lim=4,
-#            celest_colors=['orange', 'bisque', 'white', 'yellow', 'green', 'green'],
-#            colormap=plt.cm.get_cmap("afmhot"), show_moon=False)
-
-#sa.los(timestep=201, show=True, show_planet=True, show_moon=False, lim=4,
-#       celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'], scatter=True, colormesh=False,
+#sa.los(timestep=231, show=True, show_planet=False, show_moon=False, lim=4,
+#       celest_colors=['yellow', 'sandybrown', 'yellow', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,
 #       colormap=plt.cm.afmhot)
 
 #sa.plot3d(121, log_cutoff=-5)
-#sa.transit_curve('simulation-HD189-ExoIo-Na-physical-HV')
+#sa.transit_curve('simulation-W69-ExoIo-Na-physical-HV')
 
-pc = PhaseCurve()
-pc.plot_curve_external('XO-2N', part_dens=True, column_dens=True)
+#pc = PhaseCurve()
+#pc.plot_curve_external('HD-189733', title="HD189", lifetime="photo", part_dens=True, column_dens=True, savefig=True)
+
 #sa.phase_curve(load_path=[#'simulation-W17-ExoEarth-Na-physical-HV',
 #                          #'simulation-W17-ExoIo-Na-physical-HV',
 #                          #'simulation-W17-ExoEnce-Na-physical-HV',
@@ -355,5 +167,3 @@ pc.plot_curve_external('XO-2N', part_dens=True, column_dens=True)
 #                          'simulation-W69-ExoEnce-Na-3h-HV',
 #                          ],
 #               fig=True, part_dens=True, column_dens=False, title=r'WASP-69 b - 3h', savefig=False)
-
-

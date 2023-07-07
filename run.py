@@ -1,102 +1,62 @@
 import numpy as np
 import shutil
 import os
+import gc
 import pandas as pd
-from serpens_analyzer import SerpensAnalyzer
+from serpens_analyzer import SerpensAnalyzer, PhaseCurve
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')
 matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 matplotlib.rc('text', usetex=True)
-#plt.style.use('seaborn')
+plt.style.use('seaborn-dark')
 
-PATHS = [#'simulation-HD189-ExoIo-Na-physical-UHV',
-         #'simulation-HD189-ExoEarth-Na-physical-HV',
-         #'simulation-HD189-ExoEarth-Na-3h-HV',
-         #'simulation-HD189-ExoIo-Na-3h-HV',
-         #'simulation-HD189-ExoIo-Na-physical-HV',
-         #'simulation-HD189-ExoEnce-Na-3h-HV',
-         #'simulation-HD189-ExoEnce-Na-physical-HV',
-         #'simulation-W17-ExoEarth-Na-physical-HV',
-         #'simulation-W17-ExoEarth-Na-3h-HV',
-         #'simulation-W17-ExoIo-Na-physical-HV',
-         #'simulation-W17-ExoIo-Na-3h-HV',
-         #'simulation-W17-ExoEnce-Na-physical-HV',
-         #'simulation-W17-ExoEnce-Na-3h-HV',
-         #'simulation-W49-ExoEarth-Na-physical-HV',
-         #'simulation-W49-ExoEarth-Na-3h-HV',
-         #'simulation-W49-ExoIo-Na-physical-HV',
-         #'simulation-W49-ExoIo-Na-3h-HV',
-         #'simulation-W49-ExoEnce-Na-physical-HV',
-         #'simulation-W49-ExoEnce-Na-3h-HV',
-         #'simulation-W69-ExoEarth-Na-physical-HV',
-         #'simulation-W69-ExoEarth-Na-3h-HV',
-         #'simulation-W69-ExoIo-Na-physical-HV',
-         #'simulation-W69-ExoIo-Na-3h-HV',
-         #'simulation-W69-ExoEnce-Na-physical-HV',
-         #'simulation-W69-ExoEnce-Na-3h-HV',
-         #'simulation-HD209-ExoEarth-Na-physical-HV',
-         'simulation-HD209-ExoEarth-Na-3h-HV',
-         #'simulation-HD209-ExoIo-Na-physical-HV',
-         'simulation-HD209-ExoIo-Na-3h-HV',
-         #'simulation-HD209-ExoEnce-Na-physical-HV',
-         'simulation-HD209-ExoEnce-Na-3h-HV',
-         #'simulation-HATP1-ExoEarth-Na-physical-HV',
-         #'simulation-HATP1-ExoEarth-Na-3h-HV',          # ???
-         #'simulation-HATP1-ExoIo-Na-physical-HV',
-         #'simulation-HATP1-ExoIo-Na-3h-HV',
-         #'simulation-HATP1-ExoEnce-Na-physical-HV',
-         #'simulation-HATP1-ExoEnce-Na-3h-HV',
-         #'simulation-W96-ExoEarth-Na-physical-HV',
-         #'simulation-W96-ExoEarth-Na-3h-HV',
-         #'simulation-W96-ExoIo-Na-physical-HV',
-         #'simulation-W96-ExoIo-Na-3h-HV',
-         #'simulation-W96-ExoEnce-Na-physical-HV',
-         #'simulation-W96-ExoEnce-Na-3h-HV',
-         #'simulation-XO2N-ExoEarth-Na-physical-HV',
-         #'simulation-XO2N-ExoEarth-Na-3h-HV',
-         #'simulation-XO2N-ExoIo-Na-physical-HV',
-         #'simulation-XO2N-ExoIo-Na-3h-HV',
-         #'simulation-XO2N-ExoEnce-Na-physical-HV',
-         #'simulation-XO2N-ExoEnce-Na-3h-HV',
-         #'simulation-W39-ExoIo-SO2-3h'
+PATHS = ['simulation-HD189-ExoIo-Na-physical-HV-HighRes',
+         #'simulation-W69-ExoIo-SO2-3h-HV',
+         #'simulation-W39-ExoIo-K-HV',
+         #'simulation-W39-ExoIo-SO2-3h-HV',
+         #'simulation-W39-ExoEarth-K-HV',
+         #'simulation-W39-ExoEarth-SO2-3h-HV',
+         #'simulation-W39-ExoEnce-K-HV',
+         #'simulation-W39-ExoEnce-SO2-3h-HV',
 ]
 
 
-def plot_run(path, top_down=True, LOS=False):
+def plot_run(path, top_down=True, LOS=False, **kwargs):
 
     print(f"Started {path[11:]}")
 
     print("\t copying ...")
-    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/archive.bin', f'{os.getcwd()}')
-    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/hash_library.pickle', f'{os.getcwd()}')
-    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.pickle', f'{os.getcwd()}')
-    shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
+    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/archive.bin', f'{os.getcwd()}')
+    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/hash_library.pickle', f'{os.getcwd()}')
+    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.pickle', f'{os.getcwd()}')
+    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
     print("\t ... done!")
 
-    sa = SerpensAnalyzer(save_output=True, folder_name=path[11:], reference_system='geocentric', r_cutoff=4)
+    sa = SerpensAnalyzer(save_output=True, folder_name=path[11:], reference_system='geocentric')
 
     print("\t Creating plots ...")
     if top_down:
-        sa.top_down(timestep=np.arange(11, len(sa.sa) - len(sa.sa) % 5 + 1, 5), d=3,
+        lvlmin = kwargs.get("td_lvlmin", None)
+        lvlmax = kwargs.get("td_lvlmax", None)
+        sa.top_down(timestep=np.arange(11, len(sa.sa), 1), d=3,            # np.arange(11, len(sa.sa) - len(sa.sa) % 5 + 1, 5)
                     colormesh=False, scatter=True, triplot=False, show=False,
                     smoothing=.5, trialpha=.7, lim=4,
                     celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-                    colormap=plt.cm.get_cmap("afmhot"))
+                    colormap=plt.cm.get_cmap("afmhot"), lvlmax=10, lvlmin=-10)
     if LOS:
-        sa.los(timestep=np.arange(11, len(sa.sa) - len(sa.sa) % 5 + 1, 5),
-               colormesh=True, scatter=False, show=False,
-               show_planet=True, show_moon=False, lim=4,
+        sa.los(timestep=np.arange(11, len(sa.sa), 1),
+               colormesh=False, scatter=True, show=False,
+               show_planet=False, show_moon=False, lim=4,
                celest_colors=['yellow', 'sandybrown', 'yellow', 'yellow', 'green', 'green'],
-               lvlmin=13*np.log(10), lvlmax=21*np.log(10),
-               colormap=plt.cm.afmhot)
+               colormap=plt.cm.get_cmap("afmhot"), lvlmax=18.5, lvlmin=-10)
 
     print("\t ... done!")
     print("____________________________________________")
 
+    sa = None
     del sa
-
-    return
+    gc.collect()
 
 
 def generate_phase_curves():
@@ -110,14 +70,13 @@ def generate_phase_curves():
         shutil.copy2(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
         print("\t ... done!")
 
-        sa = SerpensAnalyzer(save_output=False, reference_system='geocentric', r_cutoff=4)
-
         print("\t Calculating phase curve ...")
-        sa.phase_curve(title=path[11:], fig=False, savefig=False, save_data=True)
+        pc = PhaseCurve(title=f"{path[11:]}-WSHAD")
+        pc.calculate_curve(save_data=True)
         print("\t ... done!")
         print("____________________________________________")
 
-        del sa
+        del pc
 
 
 def plot_phase_curves():
@@ -274,11 +233,15 @@ def read_pkl():
     plt.show()
 
 
-plot_phase_curves()
+#plot_run('simulation-W69-ExoIo-Na-3h-HV-NORAD')
+#plot_run(PATHS[1], top_down=False, LOS=True)
 
-#for path in PATHS:
-#    plot_run(path, top_down=True, LOS=False)
+
+for path in PATHS:
+    plot_run(path, top_down=False, LOS=True, td_lvlmin=-10)
+
 #generate_phase_curves()
+
 #read_pkl()
 
 
