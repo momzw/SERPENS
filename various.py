@@ -143,11 +143,12 @@ def orbit_sol():
     df = pd.DataFrame(all_output)
     df.to_excel('temporary.xlsx', index=False, header=False)
 
-#sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
 
-#sa.top_down(timestep=1, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1, lim=5,
-#            celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
-#            colormap=plt.cm.get_cmap("afmhot"), show_moon=True, lvlmin=-10, lvlmax=15)
+sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
+
+sa.top_down(timestep=5, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1, lim=20,
+            celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
+            colormap=plt.cm.get_cmap("afmhot"), show_moon=True, lvlmin=-10, lvlmax=15)
 
 #sa.los(timestep=231, show=True, show_planet=False, show_moon=False, lim=4,
 #       celest_colors=['yellow', 'sandybrown', 'yellow', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,

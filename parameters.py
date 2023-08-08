@@ -3,44 +3,6 @@ import json
 
 
 class DefaultFields:
-    # Integration specifics
-    #int_spec = {
-    #    "integration_specifics": {
-    #        "moon": True,
-    #        "sim_advance": 1 / 100,
-    #        "num_sim_advances": 100,
-    #        "stop_at_steady_state": True,
-    #        "gen_max": None,
-    #        "r_max": 4,
-    #        "random_walk": False,
-    #        "radiation_pressure_shield": False}
-    #}
-
-    # Thermal evaporation parameters
-    #therm_spec = {
-    #    "thermal_evap_parameters": {
-    #        "source_temp_max": 2703,  # 125, #2703, 130
-    #        "source_temp_min": 1609,  # 50, #1609, 90
-    #        "spherical_symm_ejection": True}
-    #}
-
-    #species_dict = {
-    #    "species1": {
-    #        "name": "H2",
-    #        "n_th": 0,
-    #        "n_sp": 300,
-    #        "mass_per_sec": 6.69,
-    #        "model_smyth_v_b": 995
-    #    }
-    #}
-    #num_species = len(species_dict)
-
-    #with open('file.txt', 'w') as file:
-    #    file.write(json.dumps(int_spec))
-    #    file.write("\n")
-    #    file.write(json.dumps(therm_spec))
-    #    file.write("\n")
-    #    file.write(json.dumps(species_dict))
 
     species = {}
     with open('resources/input_parameters.txt') as f:

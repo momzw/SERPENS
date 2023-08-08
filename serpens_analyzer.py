@@ -671,7 +671,7 @@ class SerpensAnalyzer:
         exoplanet_transit_depth2 = np.ones(data_length)
         exoplanet_transit_depth2[np.where((exoplanet_phases > transit_ingress_phase) & (exoplanet_phases < transit_egress_phase))] = 1 - exoplanet_star_radius_ratio ** 2 * temp_p/temp_s
 
-        fig = plt.figure(figsize=(12,3), dpi=200)
+        fig = plt.figure(figsize=(12,3), dpi=100)
         #gs = fig.add_gridspec(2, 6, wspace=0.01, hspace=0.01)
         gs = fig.add_gridspec(1, 6, wspace=0.01)
         axs = gs.subplots()
@@ -955,7 +955,7 @@ class PhaseCurve(SerpensAnalyzer):
             rows += 1
 
         # Plot figure
-        fig = plt.figure(figsize=(12, 6 * rows), dpi=1000)
+        fig = plt.figure(figsize=(12, 6 * rows), dpi=100)
         axs = []
         axs_index = 0
         for i in range(rows):
@@ -1166,6 +1166,6 @@ class PhaseCurve(SerpensAnalyzer):
             os.makedirs(f'output/phaseCurves')
 
         if savefig:
-            plt.savefig(f'output/phaseCurves/{title}.png', dpi=1000, bbox_inches='tight')
+            plt.savefig(f'output/phaseCurves/{title}.png', dpi=100, bbox_inches='tight')
         else:
             plt.show()

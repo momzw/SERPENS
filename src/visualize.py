@@ -12,7 +12,6 @@ matplotlib.use('TkAgg')
 matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
 matplotlib.rc('text', usetex=True)
 matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
-#plt.style.use('seaborn')
 
 
 class Visualize:
@@ -37,7 +36,7 @@ class Visualize:
             self.single = True
 
         # colorbar: dpi: 800, facecolor w, colors at colorbar k
-        self.fig = plt.figure(figsize=(15, 15), dpi=400)
+        self.fig = plt.figure(figsize=(15, 15), dpi=100)
         self.fig.patch.set_facecolor('k')
         gs1 = gridspec.GridSpec(self.subplot_rows, self.subplot_columns)
         gs1.update(wspace=0.2, hspace=0.1)
@@ -100,8 +99,8 @@ class Visualize:
 
         if show_bool:
             #if not len(by_label) == 0:
-            #    legend.remove()
-                #self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.735, 0.83), fontsize=10)
+            #   legend.remove()
+            #   self.fig.legend(by_label.values(), by_label.keys(), loc='center', bbox_to_anchor=(0.735, 0.83), fontsize=10)
 
             if self.cf is None and self.c is None and self.scatter is None:
                 self.interactive = False
@@ -109,6 +108,9 @@ class Visualize:
             if self.interactive and len(self.axs) == 1:
 
                 slider_ax = self.fig.add_axes([0.9, 0.15, 0.03, 0.6])
+
+                #divider = make_axes_locatable(self.axs[0])
+                #slider_ax = divider.append_axes('right', size='3%', pad=3)
 
                 if self.cf is not None:
                     slider = RangeSlider(slider_ax, "Threshold", self.cf.norm.vmin, self.cf.norm.vmax,
@@ -133,9 +135,12 @@ class Visualize:
                 else:
                     slider.on_changed(lambda update: self.__update_interactive(update, slider))
 
-                slider.label.set_rotation(90)
+
                 slider.valtext.set_rotation(90)
-                slider.label.set_fontsize(10)
+                slider.valtext.set_fontsize(12)
+                slider.label.set_rotation(90)
+                slider.label.set_fontsize(12)
+                slider.label.set_color('white')
 
                 plt.show()
             else:
@@ -210,7 +215,7 @@ class Visualize:
                 ps_moon_coord1 = -self.ps["moon"].y
                 ps_moon_coord2 = self.ps["moon"].z
 
-            loc_num = 2 * self.lim + 1
+            loc_num = self.lim + 1
             xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, loc_num)
             ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, loc_num)
             xlabels = np.around((np.array(xlocs) - ps_planet_coord1) / self.ps["planet"].r, 1)
@@ -332,7 +337,7 @@ class Visualize:
                 axis='y',  # changes apply to the x-axis
                 which='both',  # both major and minor ticks are affected
                 left=False)
-        ax.tick_params(axis='both', which='major', labelsize=18, pad=10, colors='w')
+        ax.tick_params(axis='both', which='major', labelsize=15, pad=10, colors='w')
         #ax.xaxis.label.set_color('white')
         #ax.yaxis.label.set_color('white')
 
@@ -436,8 +441,8 @@ class Visualize:
                                       vmax=kw['vmax'], s=.2, zorder=kw['zorder'])
 
         divider = make_axes_locatable(ax_obj)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        cax.tick_params(axis='both', which='major', labelsize=24, color='k', colors='w')
+        cax = divider.append_axes('right', size='4%', pad=0.05)
+        cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
         self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical', format=kw['cb_format'])
         self.cb_interact.ax.locator_params(nbins=12)
         if perspective == 'los':

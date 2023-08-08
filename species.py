@@ -114,6 +114,11 @@ class Species(SpeciesSpecifics):
             "model_smyth_a": kwargs.get("model_smyth_a", 7 / 3)
         }
 
+    def __str__(self):
+        return f"Species {self.name}: \n\tMdot [kg/s] = {self.mass_per_sec}, \n\tlifetime [s] / network = {self.network}," \
+               f"\n\tNumber of thermal superparticles = {self.n_th}," \
+               f"\n\tNumber of sputtered superparticles = {self.n_sp}"
+
     def particles_per_superparticle(self, mass):
         num = mass / self.m
         if not (self.n_th == 0 and self.n_sp == 0):

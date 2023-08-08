@@ -5,16 +5,6 @@ from scipy.optimize import fmin
 from scipy.stats import truncnorm, maxwell, norm, rv_continuous
 
 
-# ====================================================================================================================================================================
-
-Params = Parameters()
-moon_exists = Params.int_spec["moon"]
-
-
-# ====================================================================================================================================================================
-
-
-
 def random_pos(source_r, lat_dist, long_dist, num=1, **kwargs):
     """
     This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
@@ -86,7 +76,7 @@ def random_temp(source, temp_min, temp_max, latitude, longitude):
     """
     # TODO: Check sign
     longitude_wrt_sun = longitude - np.arctan2(source[0][1], source[0][0])
-
+    Params = Parameters()
     if not Params.therm_spec["spherical_symm_ejection"]:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
         # Need to change temperature-longitude dependence.
@@ -106,7 +96,7 @@ def random_vel_thermal(species_id, temp):
     :param temp: float
     :return: vel_Na: ndarray
     """
-
+    Params = Parameters()
     species = Params.get_species(id=species_id)
 
     k_B = 1.380649e-23
@@ -126,7 +116,7 @@ def random_vel_sputter(species_id, num=1):
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
     """
-
+    Params = Parameters()
     species = Params.get_species(id=species_id)
     sput_model = species.sput_spec["sput_model"]
 
@@ -283,6 +273,7 @@ def create_particle(species_id, process, source, source_r, num=1, **kwargs):
     if process not in valid_process:
         raise ValueError("Invalid escaping mechanism encountered in particle creation")
 
+    Params = Parameters()
     temp_min = kwargs.get("temp_min", Params.therm_spec['source_temp_min'])
     temp_max = kwargs.get("temp_max", Params.therm_spec['source_temp_max'])
 

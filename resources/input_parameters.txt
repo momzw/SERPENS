@@ -1,3 +1,3 @@
 {"integration_specifics": {"moon": true, "sim_advance": 0.01, "num_sim_advances": 100, "stop_at_steady_state": true, "gen_max": null, "r_max": 4, "random_walk": false, "radiation_pressure_shield": false}}
 {"thermal_evap_parameters": {"source_temp_max": 2703, "source_temp_min": 1609, "spherical_symm_ejection": true}}
-{"species1": {"name": "H2", "n_th": 0, "n_sp": 300, "mass_per_sec": 6.69, "model_smyth_v_b": 995}}
+{"species1": {"name": "Na", "n_th": 0, "n_sp": 800, "mass_per_sec": 63095, "model_smyth_v_b": 950, "model_smyth_v_M": 15240, "lifetime": 240, "beta": 3.19, "shielded_lifetime": 10800}}

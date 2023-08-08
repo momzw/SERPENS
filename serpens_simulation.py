@@ -2,8 +2,8 @@ import rebound
 import reboundx
 import numpy as np
 import warnings
-import multiprocess
 import multiprocessing
+import concurrent.futures
 import dill
 import copy
 import os as os
@@ -100,10 +100,10 @@ def set_pointers(reb_sim):
     rf.params["c"] = 3.e8
 
 
-def create(source_state, source_r, process, species):
-    if process == "thermal":
+def create(source_state, source_r, phys_process, species):
+    if phys_process == "thermal":
         n = species.n_th
-    elif process == "sputter":
+    elif phys_process == "sputter":
         n = species.n_sp
     else:
         raise ValueError("Invalid process in particle creation.")
@@ -111,19 +111,30 @@ def create(source_state, source_r, process, species):
     if n == 0 or n is None:
         return np.array([])
 
-    def mp_add(_):
-        part_state = create_particle(species.id, process=process, source=source_state, source_r=source_r,
+    # Use the number of available CPU cores
+    num_processes = multiprocessing.cpu_count()
+
+    def add_with_multiprocessing():
+        per_create = int(n / num_processes)
+        part_state = create_particle(species.id, process=phys_process, source=source_state, source_r=source_r,
                                      num=per_create)
         return part_state
 
-    per_create = int(n / multiprocessing.cpu_count())
+    # Create a ThreadPoolExecutor with the desired number of threads/processes
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_processes) as executor:
+        # Submit function multiple times for parallel execution
+        future_to_result = {executor.submit(add_with_multiprocessing): None for _ in range(num_processes)}
 
-    with multiprocess.Pool(10) as p:
-        r = p.map(mp_add, range(multiprocessing.cpu_count()))
-        r = np.asarray(r).reshape(np.shape(r)[0] * np.shape(r)[1], 6)
-        p.close()
+        # Collect the results from the futures
+        results = []
+        for future in concurrent.futures.as_completed(future_to_result):
+            result = future.result()
+            results.append(result)
 
-    return r
+    # Results as ndarray and reshape before returning
+    results = np.asarray(results).reshape(np.shape(results)[0] * np.shape(results)[1], 6)
+
+    return results
 
 
 class SerpensSimulation:
@@ -262,7 +273,7 @@ class SerpensSimulation:
 
     def __loss_per_advance(self):
 
-        ## Check all particles
+        # Check all particles
         exception_counter = 0
         for particle in self.__sim.particles[self.__sim.N_active:]:
 
@@ -337,31 +348,28 @@ class SerpensSimulation:
             print(f"Starting advance {self.var['iter']} ... ")
             n_before = self.__sim.N
 
-            # ADD+REMOVE PARTICLES
+            # ADD & REMOVE PARTICLES
             self.__add_particles()
             self.__loss_per_advance()
 
             # ADVANCE SIMULATION
             lst = list(range(n_before, self.__sim.N))
             split = np.array_split(lst, cpus)
-            processes = []
-            for proc in range(cpus):
+
+            def __advance_integration_wrapper(proc):
                 dc = self.__sim_deepcopies[proc]
                 for x in split[proc]:
                     dc.add(self.__sim.particles[int(x)])
-                p = multiprocessing.Process(target=self.__advance_integration, args=(proc,))
-                p.start()
-                processes.append(p)
-
-            for ind, process in enumerate(processes):
-                process.join()
+                self.__advance_integration(proc)
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    self.__sim_deepcopies[ind] = rebound.Simulation(f"proc/archiveProcess{ind}.bin")
-                    set_pointers(self.__sim_deepcopies[ind])
+                    self.__sim_deepcopies[proc] = rebound.Simulation(f"proc/archiveProcess{proc}.bin")
+                    set_pointers(self.__sim_deepcopies[proc])
+                    # w/REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
+                    # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
 
-                    # REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
-                    # REBX:                                             f"proc/archiveRebx{ind}.bin")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
+                executor.map(__advance_integration_wrapper, range(cpus))
 
             print("\t MP Processes joined.")
             del self.__sim.particles
@@ -377,7 +385,7 @@ class SerpensSimulation:
                     _ = self.__sim_deepcopies[0].particles["planet"]
                 except:
                     print("ERROR:")
-                    print("moon or planet collided with the planet (if moon exists) or star!")
+                    print("moon or planet collided with the planet or star!")
                     print("aborting simulation...")
                     return
 
