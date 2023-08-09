@@ -81,6 +81,9 @@ def reb_setup(params):
     with open(f"Parameters.txt", "w") as f:
         f.write(f"{params.__str__()}")
 
+    with open("Parameters.pickle", 'wb') as f:
+        dill.dump(params, f, protocol=dill.HIGHEST_PROTOCOL)
+
     print("\t \t ... done!")
     print("=======================================")
 
