@@ -16,8 +16,7 @@ matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
 
 class Visualize:
 
-    # TODO (FOR LATER): Check out VISPY for fast interactive plots running on GPU
-    # TODO (FOR LATER): Check out Plotly as alternative
+    # TODO: Check out Plotly as alternative
 
     def __init__(self, rebsim, interactive=True, cmap=plt.cm.afmhot, lim=35, singlePlot=False):
         params = Parameters()
@@ -134,7 +133,6 @@ class Visualize:
                     smoothing_slider.label.set_fontsize(15)
                 else:
                     slider.on_changed(lambda update: self.__update_interactive(update, slider))
-
 
                 slider.valtext.set_rotation(90)
                 slider.valtext.set_fontsize(12)

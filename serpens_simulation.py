@@ -29,6 +29,7 @@ def heartbeat(sim_pointer):
 
 #def rebx_setup(reb_sim):
 #    # REBOUNDX ADDITIONAL FORCES
+#    # This is a way of saving the particle information with REBX, but it appears to be slower.
 #    # ==========================
 #    rebx = reboundx.Extras(reb_sim)
 #    rf = rebx.load_force("radiation_forces")
@@ -91,7 +92,7 @@ def reb_setup(params):
 
 
 def set_pointers(reb_sim):
-    reb_sim.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
+    reb_sim.collision = "direct"  # Brute force collision search, scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
     reb_sim.collision_resolve = "merge"
     reb_sim.heartbeat = heartbeat
 
@@ -115,7 +116,7 @@ def create(source_state, source_r, phys_process, species):
         return np.array([])
 
     # Use the number of available CPU cores
-    num_processes = multiprocessing.cpu_count()
+    num_processes = min([multiprocessing.cpu_count(), n])
 
     def add_with_multiprocessing():
         per_create = int(n / num_processes)

@@ -73,7 +73,7 @@ def query_yes_no(question, default="yes"):
 def query_simulation():
     print("Currently implemented exoplanet systems:")
     with open('resources/objects.txt') as f:
-        objects = f.read().splitlines(True)
+        objects = list(filter(lambda a: a != '\n', f.read().splitlines(True)))
         for i, obj in enumerate(objects):
             prop = json.loads(obj)
             print(f"{i + 1}. " + prop["SYSTEM-NAME"])
