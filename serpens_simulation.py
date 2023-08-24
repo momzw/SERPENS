@@ -7,9 +7,8 @@ import concurrent.futures
 import dill
 import copy
 import os as os
-import sys
 from src.create_particle import create_particle
-from parameters import Parameters
+from src.parameters import Parameters
 import time
 
 
@@ -143,7 +142,7 @@ def create(source_state, source_r, phys_process, species):
 
 class SerpensSimulation:
 
-    def __init__(self, *args, **kw):
+    def __init__(self, system='default', *args, **kw):
 
         print("=====================================")
         print("SERPENS simulation has been created.")
@@ -164,7 +163,15 @@ class SerpensSimulation:
             with open('Parameters.pickle', 'rb') as handle:
                 params_load = dill.load(handle)
                 params_load()
+
         self.params = Parameters()
+        if not system == 'default':
+            try:
+                Parameters.modify_objects(celestial_name=system)
+            except Exception:
+                print("Cannot change the celestial objects. Are you sure you have implemented this system?")
+                print("Exiting...")
+                exit()
 
         snapshot = -1
         if len(args) > 1:
@@ -495,5 +502,5 @@ if __name__ == "__main__":
     with open("Parameters.pickle", 'wb') as f:
         dill.dump(params, f, protocol=dill.HIGHEST_PROTOCOL)
 
-    ssim = SerpensSimulation()
+    ssim = SerpensSimulation(system="WASP-49")
     ssim.advance(Parameters.int_spec["num_sim_advances"])

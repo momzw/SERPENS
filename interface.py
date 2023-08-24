@@ -6,8 +6,8 @@ import sys
 import json
 from scheduler import SerpensScheduler
 from serpens_analyzer import SerpensAnalyzer
-from parameters import Parameters, NewParams
-from species import Species
+from src.parameters import Parameters, NewParams
+from src.species import Species
 
 print("                .                    .                        .             ")
 print("     *   .                  .              .        .   *          .        ")

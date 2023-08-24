@@ -5,7 +5,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.colors as colors
 import matplotlib
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from parameters import Parameters
+from src.parameters import Parameters
 from scipy.ndimage.filters import gaussian_filter
 from matplotlib.widgets import Slider, RangeSlider
 matplotlib.use('TkAgg')

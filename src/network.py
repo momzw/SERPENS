@@ -255,4 +255,4 @@ class Network:
         if isinstance(tau, (float, int)):
             self._shielded_network = tau
         else:
-            print("Could not set shielded network lifetime")
+            print("Could not set shielded network lifetime.")

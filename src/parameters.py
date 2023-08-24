@@ -1,4 +1,4 @@
-from species import Species
+from src.species import Species
 import json
 
 
@@ -94,7 +94,7 @@ class Parameters:
             print("Species loaded.")
 
     @classmethod
-    def modify_objects(cls, moon="default", celestial_name="Jupiter", object=None, as_new_source=False, new_properties=None):
+    def modify_objects(cls, moon=True, celestial_name="Jupiter", object=None, as_new_source=False, new_properties=None):
 
         if isinstance(moon, bool):
             cls.int_spec["moon"] = moon

@@ -2,8 +2,7 @@ import os as os
 import shutil
 import dill
 from serpens_simulation import SerpensSimulation
-from parameters import Parameters, NewParams
-from species import Species
+from src.parameters import Parameters, NewParams
 
 
 class SerpensScheduler:

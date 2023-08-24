@@ -14,7 +14,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 from src import DTFE, DTFE3D
-from parameters import Parameters
+from src.parameters import Parameters
 from src.visualize import Visualize
 
 matplotlib.use('TkAgg')

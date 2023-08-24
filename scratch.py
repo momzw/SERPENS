@@ -1,17 +1,6 @@
-import numpy as np
-import rebound
-from tqdm import tqdm
-import pandas as pd
 from serpens_analyzer import SerpensAnalyzer, PhaseCurve
 from scheduler import SerpensScheduler
-import matplotlib.pyplot as plt
 import matplotlib
-
-#matplotlib.use('TkAgg')
-#matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-#matplotlib.rc('text', usetex=True)
-#matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
-#plt.style.use('seaborn-dark')
 
 #ssch = SerpensScheduler()
 #ssch.schedule("Test-Sim", celest_name="WASP-49")
