@@ -479,7 +479,7 @@ class SerpensSimulation:
 
             if np.abs(self.__sim.N - n_before) < 50:
                 steady_state_counter += 1
-                if steady_state_counter == 5 and self.params.int_spec["stop_at_steady_state"] == True:
+                if steady_state_counter == 10 and self.params.int_spec["stop_at_steady_state"] == True:
                     print("Steady state reached!")
                     print("Stopping after another successful revolution...")
                     steady_state_breaker = 1
@@ -488,7 +488,7 @@ class SerpensSimulation:
 
             if steady_state_breaker is not None:
                 print(f"Advances left: {1/self.params.int_spec['sim_advance'] - steady_state_breaker}")
-                if steady_state_breaker == 5/4 * 1/self.params.int_spec["sim_advance"]:
+                if steady_state_breaker == 1/self.params.int_spec["sim_advance"]:
                     break
                 else:
                     steady_state_breaker += 1

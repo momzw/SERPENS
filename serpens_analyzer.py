@@ -196,6 +196,10 @@ class SerpensAnalyzer:
             #     self._p_weights[k1] = 0
             #     print("Particle not weightable")
 
+        self._apply_masks()
+
+    def _apply_masks(self):
+
         combined_mask = np.ones(len(self._p_positions), dtype=bool)
         for cutoff_type in self.cutoffs:
             cutoff_value = self.cutoffs[cutoff_type]
@@ -356,7 +360,7 @@ class SerpensAnalyzer:
                                         zorder=2, alpha=kw["trialpha"], celest_colors=kw["celest_colors"],
                                         show_planet=kw["show_planet"], show_moon=kw["show_moon"])
 
-                vis.set_title(fr"Particle Densities $log_{{10}} (N[\mathrm{{cm}}^{{{-d}}}])$ around Planetary Body", size=25)
+                vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'TD_{ts}_000{self.save_index}')

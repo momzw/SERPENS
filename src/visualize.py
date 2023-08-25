@@ -156,8 +156,8 @@ class Visualize:
         plt.cla()
         plt.clf()
 
-    def set_title(self, title_string, size='xx-large'):
-        self.fig.suptitle(title_string, size=size)
+    def set_title(self, title_string, size='xx-large', color='k'):
+        self.fig.suptitle(title_string, size=size, c=color)
 
     def __setup_ax(self, ax, perspective, **kwargs):
         kw = {
