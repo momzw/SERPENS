@@ -327,6 +327,11 @@ class SerpensAnalyzer:
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
                 points = self._p_positions[np.where(self._p_species == species.id)]
+
+                if len(points) == 0:
+                    vis.empty(k)
+                    continue
+
                 dens, delaunay = self.dtfe(ts, species, d=d, grid=False)
 
                 if not normalized:

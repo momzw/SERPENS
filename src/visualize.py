@@ -521,3 +521,10 @@ class Visualize:
         cax.tick_params(axis='both', which='major', labelsize=15)
         self.cb_interact = plt.colorbar(self.cf, cax=cax, orientation='vertical', format=kw['cb_format'])
         self.cb_interact.ax.set_title(r' log N [cm$^{-2}$]', fontsize=18, loc='left', pad=12)
+
+    def empty(self, ax):
+        if not self.single:
+            ax_obj = self.axs[ax]
+        else:
+            ax_obj = self.axs[0]
+        self.__setup_ax(ax_obj, "topdown")
