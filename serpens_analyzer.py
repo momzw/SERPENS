@@ -297,7 +297,7 @@ class SerpensAnalyzer:
         return dens
 
     # PLOTTING
-    def top_down(self, timestep, d=3, colormesh=True, scatter=False, triplot=True, show=True, **kwargs):
+    def top_down(self, timestep, d=3, colormesh=False, scatter=True, triplot=True, show=True, **kwargs):
         # TOP DOWN DENSITIES
         # ====================================
         kw = {
@@ -318,11 +318,10 @@ class SerpensAnalyzer:
 
         ts_list = [timestep] if isinstance(timestep, (int, float)) else timestep
 
-        normalized = False
         for ts in ts_list:
             ts = min([eval(i) for i in list(self.hash_supdict.keys())], key=lambda x: abs(ts - x))
             self.pull_data(ts)
-            vis = Visualize(self._sim_instance, lim=kw["lim"], cmap=kw["colormap"], singlePlot=kw["single_plot"])
+            vis = Visualize(self._sim_instance, **kw)
 
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
@@ -333,13 +332,6 @@ class SerpensAnalyzer:
                     continue
 
                 dens, delaunay = self.dtfe(ts, species, d=d, grid=False)
-
-                if not normalized:
-                    if kw['lvlmin'] == 'auto':
-                        kw['lvlmin'] = np.log10(np.min(dens[dens > 0])) - .5
-                    if kw['lvlmax'] == 'auto':
-                        kw['lvlmax'] = np.log10(np.max(dens[dens > 0])) + .5
-                    normalized = True
 
                 if colormesh:
                     if d == 3:
