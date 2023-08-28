@@ -5,7 +5,7 @@ in the 'new_celest' dictionary.
 """
 
 new_celest = {
-    "SYSTEM-NAME": "Jupiter (Europa-Source)",
+    "SYSTEM-NAME": "WASP-171b",
     "star": {"m": 1.988e30,
              "hash": 'star',
              "r": 696340000

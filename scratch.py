@@ -1,15 +1,18 @@
 from serpens_analyzer import SerpensAnalyzer, PhaseCurve
+from serpens_simulation import SerpensSimulation
 from scheduler import SerpensScheduler
+from src.parameters import  Parameters
 import matplotlib
 
-#ssch = SerpensScheduler()
-#ssch.schedule("Test-Sim", celest_name="WASP-49")
-#ssch.run(save_freq=1)
 
-sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
-sa.top_down(timestep=4, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1, lim=20,
-            celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
-            colormap=matplotlib.colormaps["afmhot"], show_moon=True, lvlmin=-10, lvlmax=15)
+
+ssim = SerpensSimulation(system="Jupiter (Europa-Source)")
+ssim.advance(50)
+
+#sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
+#sa.top_down(timestep=10, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1, lim=10,
+#            celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
+#            colormap=matplotlib.colormaps["afmhot"], show_moon=True, lvlmin=-10, lvlmax=15)
 
 #sa.los(timestep=231, show=True, show_planet=False, show_moon=False, lim=4,
 #       celest_colors=['yellow', 'sandybrown', 'yellow', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,

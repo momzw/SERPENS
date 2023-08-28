@@ -347,14 +347,14 @@ class SerpensSimulation:
         # REBX: dc_rebx = self.__rebx_deepcopies[dc_index]
         # REBX: dc_rebx.save(f"proc/archiveRebx{dc_index}.bin")
 
-    def advance(self, num, save_freq=1):
+    def advance(self, num_sim_advances, save_freq=1):
 
         start_time = time.time()
         cpus = multiprocessing.cpu_count()
         steady_state_counter = 0
         steady_state_breaker = None
 
-        for _ in range(num):
+        for _ in range(num_sim_advances):
 
             print(f"Starting advance {self.var['iter']} ... ")
             n_before = self.__sim.N
@@ -502,5 +502,5 @@ if __name__ == "__main__":
     with open("Parameters.pickle", 'wb') as f:
         dill.dump(params, f, protocol=dill.HIGHEST_PROTOCOL)
 
-    ssim = SerpensSimulation(system="WASP-49")
+    ssim = SerpensSimulation(system="Jupiter (Europa-Source)")
     ssim.advance(Parameters.int_spec["num_sim_advances"])

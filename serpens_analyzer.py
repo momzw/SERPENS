@@ -304,7 +304,7 @@ class SerpensAnalyzer:
             "lvlmin": None,
             "lvlmax": None,
             "lim": 10,
-            "celest_colors": ['royalblue', 'sandybrown', 'yellow'],
+            "celest_colors": ['yellow', 'sandybrown', 'yellow'],
             "smoothing": 1,
             "trialpha": .8,
             "colormap": cm.afmhot,
