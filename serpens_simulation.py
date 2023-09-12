@@ -7,6 +7,7 @@ import concurrent.futures
 import dill
 import copy
 import os as os
+import functools
 from src.create_particle import create_particle
 from src.parameters import Parameters
 import time
@@ -225,7 +226,7 @@ class SerpensSimulation:
             set_pointers(dc)
             dc.t = self.var["iter"] * self.var["source_P"] * self.params.int_spec["sim_advance"]
 
-    def __add_particles(self):
+    def _add_particles(self):
 
         if self.params.int_spec["moon"]:
             source = self.__sim.particles["moon"]
@@ -255,7 +256,7 @@ class SerpensSimulation:
                     self.hash_dict[str(self.__sim.particles[identifier].hash.value)] = {"id": species.id,
                                                                                         "weight": 1}
 
-    def __check_shadow(self, particle_pos):
+    def _check_shadow(self, particle_pos):
         planet_radius = self.__sim.particles["planet"].r
         star_radius = self.__sim.particles["star"].r
         shadow_apex = np.asarray(self.__sim.particles["planet"].xyz) * (
@@ -282,7 +283,7 @@ class SerpensSimulation:
 
         return in_cone
 
-    def __loss_per_advance(self):
+    def _loss_per_advance(self):
 
         # Check all particles
         exception_counter = 0
@@ -310,7 +311,7 @@ class SerpensSimulation:
 
             if isinstance(species.tau_shielded, (float, int)) or (
                     self.params.int_spec["radiation_pressure_shield"] and species.beta > 0):
-                if self.__check_shadow(particle.xyz):
+                if self._check_shadow(particle.xyz):
                     if isinstance(species.tau_shielded, (float, int)):
                         chem_network = species.tau_shielded
                     else:
@@ -337,7 +338,7 @@ class SerpensSimulation:
 
             self.hash_dict[f"{particle.hash.value}"].update({'weight': particle_weight})
 
-    def __advance_integration(self, dc_index):
+    def _advance_integration(self, dc_index):
         adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
         dc = self.__sim_deepcopies[dc_index]
         dc.dt = adv / 10
@@ -346,6 +347,18 @@ class SerpensSimulation:
 
         # REBX: dc_rebx = self.__rebx_deepcopies[dc_index]
         # REBX: dc_rebx.save(f"proc/archiveRebx{dc_index}.bin")
+
+    def _advance_integration_wrapper(self, proc, split):
+        dc = self.__sim_deepcopies[proc]
+        for x in split[proc]:
+            dc.add(self.__sim.particles[int(x)])
+        self._advance_integration(proc)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.__sim_deepcopies[proc] = rebound.Simulation(f"proc/archiveProcess{proc}.bin")
+            set_pointers(self.__sim_deepcopies[proc])
+            # w/REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
+            # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
 
     def advance(self, num_sim_advances, save_freq=1):
 
@@ -360,27 +373,16 @@ class SerpensSimulation:
             n_before = self.__sim.N
 
             # ADD & REMOVE PARTICLES
-            self.__add_particles()
-            self.__loss_per_advance()
+            self._add_particles()
+            self._loss_per_advance()
 
             # ADVANCE SIMULATION
             lst = list(range(n_before, self.__sim.N))
             split = np.array_split(lst, cpus)
 
-            def __advance_integration_wrapper(proc):
-                dc = self.__sim_deepcopies[proc]
-                for x in split[proc]:
-                    dc.add(self.__sim.particles[int(x)])
-                self.__advance_integration(proc)
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    self.__sim_deepcopies[proc] = rebound.Simulation(f"proc/archiveProcess{proc}.bin")
-                    set_pointers(self.__sim_deepcopies[proc])
-                    # w/REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
-                    # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
-
             with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
-                executor.map(__advance_integration_wrapper, range(cpus))
+                wrapped_fn = functools.partial(self._advance_integration_wrapper, split=split)
+                executor.map(wrapped_fn, range(cpus))
 
             print("\t MP Processes joined.")
             del self.__sim.particles

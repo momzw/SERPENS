@@ -5,8 +5,7 @@ from src.parameters import  Parameters
 import matplotlib
 
 
-
-ssim = SerpensSimulation(system="Jupiter (Europa-Source)")
+ssim = SerpensSimulation(system="HD-189733")
 ssim.advance(50)
 
 #sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")

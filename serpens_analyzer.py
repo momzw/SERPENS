@@ -4,20 +4,26 @@ import glob
 import shutil
 import rebound
 import dill
-import matplotlib
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
-from scipy.interpolate import make_interp_spline
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+from scipy.interpolate import make_interp_spline
+
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.cm as cm
+import matplotlib
+from matplotlib.patches import FancyArrowPatch
+
 from src import DTFE, DTFE3D
 from src.parameters import Parameters
 from src.visualize import Visualize
 
 matplotlib.use('TkAgg')
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('text.latex', preamble=r'\usepackage{amssymb}')
 
 
 def ensure_data_loaded(method):
@@ -254,8 +260,6 @@ class SerpensAnalyzer:
         number_of_particles = mass_in_system / species.m
         phys_weights = number_of_particles * weights/np.sum(weights)
 
-        dtfe_obj = None
-
         if d == 2:
             if los:
                 los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["planet"].y) ** 2 +
@@ -268,6 +272,7 @@ class SerpensAnalyzer:
         elif d == 3:
             dtfe_obj = DTFE3D.DTFE(points, velocities, phys_weights)
         else:
+            dtfe_obj = None
             raise ValueError("Invalid dimension in DTFE.")
 
         if grid:
@@ -297,31 +302,16 @@ class SerpensAnalyzer:
         return dens
 
     # PLOTTING
-    def top_down(self, timestep, d=3, colormesh=False, scatter=True, triplot=True, show=True, **kwargs):
+    def plot_planar(self, timestep, d=3, colormesh=False, scatter=True, triplot=True, show=True, **kwargs):
         # TOP DOWN DENSITIES
         # ====================================
-        kw = {
-            "lvlmin": None,
-            "lvlmax": None,
-            "lim": 10,
-            "celest_colors": ['yellow', 'sandybrown', 'yellow'],
-            "smoothing": 1,
-            "trialpha": .8,
-            "colormap": cm.afmhot,
-            "single_plot": False,
-            "fill_contour": True,
-            "contour": True,
-            "show_planet": True,
-            "show_moon": True
-        }
-        kw.update(kwargs)
 
         ts_list = [timestep] if isinstance(timestep, (int, float)) else timestep
 
         for ts in ts_list:
             ts = min([eval(i) for i in list(self.hash_supdict.keys())], key=lambda x: abs(ts - x))
             self.pull_data(ts)
-            vis = Visualize(self._sim_instance, **kw)
+            vis = Visualize(self._sim_instance, **kwargs)
 
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
@@ -333,29 +323,23 @@ class SerpensAnalyzer:
 
                 dens, delaunay = self.dtfe(ts, species, d=d, grid=False)
 
-                if colormesh:
-                    if d == 3:
-                        print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
-                    dens_grid, _ = self.dtfe(ts, species, d=2, grid=True)
-                    X, Y = self.__grid(ts)
-                    vis.add_colormesh(k, X, Y, dens_grid, contour=kw["contour"], fill_contour=kw["fill_contour"], zorder=5, numlvls=25,
-                                      celest_colors=kw["celest_colors"], lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'],
-                                      cfilter_coeff=kw["smoothing"], show_planet=kw["show_planet"], show_moon=kw["show_moon"])
+                #if colormesh:
+                #    if d == 3:
+                #        print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
+                #    dens_grid, _ = self.dtfe(ts, species, d=2, grid=True)
+                #    X, Y = self.__grid(ts)
+                #    vis.add_colormesh(k, X, Y, dens_grid, contour=kw["contour"], fill_contour=kw["fill_contour"], zorder=5, numlvls=25,
+                #                      celest_colors=kw["celest_colors"], lvlmax=kw['lvl_max'], lvlmin=kw['lvl_min'],
+                #                      cfilter_coeff=kw["smoothing"], show_planet=kw["show_planet"], show_moon=kw["show_moon"])
 
                 if scatter:
-                    vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, perspective="topdown",
-                                           cb_format='%.2f', zorder=7, celest_colors=kw["celest_colors"],
-                                           vmin=kw["lvlmin"], vmax=kw["lvlmax"], show_planet=kw["show_planet"], show_moon=kw["show_moon"])
+                    vis.add_densityscatter(k, points[:, 0], points[:, 1], dens)
 
                 if triplot:
                     if d == 3:
-                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3], perspective="topdown",
-                                        alpha=kw["trialpha"], celest_colors=kw["celest_colors"],
-                                        show_planet=kw["show_planet"], show_moon=kw["show_moon"])
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3])
                     elif d == 2:
-                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices, perspective="topdown",
-                                        zorder=2, alpha=kw["trialpha"], celest_colors=kw["celest_colors"],
-                                        show_planet=kw["show_planet"], show_moon=kw["show_moon"])
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
 
                 vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
 
@@ -375,20 +359,10 @@ class SerpensAnalyzer:
 
             del vis
 
-    #PLOTTING
-    def los(self, timestep, show=False, colormesh=True, scatter=False, **kwargs):
+    # PLOTTING
+    def plot_lineofsight(self, timestep, show=False, colormesh=True, scatter=False, **kwargs):
         # LINE OF SIGHT DENSITIES
         # ====================================
-        kw = {
-            "lvlmin": None,
-            "lvlmax": None,
-            "show_planet": True,
-            "show_moon": True,
-            "lim": 10,
-            "celest_colors": ['royalblue', 'sandybrown', 'yellow'],
-            "colormap": cm.afmhot
-        }
-        kw.update(kwargs)
 
         ts_list = []
         if isinstance(timestep, int):
@@ -406,47 +380,43 @@ class SerpensAnalyzer:
             ts = ts_list[::-1][running_index]
             self.pull_data(ts)
 
-            vis = Visualize(self._sim_instance, lim=kw["lim"], cmap=kw["colormap"])
+            vis = Visualize(self._sim_instance, **kwargs)
 
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
 
-                if colormesh:
-                    dens, delaunay = self.dtfe(ts, species, d=2, grid=True, los=True)
-
-                    if running_index == 0:
-                        if kw['lvlmin'] == 'auto':
-                            kw['lvlmin'] = np.log10(np.min(dens[dens > 0])) - .5
-                        if kw['lvlmax'] == 'auto':
-                            kw['lvlmax'] = np.log10(np.max(dens[dens > 0])) + .5
-
-                    Y, Z = self.__grid(ts, plane='yz')
-                    self.pull_data(ts)
-                    vis.add_colormesh(k, -Y, Z, dens, contour=True, fill_contour=True, zorder=9, numlvls=25, perspective='los',
-                                      lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'],
-                                      show_planet=kw["show_planet"], show_moon=kw["show_moon"],
-                                      celest_colors=kw["celest_colors"])
-
-                    #vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
+                #if colormesh:
+                #    dens, delaunay = self.dtfe(ts, species, d=2, grid=True, los=True)
+                #
+                #    if running_index == 0:
+                #        if kwargs.get('lvlmin', None) == 'auto':
+                #            vis.vis_params.update({"lvlmin": np.log10(np.min(dens[dens > 0])) - .5})
+                #        if kwargs.get('lvlmax', None) == 'auto':
+                #            vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
+                #
+                #    Y, Z = self.__grid(ts, plane='yz')
+                #    self.pull_data(ts)
+                #    vis.add_colormesh(k, -Y, Z, dens, contour=True, fill_contour=True, zorder=9, numlvls=25, perspective='plot_lineofsight',
+                #                      lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'],
+                #                      show_planet=kw["show_planet"], show_moon=kw["show_moon"],
+                #                      celest_colors=kw["celest_colors"])
+                #
+                #    #vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
 
                 if scatter:
-                    species = self.params.get_species(num=k + 1)
                     points = self._p_positions[np.where(self._p_species == species.id)]
                     dens, delaunay = self.dtfe(ts, species, d=2, grid=False, los=True)
 
                     if running_index == 0:
-                        if kw['lvlmin'] == 'auto':
-                            kw['lvlmin'] = np.log10(np.min(dens[dens > 0])) - .5
-                        if kw['lvlmax'] == 'auto':
-                            kw['lvlmax'] = np.log10(np.max(dens[dens > 0])) + .5
+                        if kwargs.get('lvlmin', None) == 'auto':
+                            vis.vis_params.update({"lvlmin": np.log10(np.min(dens[dens > 0])) - .5})
+                        if kwargs.get('lvlmax', None) == 'auto':
+                            vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
 
                     los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["planet"].y) ** 2 +
                                                  (points[:, 2] - self._sim_instance.particles['planet'].z) ** 2)
                     mask = (los_dist_to_planet > self._sim_instance.particles["planet"].r) | (points[:, 0] - self._sim_instance.particles["planet"].x > 0)
-                    vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask], perspective="los", cb_format='%.2f',
-                                           zorder=5, celest_colors=kw["celest_colors"],
-                                           show_planet=kw["show_planet"], show_moon=kw["show_moon"],
-                                           vmin=kw["lvlmin"], vmax=kw["lvlmax"])
+                    vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask])
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'LOS_{ts}_{self.save_index}')
@@ -664,7 +634,6 @@ class SerpensAnalyzer:
 
         #plt.savefig("Transit-W69-physical.png")
         plt.show()
-
 
 class PhaseCurve(SerpensAnalyzer):
 

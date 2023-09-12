@@ -37,14 +37,17 @@ class ArgumentProcessor:
             "celest_colors": ['yellow', 'sandybrown', 'yellow'],
             "cb_format": '%.2f',
             "cfilter_coeff": 1,
-            "scatter_min": None,
-            "scatter_max": None,
+            "lvl_min": None,
+            "lvl_max": None,
             "zorder": 1,
             "perspective": 'topdown',
             "figsize": 15,
             "dpi": 100,
             "shadow_polygon": True,
-            "planetstar_connection": True
+            "planetstar_connection": True,
+            "mesh_smoothing": 1,
+            "mesh_fill_contour": True,
+            "mesh_contour": True
         }
 
         self.apply_defaults(default_values)
@@ -270,7 +273,7 @@ class BaseVisualizer(ArgumentProcessor):
 
 class Visualize(BaseVisualizer):
 
-    # TODO: Check out Plotly as alternative
+    # TODO: Check out Plotly as an alternative
 
     def __init__(self, rebsim, interactive=True, **kwargs):
         super().__init__(rebsim, **kwargs)
@@ -364,12 +367,6 @@ class Visualize(BaseVisualizer):
         plt.cla()
         plt.clf()
 
-    def clear(self):
-        plt.figure().clear()
-        plt.close()
-        plt.cla()
-        plt.clf()
-
     def set_title(self, title_string, size='xx-large', color='k'):
         self.fig.suptitle(title_string, size=size, c=color)
 
@@ -448,8 +445,8 @@ class Visualize(BaseVisualizer):
             cmap = self.vis_params["colormap"]
             cmap.set_bad(color='k', alpha=1.)
 
-        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, vmin=self.vis_params["scatter_min"],
-                                      vmax=self.vis_params["scatter_max"], s=.2, zorder=self.vis_params["zorder"])
+        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, vmin=self.vis_params["lvl_min"],
+                                      vmax=self.vis_params["lvl_max"], s=.2, zorder=self.vis_params["zorder"])
 
         divider = make_axes_locatable(ax_obj)
         cax = divider.append_axes('right', size='4%', pad=0.05)
