@@ -5,19 +5,19 @@ from src.parameters import  Parameters
 import matplotlib
 
 
-ssim = SerpensSimulation(system="HD-189733")
-ssim.advance(50)
+#ssim = SerpensSimulation(system="HD-189733")
+#ssim.advance(50)
 
-#sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
-#sa.top_down(timestep=10, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1, lim=10,
-#            celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
-#            colormap=matplotlib.colormaps["afmhot"], show_moon=True, lvlmin=-10, lvlmax=15)
+sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
+#sa.plot_planar(timestep=5, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1,
+#               lim=18, celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
+#               colormap=matplotlib.colormaps["afmhot"], show_source=True, lvlmin=-10, lvlmax=15)
 
-#sa.los(timestep=231, show=True, show_planet=False, show_moon=False, lim=4,
-#       celest_colors=['yellow', 'sandybrown', 'yellow', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,
-#       colormap=plt.cm.afmhot)
+#sa.plot_lineofsight(timestep=5, show=True, show_planet=True, show_moon=True, lim=18,
+#       celest_colors=['yellow', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,
+#       colormap=matplotlib.colormaps["afmhot"])
 
-#sa.plot3d(121, log_cutoff=-5)
+#sa.plot3d(5)
 #sa.transit_curve('simulation-W69-ExoIo-Na-physical-HV')
 
 #pc = PhaseCurve()

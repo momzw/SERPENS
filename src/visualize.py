@@ -30,10 +30,9 @@ class ArgumentProcessor:
             'colormap': matplotlib.colormaps["afmhot"],
             'lim': 20,
             'singlePlot': False,
-            "show_planet": True,
-            "show_moon": True,
+            "show_source": True,
+            "show_primary": True,
             "show_hill": False,
-            "show_star": True,
             "celest_colors": ['yellow', 'sandybrown', 'yellow'],
             "cb_format": '%.2f',
             "cfilter_coeff": 1,
@@ -60,7 +59,7 @@ class BaseVisualizer(ArgumentProcessor):
         params = Parameters()
         self.sim = rebsim
         self.ps = rebsim.particles
-        self.moon = params.int_spec['moon']
+        self.source_is_moon = params.int_spec['moon']
         self.fc = self._init_celestial_colors()
 
         self._init_figure()
@@ -96,13 +95,8 @@ class BaseVisualizer(ArgumentProcessor):
                 self.axs[ax_num].set_facecolor('k')
                 self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
 
-        if self.moon:
-            # self.fig.suptitle("Serpens Simulation around Planetary Body")
-            self.boundary = params.int_spec["r_max"] * self.sim.particles["moon"].calculate_orbit(
-                primary=self.sim.particles["planet"]).a
-        else:
-            # self.fig.suptitle("Serpens Simulation around Stellar Body")
-            self.boundary = params.int_spec["r_max"] * self.sim.particles["planet"].a
+        self.boundary = params.int_spec["r_max"] * self.sim.particles["source"].calculate_orbit(
+            primary=self.sim.particles["source_primary"]).a
 
     def _init_celestial_colors(self):
         if len(self.vis_params['celest_colors']) == 0:
@@ -118,7 +112,7 @@ class BaseVisualizer(ArgumentProcessor):
 
     def setup_ax(self, ax):
         ax.set_aspect("equal")
-        lim = self.vis_params['lim'] * self.ps["planet"].r if self.moon else self.vis_params['lim'] * self.ps[0].r
+        lim = self.vis_params['lim'] * self.ps["source_primary"].r
 
         if self.vis_params["perspective"] == "topdown":
             ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15, color='w')
@@ -129,22 +123,16 @@ class BaseVisualizer(ArgumentProcessor):
         else:
             raise ValueError("Invalid perspective in plotting.")
 
-        ps_planet_coord1, ps_planet_coord2 = self._get_coordinates("planet")
-        ax.set_xlim([-lim + ps_planet_coord1, lim + ps_planet_coord1]) if self.moon else ax.set_xlim([-lim, lim])
-        ax.set_ylim([-lim + ps_planet_coord2, lim + ps_planet_coord2]) if self.moon else ax.set_ylim([-lim, lim])
+        primary_coord1, primary_coord2 = self._get_coordinates("source_primary")
 
-        if self.moon:
-            loc_num = self.vis_params['lim'] + 1
-            xlocs = np.linspace(ps_planet_coord1 - lim, ps_planet_coord1 + lim, loc_num)
-            ylocs = np.linspace(ps_planet_coord2 - lim, ps_planet_coord2 + lim, loc_num)
-            xlabels = np.around((np.array(xlocs) - ps_planet_coord1) / self.ps["planet"].r, 1)
-            ylabels = np.around((np.array(ylocs) - ps_planet_coord2) / self.ps["planet"].r, 1)
-        else:
-            loc_num = 2 * self.vis_params['lim'] + 1
-            xlocs = np.linspace(-lim, lim, loc_num)
-            ylocs = np.linspace(-lim, lim, loc_num)
-            xlabels = np.around(np.array(xlocs) / self.ps[0].r, 1)
-            ylabels = np.around(np.array(ylocs) / self.ps[0].r, 1)
+        ax.set_xlim([-lim + primary_coord1, lim + primary_coord1])
+        ax.set_ylim([-lim + primary_coord2, lim + primary_coord2])
+
+        loc_num = self.vis_params['lim'] + 1
+        xlocs = np.linspace(-lim + primary_coord1, lim + primary_coord1, loc_num)
+        ylocs = np.linspace(-lim + primary_coord2, lim + primary_coord2, loc_num)
+        xlabels = np.around((np.array(xlocs) - primary_coord1) / self.ps["source_primary"].r, 1)
+        ylabels = np.around((np.array(ylocs) - primary_coord2) / self.ps["source_primary"].r, 1)
 
         ax.set_xticks(xlocs[1:-1])
         ax.set_xticklabels([str(x) for x in xlabels][1:-1])
@@ -179,88 +167,83 @@ class BaseVisualizer(ArgumentProcessor):
             if self.vis_params['planetstar_connection']:
                 self._add_planetstar_connection(ax)
 
-            if self.moon:
-                line_color = self.fc[2]
-                op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=[2], color=line_color,
-                                       primary=self.ps["planet"])
-            else:
-                line_color = self.fc[1]
-                op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=[1], color=line_color,
-                                       primary=self.ps["star"])
+            line_color = self.fc[Parameters.int_spec["source_index"] - 1]
+            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=["source"], color=line_color,
+                                   primary=self.ps["source_primary"])
             op.particles.set_color(line_color)
             op.particles.set_sizes([0])
 
         self._add_patches(ax)
         self._add_additional_celestials(ax)
 
-    def _get_coordinates(self, obj):
-        valid_obj = ['star', 'planet', 'moon']
-        if obj in valid_obj:
+    def _get_coordinates(self, obj_str):
+        valid_obj = ['source', 'source_primary']
+        if obj_str in valid_obj:
             if self.vis_params["perspective"] == "topdown":
-                return self.ps[obj].x, self.ps[obj].y
+                return self.ps[obj_str].x, self.ps[obj_str].y
             elif self.vis_params["perspective"] == "los":
-                return -self.ps[obj].y, self.ps[obj].z
+                return -self.ps[obj_str].y, self.ps[obj_str].z
             else:
                 pass
 
     def _add_patches(self, ax):
 
-        if self.vis_params['show_star']:
-            coord1, coord2 = self._get_coordinates("star")
-            star_patch = plt.Circle((coord1, coord2), self.ps[0].r, fc=self.fc[0], zorder=10, label="star")
-            ax.add_patch(star_patch)
+        if self.vis_params['show_primary']:
+            fc = self.fc[1] if Parameters.int_spec["source_index"] > 2 else self.fc[0]
+            coord1, coord2 = self._get_coordinates("source_primary")
+            primary_patch = plt.Circle((coord1, coord2), self.ps["source_primary"].r, fc=fc, zorder=10, label="primary")
+            ax.add_patch(primary_patch)
 
-        if self.vis_params['show_planet']:
-            coord1, coord2 = self._get_coordinates("planet")
-            planet_patch = plt.Circle((coord1, coord2), self.ps["planet"].r, fc=self.fc[1], ec='k',
-                                      label="planet", zorder=10, fill=True)
-            ax.add_patch(planet_patch)
-            if self.vis_params['show_hill']:
-                hill_patch = plt.Circle((coord1, coord2), self.ps["planet"].rhill, fc='green',
-                                        fill=False)
-                ax.add_patch(hill_patch)
+        if self.vis_params['show_source']:
+            fc = self.fc[Parameters.int_spec["source_index"] - 1]
+            coord1, coord2 = self._get_coordinates("source")
+            source_patch = plt.Circle((coord1, coord2), self.ps["source"].r, fc=fc, ec='k',
+                                      label="source", zorder=10, fill=True)
+            ax.add_patch(source_patch)
 
-        if self.moon and self.vis_params['show_moon']:
-            coord1, coord2 = self._get_coordinates("moon")
-            moon_patch = plt.Circle((coord1, coord2), self.ps["moon"].r, fc=self.fc[2], alpha=.7,
-                                    label="moon", zorder=10)
-            ax.add_patch(moon_patch)
+        if self.source_is_moon and self.vis_params['show_hill']:
+            coord1, coord2 = self._get_coordinates("source_primary")
+            hill_patch = plt.Circle((coord1, coord2), self.ps["source_primary"].rhill, fc='green', fill=False)
+            ax.add_patch(hill_patch)
 
     def _add_shadow_polygon(self, ax):
         assert self.vis_params["perspective"] == "topdown"
-        apex = np.asarray(self.ps["planet"].xyz) * (1 + self.ps["planet"].r / (self.ps["star"].r - self.ps["planet"].r))
+        apex = np.asarray(self.ps[1].xyz) * (1 + self.ps[1].r / (self.ps[0].r - self.ps[1].r))
 
-        orthogonal_vector_to_pos = np.array([-self.ps["planet"].y, self.ps["planet"].x, 0]) / np.linalg.norm(
-            np.array([-self.ps["planet"].y, self.ps["planet"].x, 0]))
-        left_flank = self.ps["planet"].r * orthogonal_vector_to_pos + np.asarray(self.ps["planet"].xyz)
-        right_flank = - self.ps["planet"].r * orthogonal_vector_to_pos + np.asarray(self.ps["planet"].xyz)
+        orthogonal_vector_to_pos = np.array([-self.ps[1].y, self.ps[1].x, 0]) / np.linalg.norm(
+            np.array([-self.ps[1].y, self.ps[1].x, 0]))
+        left_flank = self.ps[1].r * orthogonal_vector_to_pos + np.asarray(self.ps[1].xyz)
+        right_flank = - self.ps[1].r * orthogonal_vector_to_pos + np.asarray(self.ps[1].xyz)
 
         t1 = plt.Polygon([apex[:2], left_flank[:2], right_flank[:2]], color='black', alpha=0.3, zorder=10)
         ax.add_patch(t1)
 
     def _add_planetstar_connection(self, ax):
         assert self.vis_params["perspective"] == "topdown"
-        ax.plot([self.ps["star"].x, self.ps["planet"].x], [self.ps["star"].y, self.ps["planet"].y], color='bisque',
+        ax.plot([self.ps[0].x, self.ps[1].x], [self.ps[0].y, self.ps[1].y], color='bisque',
                 linestyle=':', linewidth=1, zorder=10)
 
     def _add_additional_celestials(self, ax):
         # Additional celestial objects
-        number_additional_celest = self.sim.N_active - 3 if self.moon else self.sim.N_active - 2
-        additional_celest_first_index = 3 if self.moon else 2
+        number_additional_celest = self.sim.N_active - 3 if self.source_is_moon else self.sim.N_active - 2
         if number_additional_celest > 0:
+            moons_indices = [i for i in range(2, self.sim.N_active)]
+            if not Parameters.int_spec["source_index"] == 2:
+                moons_indices.remove(Parameters.int_spec["source_index"] - 1)
 
-            celestial_indices = [i + additional_celest_first_index for i in range(number_additional_celest)]
-            op_add = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=celestial_indices,
-                                       color=self.fc[additional_celest_first_index:], primary=self.ps["planet"],
-                                       orbit_style="trail", lw=.5)
-            op_add.particles.set_color(self.fc[additional_celest_first_index:])
-            op_add.particles.set_sizes([0 for _ in self.fc[additional_celest_first_index:]])
+            if self.vis_params["perspective"] == 'topdown':
+                op_add = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=moons_indices,
+                                           color=self.fc[moons_indices[0]:], primary=self.ps[1],
+                                           orbit_style="trail", lw=.5)
+                op_add.particles.set_color(self.fc[moons_indices[0]:])
+                op_add.particles.set_sizes([0 for _ in self.fc[moons_indices[0]:]])
+            else:
+                op_add = None
 
             for i in range(number_additional_celest):
-
-                op_add.orbits[i].set_alpha(.5)
-                ind = additional_celest_first_index + i
+                ind = moons_indices[i]
                 if self.vis_params["perspective"] == "topdown":
+                    op_add.orbits[i].set_alpha(.5)
                     major_obj = plt.Circle((self.ps[ind].x, self.ps[ind].y), self.ps[ind].r, alpha=0.7,
                                            fc=self.fc[ind], zorder=10)
                     ax.add_patch(major_obj)
@@ -300,12 +283,9 @@ class Visualize(BaseVisualizer):
 
         if save_path is not None:
             fn = kwargs.get("filename", -1)
-            if self.moon:
-                orbit_phase = np.around(self.sim.particles["moon"].calculate_orbit(
-                    primary=self.sim.particles["planet"]).theta * 180 / np.pi)
-            else:
-                orbit_phase = np.around(self.sim.particles["planet"].calculate_orbit(
-                    primary=self.sim.particles[0]).theta * 180 / np.pi)
+            orbit_phase = np.around(self.sim.particles["source"].calculate_orbit(
+                primary=self.sim.particles["source_primary"]).theta * 180 / np.pi)
+
             frame_identifier = f"SERPENS_{fn}"
             plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png', bbox_inches='tight')
             print(f"\t plotted {fn}")

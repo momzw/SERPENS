@@ -9,10 +9,10 @@ class SerpensScheduler:
 
     sims = {}
 
-    def schedule(self, description, species=None, objects=None, moon=None, int_spec=None, therm_spec=None, celest_name="Jupiter"):
+    def schedule(self, description, species=None, objects=None, int_spec=None, therm_spec=None, celest_name="Jupiter"):
 
         if isinstance(description, str):
-            self.sims[description] = NewParams(species=species, objects=objects, moon=moon, int_spec=int_spec, therm_spec=therm_spec, celestial_name=celest_name)
+            self.sims[description] = NewParams(species=species, objects=objects, int_spec=int_spec, therm_spec=therm_spec, celestial_name=celest_name)
         else:
             print("Please pass a string to the scheduler as simulation description.")
 
@@ -33,7 +33,7 @@ class SerpensScheduler:
         else:
             filename = None
             if len(args) > 0 or "filename" in kwargs:
-                print("You have passed additional arguments implying multiple scheduled simulation.")
+                print("You have passed additional arguments implying multiple scheduled simulations.")
                 print("Please schedule only one simulation to append to the archive.")
                 print("Returning...")
                 return

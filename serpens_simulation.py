@@ -14,17 +14,26 @@ import time
 
 
 def heartbeat(sim_pointer):
+    """
+    Not meant for external use.
+    REBOUND heartbeat function to fix a source's orbit to be circular if the source is a moon.
+    """
     sim = sim_pointer.contents
-    par = Parameters.celest["moon"].copy()
-    par.pop('hash', None)
 
-    p0 = rebound.Particle(simulation=sim, **par, primary=sim.particles["planet"])
-    o = p0.calculate_orbit(primary=sim.particles["planet"], G=sim.G)
-    mean_anomaly = o.n * sim.t
-    p1 = rebound.Particle(simulation=sim, M=mean_anomaly, **par, primary=sim.particles["planet"])
+    if Parameters.int_spec["source_index"] > 2:
+        for key, subdict in Parameters.celest.items():
+            if "source" in subdict:
+                par = subdict.copy()
+        par.pop('primary', None)
+        par.pop('source', None)
 
-    sim.particles["moon"].xyz = p1.xyz
-    sim.particles["moon"].vxyz = p1.vxyz
+        p0 = rebound.Particle(simulation=sim, **par, primary=sim.particles["source_primary"])
+        o = p0.calculate_orbit(primary=sim.particles["source_primary"], G=sim.G)
+        mean_anomaly = o.n * sim.t
+        p1 = rebound.Particle(simulation=sim, M=mean_anomaly, **par, primary=sim.particles["source_primary"])
+
+        sim.particles["source"].xyz = p1.xyz
+        sim.particles["source"].vxyz = p1.vxyz
 
 
 #def rebx_setup(reb_sim):
@@ -42,6 +51,12 @@ def heartbeat(sim_pointer):
 
 
 def reb_setup(params):
+    """
+    Not meant for external use.
+    REBOUND simulation set up. Sets integrator and collision algorithm.
+    Adds the gravitationally acting bodies to the simulation.
+    Saves used parameters to drive.
+    """
     print("=======================================")
     print("Initializing new simulation instance...")
 
@@ -61,11 +76,31 @@ def reb_setup(params):
         if not type(v) == dict:
             continue
         else:
-            primary = v.pop("primary", 0)
+            v_copy = v.copy()
+            v_copy.pop("primary", 0)
+            v_copy.pop("source", 0)
+            source_index = Parameters.int_spec["source_index"]
+            source_is_planet = source_index == 2
             if reb_sim.N == 0:
-                reb_sim.add(**v)
+                if source_is_planet:
+                    reb_sim.add(**v_copy, hash="source_primary")
+                else:
+                    reb_sim.add(**v_copy, hash="star")
+                continue
+            if reb_sim.N == 1:
+                if source_is_planet:
+                    reb_sim.add(**v_copy, primary=reb_sim.particles[0], hash="source")
+                else:
+                    reb_sim.add(**v_copy, primary=reb_sim.particles[0], hash="source_primary")
+                continue
             else:
-                reb_sim.add(**v, primary=reb_sim.particles[primary])
+                if not source_is_planet:
+                    if reb_sim.N == source_index - 1:
+                        reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"], hash='source')
+                    else:
+                        reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"])
+                else:
+                    reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"])
     reb_sim.N_active = len(Parameters.celest) - 1
 
     reb_sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
@@ -92,9 +127,16 @@ def reb_setup(params):
 
 
 def set_pointers(reb_sim):
-    reb_sim.collision = "direct"  # Brute force collision search, scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
+    """
+    Not meant for external use.
+    Sets the pointers for handling simulation sub-instances in the integration process.
+    Responsible for including REBOUNDX additional forces.
+    """
+    # Brute force collision search, scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
+    reb_sim.collision = "direct"
     reb_sim.collision_resolve = "merge"
-    reb_sim.heartbeat = heartbeat
+    if Parameters.int_spec["fix_source_circular_orbit"]:
+        reb_sim.heartbeat = heartbeat
 
     # REBOUNDX ADDITIONAL FORCES
     # ==========================
@@ -105,6 +147,22 @@ def set_pointers(reb_sim):
 
 
 def create(source_state, source_r, phys_process, species):
+    """
+    Creates a batch of particles to be added to a SERPENS simulation.
+    Utilizes multiprocessing and returns an array of particle state vectors.
+
+    Arguments
+    ---------
+    source_state : array-like
+        Coordinates and velocity components of the source to be added to created particles' states.
+    source_r : float
+        Radius of the source. Needed for correct anchoring of new particle vectors.
+    phys_process : str
+        Physical process responsible for the creation of particles.
+        Currently implemented are thermal evaporation and sputtering.
+    species : Species class instance
+        Species to be created.
+    """
     if phys_process == "thermal":
         n = species.n_th
     elif phys_process == "sputter":
@@ -142,9 +200,20 @@ def create(source_state, source_r, phys_process, species):
 
 
 class SerpensSimulation:
-
+    """
+    Main class responsible for the Monte Carlo process of SERPENS.
+    (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)
+    """
     def __init__(self, system='default', *args, **kw):
+        """
+        Initializes a REBOUND simulation instance, as well as used class instance variables.
 
+        Arguments
+        ---------
+        system : str    (default: 'default')
+            Name of the celestial system to be simulated.
+            Valid are all names that have been set up in the src/objects.txt.
+        """
         print("=====================================")
         print("SERPENS simulation has been created.")
         print("=====================================")
@@ -210,15 +279,12 @@ class SerpensSimulation:
             for _ in range(multiprocessing.cpu_count()):
                 self.__sim_deepcopies.append(self.__sim.copy())
 
-        self.var = {"iter": iter, "moon": self.params.int_spec["moon"]}
-        if self.var["moon"]:
-            self.var["source_a"] = self.__sim.particles["moon"].calculate_orbit(
-                primary=self.__sim.particles["planet"]).a
-            self.var["source_P"] = self.__sim.particles["moon"].calculate_orbit(
-                primary=self.__sim.particles["planet"]).P
-        else:
-            self.var["source_a"] = self.__sim.particles["planet"].a
-            self.var["source_P"] = self.__sim.particles["planet"].P
+        self.var = {"iter": iter,
+                    "source_a": self.__sim.particles["source"].calculate_orbit(
+                        primary=self.__sim.particles["source_primary"]).a,
+                    "source_P": self.__sim.particles["source"].calculate_orbit(
+                        primary=self.__sim.particles["source_primary"]).P}
+
         self.var["boundary"] = self.params.int_spec["r_max"] * self.var["source_a"]
 
         set_pointers(self.__sim)
@@ -227,11 +293,12 @@ class SerpensSimulation:
             dc.t = self.var["iter"] * self.var["source_P"] * self.params.int_spec["sim_advance"]
 
     def _add_particles(self):
-
-        if self.params.int_spec["moon"]:
-            source = self.__sim.particles["moon"]
-        else:
-            source = self.__sim.particles["planet"]
+        """
+        Internal use only.
+        Calls particle creation and adds the created particles to the REBOUND simulation instance.
+        Saves particle hashes to a dictionary which contains information about a particle's species and weight factor.
+        """
+        source = self.__sim.particles["source"]
         source_state = np.array([source.xyz, source.vxyz])
 
         if self.params.int_spec["gen_max"] is None or self.var['iter'] < self.params.int_spec["gen_max"]:
@@ -257,16 +324,19 @@ class SerpensSimulation:
                                                                                         "weight": 1}
 
     def _check_shadow(self, particle_pos):
-        planet_radius = self.__sim.particles["planet"].r
-        star_radius = self.__sim.particles["star"].r
-        shadow_apex = np.asarray(self.__sim.particles["planet"].xyz) * (
-                    1 + planet_radius / (star_radius - planet_radius))
+        """
+        Internal use only.
+        Checks if a particle resides inside the shadow of the planet.
+        Returns a boolean value.
+        """
+        planet = self.__sim.particles[1]
+        star = self.__sim.particles[0]
+        shadow_apex = np.asarray(planet.xyz) * (1 + planet.r / (star.r - planet.r))
 
-        h = np.linalg.norm(self.__sim.particles["planet"].xyz) * planet_radius / (star_radius - planet_radius)
-        axis_normal_vec = - np.asarray(self.__sim.particles["planet"].xyz) / np.linalg.norm(
-            self.__sim.particles["planet"].xyz)
+        h = np.linalg.norm(planet.xyz) * planet.r / (star.r - planet.r)
+        axis_normal_vec = - np.asarray(planet.xyz) / np.linalg.norm(planet.xyz)
 
-        cone_constant = planet_radius ** 2 / h
+        cone_constant = planet.r ** 2 / h
 
         Y0 = np.dot(axis_normal_vec, shadow_apex)
 
@@ -284,7 +354,11 @@ class SerpensSimulation:
         return in_cone
 
     def _loss_per_advance(self):
-
+        """
+        Internal use only.
+        Reads the hash dictionary and updates the weight of particles according to the species lifetime and time that
+        the particles have been in the simulation. The weight is important for density calculations.
+        """
         # Check all particles
         exception_counter = 0
         for particle in self.__sim.particles[self.__sim.N_active:]:
@@ -339,6 +413,12 @@ class SerpensSimulation:
             self.hash_dict[f"{particle.hash.value}"].update({'weight': particle_weight})
 
     def _advance_integration(self, dc_index):
+        """
+        Internal use only.
+        Function to integrate a REBOUND simulation instance that has been split from the main simulation.
+        Multiprocessing allows for the integration of multiple sub-simulations at the same time.
+        Saves the partial simulation to a process archive file in order to recombine after multiprocessing.
+        """
         adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
         dc = self.__sim_deepcopies[dc_index]
         dc.dt = adv / 10
@@ -349,6 +429,10 @@ class SerpensSimulation:
         # REBX: dc_rebx.save(f"proc/archiveRebx{dc_index}.bin")
 
     def _advance_integration_wrapper(self, proc, split):
+        """
+        Internal use only.
+        Wrapper function to assign sub-simulations a subset of all particles before integration.
+        """
         dc = self.__sim_deepcopies[proc]
         for x in split[proc]:
             dc.add(self.__sim.particles[int(x)])
@@ -361,7 +445,18 @@ class SerpensSimulation:
             # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
 
     def advance(self, num_sim_advances, save_freq=1):
+        """
+        Main function to be called for advancing the SERPENS simulation.
+        Uses internal function to add particles, include loss for super-particles, and integrate in time using
+        multiprocessing. Saves resulting REBOUND simulation state to disk.
 
+        Arguments
+        ---------
+        num_sim_advances : int
+            Number of advances to simulate.
+        save_freq : int     (default: 1)
+            Number of advances after which SERPENS saves the simulation instance.
+        """
         start_time = time.time()
         cpus = multiprocessing.cpu_count()
         steady_state_counter = 0
@@ -393,12 +488,11 @@ class SerpensSimulation:
             for act in range(self.__sim_deepcopies[0].N_active):
 
                 try:
-                    if self.var["moon"]:
-                        _ = self.__sim_deepcopies[0].particles["moon"]
-                    _ = self.__sim_deepcopies[0].particles["planet"]
-                except:
+                    _ = self.__sim_deepcopies[0].particles["source"]
+                    _ = self.__sim_deepcopies[0].particles["source_primary"]
+                except rebound.ParticleNotFound:
                     print("ERROR:")
-                    print("moon or planet collided with the planet or star!")
+                    print("Source collided with primary or other object!")
                     print("aborting simulation...")
                     return
 
@@ -430,12 +524,8 @@ class SerpensSimulation:
                         "source_P"]
                     pps = species.particles_per_superparticle(mass_inject_per_advance)
 
-                    if self.var["moon"]:
-                        particle_distance = np.linalg.norm(
-                            np.asarray(particle.xyz) - np.asarray(self.__sim.particles["planet"].xyz))
-                    else:
-                        particle_distance = np.linalg.norm(
-                            np.asarray(particle.xyz) - np.asarray(self.__sim.particles[0].xyz))
+                    particle_distance = np.linalg.norm(
+                        np.asarray(particle.xyz) - np.asarray(self.__sim.particles["source_primary"].xyz))
 
                     if particle_distance > self.var["boundary"]:
                         try:
