@@ -72,7 +72,7 @@ def query_yes_no(question, default="yes"):
 
 def query_simulation():
     print("Currently implemented exoplanet systems:")
-    with open('resources/objects.txt') as f:
+    with open('../resources/objects.txt') as f:
         objects = list(filter(lambda a: a != '\n', f.read().splitlines(True)))
         for i, obj in enumerate(objects):
             prop = json.loads(obj)
@@ -142,7 +142,7 @@ def query_simulation():
             }
         }
         print("Additonal parameters including eccentricity and inclination may be set inside the corresponding entry in the resources/objects.txt file.")
-        with open('resources/objects.txt', 'a') as f:
+        with open('../resources/objects.txt', 'a') as f:
             f.write("\n")
             f.write(json.dumps(new_sys_dict))
         print(f"New system '{new_sys_name}' saved.")
@@ -188,7 +188,7 @@ def query_simulation():
     save_freq = int(input("Please enter save frequency: "))
 
     ssch = SerpensScheduler()
-    ssch.schedule(save_name, celest_name=system_name)
+    ssch.schedule(save_name, celestial_name=system_name)
     ssch.run(save_freq=save_freq)
 
 

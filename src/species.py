@@ -2,7 +2,9 @@ from src.network import Network
 
 
 class SpeciesSpecifics:
-
+    """
+    Base properties of a species given its mass number and id.
+    """
     def __init__(self, mass_number, id, type="neutral"):
         amu = 1.660539066e-27
         self.type = type
@@ -13,7 +15,10 @@ class SpeciesSpecifics:
 
 
 class Species(SpeciesSpecifics):
-
+    """
+    Implemented species for SERPENS.
+    Species info contains mass number and an id associated to the species.
+    """
     species_info = {
         "Na": (23, 1),
         "S": (32, 2),

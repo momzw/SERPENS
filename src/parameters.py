@@ -227,7 +227,7 @@ class NewParams:
 
         Arguments
         ---------
-        species : Species class instance (can be a list)     (default: None)
+        species : <class Species> (can be a list)     (default: None)
             New species instance for the simulation.
             Signature:  Species(name: str, n_th: int, n_sp: int, mass_per_sec: float,
                                 duplicate: int, beta: float, lifetime: float, n_e: float, sput_spec: dict)

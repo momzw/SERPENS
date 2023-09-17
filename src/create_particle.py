@@ -7,12 +7,27 @@ from scipy.stats import truncnorm, maxwell, norm, rv_continuous
 
 def random_pos(source_r, lat_dist, long_dist, num=1, **kwargs):
     """
-    This function allows for different distributions for latitude and longitude according to which positions on the moon are randomly generated.
-    :param lat_dist: str. Valid are "truncnorm" and "uniform".
-    :param long_dist: str. Valid are "truncnorm" and "uniform".
-    :param kwargs: kwargs. Distribution shape parameters: a_lat, b_lat, loc_lat, std_lat, a_long, b_long, loc_long, std_long
-    :return: pos: ndarray, latitude: float, longitude: float
+    Generates random positions on the source object with radius r. The source's center is the center of the
+    coordinate system. Also returns latitudes and longitudes of the positions on the source.
+    Different distributions for latitude and longitude can be set according to which positions on the moon
+    are randomly generated.
 
+    Arguments
+    ---------
+    source_r : float
+        Radius of the source object.
+    lat_dist : str
+        Latitude distribution from which to sample. Valid are "truncnorm" and "uniform".
+    long_dist : str
+        Longitude distribution from which to sample. Valid are "truncnorm" and "uniform".
+    num : int
+        Number of positions to sample.
+
+    Keyword Arguments
+    -----------------
+    Distribution shape parameters:
+    a_lat, b_lat, loc_lat, std_lat
+    a_long, b_long, loc_long, std_long
     """
     # Coordinates:
     # Inertial system Cartesian coordinates. x-axis points from star away, y in direction of orbit.
@@ -34,7 +49,7 @@ def random_pos(source_r, lat_dist, long_dist, num=1, **kwargs):
             for i in range(num):
                 latitudes[i] = np.random.default_rng().uniform(lower, upper)
     else:
-        raise ValueError("Invalid latitude distribution encountered in positional calculation")
+        raise ValueError("Invalid latitude distribution encountered in positional calculation.")
 
     if long_dist in valid_dist:
         if valid_dist[long_dist] == 0:
@@ -51,7 +66,7 @@ def random_pos(source_r, lat_dist, long_dist, num=1, **kwargs):
             for i in range(num):
                 longitudes[i] = np.random.default_rng().uniform(lower, upper)
     else:
-        raise ValueError("Invalid longitude distribution encountered in positional calculation")
+        raise ValueError("Invalid longitude distribution encountered in positional calculation.")
 
     # Spherical Coordinates. x towards Sun. Change y sign to preserve direction of rotation.
     # Regarding latitude: In spherical coordinates 0 = Northpole, pi = Southpole
@@ -67,19 +82,27 @@ def random_pos(source_r, lat_dist, long_dist, num=1, **kwargs):
 
 def random_temp(source, temp_min, temp_max, latitude, longitude):
     """
-    Returns a random temperature depending on implemented model.
-    :param temp_min: float. Lowest temperature on the moon
-    :param temp_max: float. Highest temperature on the moon
-    :param latitude: float
-    :param longitude: float
-    :return: temp: float
+    Calculate temperature for a sampled position on the source.
+    Temperature will be the mean value of minimal and maximal temperature if spherical symmetric ejection is assumed,
+    otherwise a model by Wurz, P., 2002, "Monte-Carlo simulation of Mercury's exosphere", will be used.
+
+    Arguments
+    ---------
+    source : array-like with shape (6,)
+        State vector of the source.#
+    temp_min : float
+        Minimum temperature on the source.
+    temp_max : float
+        Maximum temperature on the source.
+    latitude : float
+        Latitude at which to calculate temperature.
+    longitude : float
+        Longitude at which to calculate temperature
     """
-    # TODO: Check sign
     longitude_wrt_sun = longitude - np.arctan2(source[0][1], source[0][0])
     Params = Parameters()
     if not Params.therm_spec["spherical_symm_ejection"]:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
-        # Need to change temperature-longitude dependence.
         # (refer Wurz, P., 2002, "Monte-Carlo simulation of Mercury's exosphere"; -np.pi / 2 < longitude_wrt_sun < np.pi / 2)
         if np.pi / 2 < longitude_wrt_sun < 3 * np.pi / 2:
             temp = temp_min + (temp_max - temp_min) * (np.abs(np.cos(longitude_wrt_sun)) * np.cos(latitude)) ** (1 / 4)
@@ -92,9 +115,14 @@ def random_temp(source, temp_min, temp_max, latitude, longitude):
 
 def random_vel_thermal(species_id, temp):
     """
-    Gives a random thermal velocity vector for a sodium atom given a local temperature.
-    :param temp: float
-    :return: vel_Na: ndarray
+    Generates a random thermal velocity vector
+
+    Arguments
+    ---------
+    species_id : int
+        id of the species for which to sample the velocity. Relevant for the Maxwell distribution.
+    temp : float
+        Local temperature.
     """
     Params = Parameters()
     species = Params.get_species(id=species_id)
@@ -115,6 +143,7 @@ def random_vel_sputter(species_id, num=1):
     """
     Gives a random sputter velocity vector for an atom given the at the beginning defined sputtering model.
     :return: vel: ndarray. Randomly generated velocity vector depending on defined model.
+    TODO: Refactor
     """
     Params = Parameters()
     species = Params.get_species(id=species_id)
@@ -258,11 +287,28 @@ def random_vel_sputter(species_id, num=1):
 
 def create_particle(species_id, process, source, source_r, num=1, **kwargs):
     """
-    Generates a REBOUND particle with random velocity at random position from process given by function argument.
-    See the "random_pos" and "random_vel_..." functions for more info on the random position and velocity generation.
-    :param process: str. Valid are "thermal" and "sputter".
-    :param kwargs: kwargs. Parameters forwarded to random generation functions: temp_midnight, temp_noon, E_incoming, E_bind
-    :return: p: rebound particle object.
+    Generate a set of state vectors containing position and velocity for new particles.
+    The velocity of the particle depends on the physical process that generates it.
+
+    Arguments
+    ---------
+    species_id : int
+        id of the species the particles belong to.
+    process : str
+        Physical process responsible for particle creation (valid are "thermal" and "sputter").
+    source : array-like (shape (6,))
+        State vector of the source object.
+    source_r : float
+        Radius of the source object.
+    num : int
+        Number of state vectors (particles) to generate.
+
+    Keyword Arguments
+    -----------------
+    temp_min : float
+        Minimum temperature on the source (midnight)
+    temp_max : float
+        Maximum temperature on the source (noon)
     """
 
     #with warnings.catch_warnings():
