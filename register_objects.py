@@ -7,7 +7,6 @@ in the 'new_celest' dictionary.
 new_celest = {
     "SYSTEM-NAME": "WASP-171b",
     "star": {"m": 1.988e30,
-             "hash": 'star',
              "r": 696340000
              },
     "planet": {"m": 1.898e27,
@@ -16,7 +15,6 @@ new_celest = {
                "inc": 0.0227,
                "r": 69911000,
                "primary": 'star',
-               "hash": 'planet'
                },
     "moon": {"m": 4.799e22,  # Europa
              "a": 6.709e8,
@@ -24,7 +22,6 @@ new_celest = {
              "inc": 0.0082,
              "r": 1560800,
              "primary": 'planet',
-             "hash": 'moon'
              },
     "additional_1": {"m": 8.932e22,  # Io
                      "a": 4.217e8,

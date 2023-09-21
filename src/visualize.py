@@ -8,6 +8,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from src.parameters import Parameters
 from scipy.ndimage.filters import gaussian_filter
 from matplotlib.widgets import Slider, RangeSlider
+
 matplotlib.use('TkAgg')
 matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
 matplotlib.rc('text', usetex=True)
@@ -403,7 +404,7 @@ class Visualize(BaseVisualizer):
         # Redraw the figure to ensure it updates
         self.fig.canvas.draw_idle()
 
-    def add_densityscatter(self, ax, x, y, density, **kwargs):
+    def add_densityscatter(self, ax, x, y, density, d=3, **kwargs):
         self.vis_params.update(kwargs)
 
         if not self.single:
@@ -435,9 +436,9 @@ class Visualize(BaseVisualizer):
                                         format=self.vis_params['cb_format'])
         self.cb_interact.ax.locator_params(nbins=12)
         if self.vis_params["perspective"] == 'los':
-            self.cb_interact.ax.set_title(r'[cm$^{-2}$]', fontsize=22, loc='left', pad=20, color='w')
+            self.cb_interact.ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
         else:
-            self.cb_interact.ax.set_title(r'[cm$^{-3}$]', fontsize=22, loc='left', pad=20, color='w')
+            self.cb_interact.ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
 
     def add_triplot(self, ax, x, y, simplices, trialpha=.8, **kwargs):
         self.vis_params.update(kwargs)
