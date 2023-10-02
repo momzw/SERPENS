@@ -423,7 +423,7 @@ class SerpensAnalyzer:
             Passed to Visualizer (see src/visualize.py)
         """
 
-        ts_list = [timestep] if isinstance(timestep, (int, float)) else timestep
+        ts_list = np.atleast_1d(timestep).astype(int)
 
         for ts in ts_list:
             ts = min([eval(i) for i in list(self.hash_supdict.keys())], key=lambda x: abs(ts - x))
@@ -497,16 +497,7 @@ class SerpensAnalyzer:
             Passed to Visualizer (see src/visualize.py)
         """
 
-        ts_list = []
-        if isinstance(timestep, int):
-            ts_list.append(timestep)
-        elif isinstance(timestep, list):
-            ts_list = timestep
-        elif isinstance(timestep, np.ndarray):
-            ts_list = np.ndarray.tolist(timestep)
-        else:
-            raise TypeError("LOS timestep has an invalid type.")
-
+        ts_list = np.atleast_1d(timestep).astype(int)
 
         running_index = 0
         while running_index < len(ts_list):
@@ -591,12 +582,12 @@ class SerpensAnalyzer:
         dens, _ = self.delaunay_field_estimation(timestep, species, d=3, grid=False)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
-        x = self._sim_instance.particles["source_primary"].r * np.sin(theta) * np.cos(phi) + \
-            self._sim_instance.particles["source_primary"].x
-        y = self._sim_instance.particles["source_primary"].r * np.sin(theta) * np.sin(phi) + \
-            self._sim_instance.particles["source_primary"].y
-        z = self._sim_instance.particles["source_primary"].r * np.cos(theta) + \
-            self._sim_instance.particles["source_primary"].z
+        x_p = (self._sim_instance.particles["source_primary"].r * np.sin(theta) * np.cos(phi) +
+               self._sim_instance.particles["source_primary"].x)
+        y_p = (self._sim_instance.particles["source_primary"].r * np.sin(theta) * np.sin(phi) +
+               self._sim_instance.particles["source_primary"].y)
+        z_p = (self._sim_instance.particles["source_primary"].r * np.cos(theta) +
+               self._sim_instance.particles["source_primary"].z)
 
         np.seterr(divide='ignore')
 
@@ -615,7 +606,7 @@ class SerpensAnalyzer:
             })
             fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens), opacity=.3)
 
-        fig.add_trace(go.Surface(x=x, y=y, z=z, surfacecolor=np.zeros(shape=x.shape), showscale=False))
+        fig.add_trace(go.Surface(x=x_p, y=y_p, z=z_p, surfacecolor=np.zeros(shape=x_p.shape), showscale=False))
         fig.update_coloraxes(colorbar_exponentformat='e')
         fig.update_layout(scene_aspectmode='data')
         fig.show()
@@ -624,8 +615,6 @@ class SerpensAnalyzer:
 
     def logDensities(self, timestep, species_num=1, species_name=None, species_id=None):
         """
-        TODO: Needs revision
-
         Returns the logarithm of maximum particle density, mean particle density, maximum line of sight density, and
         mean line of sight density. Base 10.
         Results are filtered to remove outliers (e.g. just created slow moving particles near the source's atmosphere)
@@ -655,15 +644,7 @@ class SerpensAnalyzer:
         los_max = []
         los_mean = []
 
-        ts_list = []
-        if isinstance(timestep, int):
-            ts_list.append(timestep)
-        elif isinstance(timestep, list):
-            ts_list = [int(x) for x in timestep]
-        elif isinstance(timestep, np.ndarray):
-            ts_list = np.ndarray.tolist(timestep.astype(int))
-        else:
-            raise TypeError("top-down timestep has an invalid type. Use 'int', 'list' or 'ndarray'")
+        ts_list = np.atleast_1d(timestep).astype(int)
 
         for ts in ts_list:
             print(f"Density calculation at timestep {ts} ...")
@@ -676,25 +657,22 @@ class SerpensAnalyzer:
             logDens2dInvSort = np.log10(np.sort(dens2d[dens2d > 0])[::-1])
             logDens3dInvSort = np.log10(np.sort(dens3d[dens3d > 0])[::-1])
 
-            while True:
-                if logDens2dInvSort[0] > (logDens2dInvSort[20] + 8):
-                    logDens2dInvSort = logDens2dInvSort[1:]
-                else:
-                    break
-            while True:
-                if logDens3dInvSort[0] > (logDens3dInvSort[20] + 8):
-                    logDens3dInvSort = logDens3dInvSort[1:]
-                else:
-                    break
+            # Define constants for outlier removal
+            top_elements_to_keep = 20
+            outlier_threshold = 8
 
-            logDens3dInvSort[logDens3dInvSort < 0] = 0
-            logDens2dInvSort[logDens2dInvSort < 0] = 0
+            # Filter outliers using while loops
+            while len(logDens2dInvSort) > top_elements_to_keep and logDens2dInvSort[0] > (
+                    logDens2dInvSort[top_elements_to_keep] + outlier_threshold):
+                logDens2dInvSort = logDens2dInvSort[1:]
+
+            while len(logDens3dInvSort) > top_elements_to_keep and logDens3dInvSort[0] > (
+                    logDens3dInvSort[top_elements_to_keep] + outlier_threshold):
+                logDens3dInvSort = logDens3dInvSort[1:]
 
             dens_max.append(logDens3dInvSort[0])
-            #dens_mean.append(np.mean(np.array_split(logDens3dInvSort, 2)[0]))
             dens_mean.append(np.mean(logDens3dInvSort))
             los_max.append(logDens2dInvSort[0])
-            #los_mean.append(np.mean(np.array_split(logDens2dInvSort, 2)[0]))
             los_mean.append(np.mean(logDens2dInvSort))
 
         return dens_max, dens_mean, los_max, los_mean

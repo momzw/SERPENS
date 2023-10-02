@@ -4,44 +4,32 @@ Running the script will append or overwrite a set of gravitationally acting obje
 in the 'new_celest' dictionary.
 """
 
+R_SOL = 696340e3
+M_SOL = 1.988e30
+R_JUP = 69911000
+M_JUP = 1.898e27
+AU = 1.496e11
+
 new_celest = {
-    "SYSTEM-NAME": "WASP-171b",
-    "star": {"m": 1.988e30,
-             "r": 696340000
+    "SYSTEM-NAME": "WASP-171",
+    "star": {"m": 1.171 * M_SOL,
+             "r": 1.637 * R_SOL
              },
-    "planet": {"m": 1.898e27,
-               "a": 7.785e11,
-               "e": 0.0489,
-               "inc": 0.0227,
-               "r": 69911000,
+    "planet": {"m": 1.084 * M_JUP,
+               "a": 0.0504 * AU,
+               "e": 0.0,
+               "inc": 0.03,
+               "r": 0.988 * R_JUP,
                "primary": 'star',
                },
-    "moon": {"m": 4.799e22,  # Europa
-             "a": 6.709e8,
-             "e": 0.009,
-             "inc": 0.0082,
-             "r": 1560800,
+    "moon": {"m": 1.345e23,
+             "a": 1221830e3,
+             "e": 0.0292,
+             "inc": 0.0029,
+             "r": 2574e3,
              "primary": 'planet',
-             },
-    "additional_1": {"m": 8.932e22,  # Io
-                     "a": 4.217e8,
-                     "e": 0.0041,
-                     "r": 1821600,
-                     "primary": 'planet'
-                     },
-    "additional_2": {"m": 1.4819e23,
-                     "a": 1070400000,
-                     "e": 0.0013,
-                     "inc": 0.00349,
-                     "r": 2410300,
-                     "primary": 'planet'
-                     },
-    "additional_3": {"m": 1.0759e22,
-                     "a": 1882700000,
-                     "e": 0.0074,
-                     "inc": 0.00335,
-                     "primary": 'planet'
-                     }
+             "source": True
+              }
         }
 
 

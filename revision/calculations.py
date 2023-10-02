@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as sp
+import sys
+import json
 
 def calculate_vb(temperatures, v_M):
 
@@ -82,7 +84,6 @@ def calculate_alfven(eta=.3):
 
 def calculate_params(celestial_system, stellar_temperature=None, lineofsight_observed_cm2=None, lifetime=None,
                      exosphere_temperature=None, stellar_age_gyr=None, stellar_spectral_type=None):
-    import objects
 
     gc = 6.6743e-11
     sb_constant = 5.67051e-8
@@ -93,7 +94,10 @@ def calculate_params(celestial_system, stellar_temperature=None, lineofsight_obs
     gc = 6.6743e-11
     tau_sync = 100e6 * 3.156e7
 
-    celest = objects.celestial_objects(moon=True, set=celestial_system)
+    with open('../resources/objects.txt') as f:
+        data = f.read().splitlines(True)
+        celest = json.loads(data[[f"{celestial_system}" in s for s in data].index(True)])
+
     star_mass = celest["star"]["m"]
     star_radius = celest["star"]["r"]
     planet_mass = celest["planet"]["m"]
@@ -239,3 +243,7 @@ def velocity_distributions():
     #fig = px.line(df, x='x', y=df.columns[1:])
     #fig.write_image("fig1.png")
     #fig.show()
+
+
+if __name__ == "__main__":
+    calculate_params()

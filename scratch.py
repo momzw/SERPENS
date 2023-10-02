@@ -13,11 +13,13 @@ sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
 #               lim=8, celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
 #               colormap=matplotlib.colormaps["afmhot"], show_source=True)
 
-sa.plot_lineofsight(timestep=115, show=True, show_planet=True, show_moon=True, lim=8,
-       celest_colors=['yellow', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,
-       colormap=matplotlib.colormaps["afmhot"])
+#sa.logDensities(115)
 
-#sa.plot3d(115, log_cutoff=2)
+#sa.plot_lineofsight(timestep=115, show=True, show_planet=True, show_moon=True, lim=8,
+#       celest_colors=['yellow', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,
+#       colormap=matplotlib.colormaps["afmhot"])
+
+sa.plot3d(115, log_cutoff=2)
 #sa.transit_curve('simulation-W69-ExoIo-Na-physical-HV')
 
 #pc = PhaseCurve()
