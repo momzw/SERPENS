@@ -152,7 +152,7 @@ class SerpensAnalyzer:
         See https://rebound.readthedocs.io/en/latest/ipython_examples/SimulationArchive/ for more information.
         """
         try:
-            return rebound.SimulationArchive("archive.bin", process_warnings=False)
+            return rebound.Simulationarchive("archive.bin", process_warnings=False)
         except Exception:
             raise Exception("simulation archive not found.")
 
@@ -164,7 +164,7 @@ class SerpensAnalyzer:
         Returns a 2d or 3d grid at which densities can be calculated from linear interpolation of DTFE results.
         Arguments handled by other class functions.
         """
-        boundary = self.params.int_spec["r_max"] * self._sim_instance.particles["source"].calculate_orbit(
+        boundary = self.params.int_spec["r_max"] * self._sim_instance.particles["source"].orbit(
             primary=self._sim_instance.particles["source_primary"]).a
         x_offset, y_offset, z_offset = self._calculate_offsets(plane)
 
@@ -203,7 +203,7 @@ class SerpensAnalyzer:
         if self.source_is_moon:
             phase = np.arctan2(self._sim_instance.particles[1].y, self._sim_instance.particles[1].x)
 
-            inc = self._sim_instance.particles[1].calculate_orbit().inc
+            inc = self._sim_instance.particles[1].orbit().inc
 
             reb_rot = rebound.Rotation(angle=phase, axis='z')
             reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
@@ -225,7 +225,7 @@ class SerpensAnalyzer:
             self.cached_timestep = timestep
 
         # REBX: sim_instance, rebx = self.sa[timestep]
-        self._sim_instance = self.sa[timestep]
+        self._sim_instance = self.sa[int(timestep)]
 
         if self.reference_system == "geocentric":
             if timestep not in self.rotated_timesteps:
@@ -322,7 +322,7 @@ class SerpensAnalyzer:
             are not hidden.
         """
         simulation_time = (timestep * self.params.int_spec["sim_advance"] *
-                           self._sim_instance.particles["source"].calculate_orbit(
+                           self._sim_instance.particles["source"].orbit(
                               primary=self._sim_instance.particles["source_primary"]).P)
 
         points_mask = np.where(self._particle_species == species.id)
@@ -589,6 +589,14 @@ class SerpensAnalyzer:
         z_p = (self._sim_instance.particles["source_primary"].r * np.cos(theta) +
                self._sim_instance.particles["source_primary"].z)
 
+        x_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.cos(phi) +
+               self._sim_instance.particles["star"].x)
+        y_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.sin(phi) +
+               self._sim_instance.particles["star"].y)
+        z_s = (self._sim_instance.particles["star"].r * np.cos(theta) +
+               self._sim_instance.particles["star"].z)
+
+
         np.seterr(divide='ignore')
 
         if log_cutoff is not None:
@@ -597,7 +605,8 @@ class SerpensAnalyzer:
                 'y': pos[:, 1][np.log10(dens) > log_cutoff],
                 'z': pos[:, 2][np.log10(dens) > log_cutoff]
             })
-            fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens[np.log10(dens) > log_cutoff]), opacity=.3)
+            fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens[np.log10(dens) > log_cutoff]), opacity=.3,
+                                color_continuous_scale='YlOrBr')
         else:
             df = pd.DataFrame({
                 'x': pos[:, 0],
@@ -606,7 +615,8 @@ class SerpensAnalyzer:
             })
             fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens), opacity=.3)
 
-        fig.add_trace(go.Surface(x=x_p, y=y_p, z=z_p, surfacecolor=np.zeros(shape=x_p.shape), showscale=False))
+        fig.add_trace(go.Surface(x=x_p, y=y_p, z=z_p, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='matter'))
+        fig.add_trace(go.Surface(x=x_s, y=y_s, z=z_s, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='Hot'))
         fig.update_coloraxes(colorbar_exponentformat='e')
         fig.update_layout(scene_aspectmode='data')
         fig.show()
@@ -689,8 +699,8 @@ class SerpensAnalyzer:
         exomoon_phase = df["phases"].values
         exomoon_los_mean = df["mean_los"].values
 
-        exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
-        exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
+        exoplanet_orbit = first_instance.particles["planet"].orbit(primary=first_instance.particles["star"])
+        exomoon_orbit = first_instance.particles["moon"].orbit(primary=first_instance.particles["planet"])
         #data_length = np.around(len(exomoon_phase) * exoplanet_orbit.P / exomoon_orbit.P).astype(int)
 
         delta_t = 5 * self.params.int_spec["sim_advance"] * exomoon_orbit.P
@@ -707,7 +717,7 @@ class SerpensAnalyzer:
 
         # Exoplanet:
         exoplanet_shadow_phase = np.arctan2(first_instance.particles["star"].r,
-                                            first_instance.particles["planet"].calculate_orbit(
+                                            first_instance.particles["planet"].orbit(
                                                 primary=first_instance.particles["star"]).a)
         transit_ingress_phase = -exoplanet_shadow_phase * 180 / np.pi
         transit_egress_phase = exoplanet_shadow_phase * 180 / np.pi
@@ -785,7 +795,7 @@ class SerpensAnalyzer:
 
 class PhaseCurve(SerpensAnalyzer):
 
-    # TODO: Needs revision
+    # TODO: Needs legacy
 
     def __init__(self, title='unnamed', archive_from=None):
         self.title = title
@@ -813,7 +823,7 @@ class PhaseCurve(SerpensAnalyzer):
         second_instance_index = int(list(self.hash_supdict.keys())[1])
         step = second_instance_index - 1
         second_instance = self.sa[second_instance_index]
-        orbit_phase = np.around(second_instance.particles["moon"].calculate_orbit(primary=second_instance.particles["planet"]).theta * 180 / np.pi)
+        orbit_phase = np.around(second_instance.particles["moon"].orbit(primary=second_instance.particles["planet"]).theta * 180 / np.pi)
         orbit_first_index = len(self.sa) - (second_instance_index + 360 / orbit_phase * second_instance_index)
 
         if (orbit_first_index - orbit_first_index % step + 1) > second_instance_index:
@@ -824,15 +834,15 @@ class PhaseCurve(SerpensAnalyzer):
                                 len(self.sa) - len(self.sa) % step + 1, step)
 
         first_instance = self.sa[0]
-        exomoon_orbit = first_instance.particles["moon"].calculate_orbit(primary=first_instance.particles["planet"])
-        exoplanet_orbit = first_instance.particles["planet"].calculate_orbit(primary=first_instance.particles["star"])
+        exomoon_orbit = first_instance.particles["moon"].orbit(primary=first_instance.particles["planet"])
+        exoplanet_orbit = first_instance.particles["planet"].orbit(primary=first_instance.particles["star"])
 
         phases = np.zeros(len(ts_list))
 
         #dl = np.zeros(len(ts_list))
         for i, timestep in enumerate(ts_list):
             self.pull_data(int(timestep))
-            phase = self._sim_instance.particles["moon"].calculate_orbit(
+            phase = self._sim_instance.particles["moon"].orbit(
                 primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
             if self.reference_system == 'geocentric':
                 shift = (timestep * self.params.int_spec["sim_advance"] * exomoon_orbit.P / exoplanet_orbit.P) * 360
@@ -974,7 +984,9 @@ class PhaseCurve(SerpensAnalyzer):
                       #f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEnce-SO2-3h-HV-WSHAD',
                       #f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEnce-K-HV',
                       #f'simulation-{implemented[f"{exoplanet_system}"]}-ExoIo-SO2-3h-HV-WSHAD',
-                      f'simulation-{implemented[f"{exoplanet_system}"]}-ExoIo-Na-physical-HV-NOSHAD',
+                      f'simulation-{implemented[f"{exoplanet_system}"]}-ExoIo-Na-physical-HV',
+                      f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEarth-Na-physical-HV',
+                      f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEnce-Na-physical-HV',
             # f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEarth-Na-{tau}-HV-NOSHAD',
             # f'simulation-{implemented[f"{exoplanet_system}"]}-ExoEnce-Na-{tau}-HV-NOSHAD',
             # f'simulation-{implemented[f"{exoplanet_system}"]}-ExoIo-Na-{tau}-HV-NOSHAD',

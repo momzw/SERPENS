@@ -3,6 +3,7 @@ import shutil
 import dill
 from serpens_simulation import SerpensSimulation
 from src.parameters import Parameters, NewParams
+from src.species import Species
 
 
 class SerpensScheduler:
@@ -109,7 +110,8 @@ class SerpensScheduler:
             num_advances = kwargs.get("sim_advances", Parameters.int_spec["num_sim_advances"])
             with open("Parameters.pickle", 'wb') as f:
                 dill.dump(v, f, protocol=dill.HIGHEST_PROTOCOL)
-            sim = SerpensSimulation(filename, snapshot)
+            #sim = SerpensSimulation(filename, snapshot)
+            sim = SerpensSimulation()
             sim.advance(num_advances, save_freq=save_freq)
 
             path = f"schedule_archive/simulation-{k}"
@@ -132,27 +134,28 @@ class SerpensScheduler:
         print("=============================")
 
 
-#ssch = SerpensScheduler()
-#
-#ssch.schedule("Europa-H2",
-#              species=[Species('H2', description=r'Europa $-$ H2', n_th=0, n_sp=300,
-#                               mass_per_sec=6.69, model_smyth_v_b=1200,
-#                               model_smyth_v_M=40*1000)],
-#              int_spec={"sim_advance": 1/100,
-#                        "num_sim_advances": 500,
-#                        "r_max": 4}
-#              )
-#
-#ssch.run(save_freq=1)
 
+if __name__ == "__main__":
+    ssch = SerpensScheduler()
 
+    ssch.schedule("Test1",
+                  celestial_name='Jupiter (Europa-Source)',
+                  species=[Species('Na', description=r'Test1 $-$ Na', n_th=0, n_sp=300,
+                                   mass_per_sec=6.69, model_smyth_v_b=1200,
+                                   model_smyth_v_M=6*1000)],
+                  int_spec={"sim_advance": 1/60,
+                            "num_sim_advances": 20,
+                            "r_max": 16}
+                  )
 
+    ssch.schedule("Test2",
+                  celestial_name='Jupiter (Io-Source)',
+                  species=[Species('Na', description=r'Test2 $-$ Na', n_th=0, n_sp=300,
+                                   mass_per_sec=6.69, model_smyth_v_b=1200,
+                                   model_smyth_v_M=6*1000)],
+                  int_spec={"sim_advance": 1/60,
+                            "num_sim_advances": 20,
+                            "r_max": 16}
+                  )
 
-
-
-
-
-
-
-
-
+    ssch.run(save_freq=2)

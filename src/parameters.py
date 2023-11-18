@@ -33,9 +33,11 @@ class DefaultFields:
         return cls._instance
 
     def _get_default_objects(self):
-        with open('resources/objects.txt') as f:
-            data = f.read().splitlines(True)
-            self.celest = json.loads(data[["Jupiter (Europa-Source)" in s for s in data].index(True)])
+        with open('resources/objects.json', 'r') as f:
+            #data = f.read().splitlines(True)
+            #self.celest = json.loads(data[["Jupiter (Europa-Source)" in s for s in data].index(True)])
+            systems = json.load(f)
+            self.celest = [objects for condition, objects in zip([s['SYSTEM-NAME']=='Jupiter (Europa-Source)' for s in systems], systems) if condition][0]
 
     def _get_default_parameters(self):
         self.species = {}
@@ -175,9 +177,14 @@ class Parameters:
             applied to the object.
         """
         if celestial_name is not None:
-            with open('resources/objects.txt') as f:
-                saved_objects = f.read().splitlines(True)
-                cls.celest = json.loads(saved_objects[[f"{celestial_name}" in s for s in saved_objects].index(True)])
+            with open('resources/objects.json', 'r') as f:
+                #saved_objects = f.read().splitlines(True)
+                #cls.celest = json.loads(saved_objects[[f"{celestial_name}" in s for s in saved_objects].index(True)])
+
+                systems = json.load(f)
+                cls.celest = [objects for condition, objects in
+                               zip([s['SYSTEM-NAME'] == f"{celestial_name}" for s in systems], systems) if
+                               condition][0]
 
                 source_key = find_source_object(cls.celest)
                 source_index = list(cls.celest).index(source_key)
@@ -268,17 +275,18 @@ class NewParams:
         if self.species is not None:
             Parameters.modify_species(*self.species)
 
+        if self.celestial_name is not None:
+            Parameters.modify_objects(celestial_name=self.celestial_name)
+
         if isinstance(self.objects, dict):
             for k1, v1 in self.objects.items():
                 if isinstance(v1, dict) and k1 in Parameters.celest:
                     source = v1.pop('source', False)
                     # False if v1 now empty:
                     if v1:
-                        Parameters.modify_objects(celestial_name=self.celestial_name,
-                                                  object=k1, as_new_source=source, new_properties=v1)
+                        Parameters.modify_objects(object=k1, as_new_source=source, new_properties=v1)
                     else:
-                        Parameters.modify_objects(celestial_name=self.celestial_name,
-                                                  object=k1, as_new_source=source)
+                        Parameters.modify_objects(object=k1, as_new_source=source)
 
         if self.therm_spec is not None or self.int_spec is not None:
             Parameters.modify_spec(int_spec=self.int_spec, therm_spec=self.therm_spec)

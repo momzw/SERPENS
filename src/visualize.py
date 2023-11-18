@@ -96,7 +96,7 @@ class BaseVisualizer(ArgumentProcessor):
                 self.axs[ax_num].set_facecolor('k')
                 self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
 
-        self.boundary = params.int_spec["r_max"] * self.sim.particles["source"].calculate_orbit(
+        self.boundary = params.int_spec["r_max"] * self.sim.particles["source"].orbit(
             primary=self.sim.particles["source_primary"]).a
 
     def _init_celestial_colors(self):
@@ -284,7 +284,7 @@ class Visualize(BaseVisualizer):
 
         if save_path is not None:
             fn = kwargs.get("filename", -1)
-            orbit_phase = np.around(self.sim.particles["source"].calculate_orbit(
+            orbit_phase = np.around(self.sim.particles["source"].orbit(
                 primary=self.sim.particles["source_primary"]).theta * 180 / np.pi)
 
             frame_identifier = f"SERPENS_{fn}"
