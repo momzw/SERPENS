@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Meyer zu Westram"
+  given-names: "Moritz"
+  orcid: "https://orcid.org/0000-0003-0446-688X"
+title: "SERPENS - Simulating the Evolution of Ring Particles Emergent from Natural Satellites"
+version: 0.3.1
+keywords:
+  - "N-body weighted Monte-Carlo"
+  - research
+license: GNU General Public License v3.0
+doi: 10.5281/zenodo.8353170
+date-released: 2023-09-19
+repository-code: "https://github.com/momzw/SERPENS"
