@@ -82,26 +82,6 @@ class SerpensScheduler:
         sim_advances : int      (default: Value from Parameters.int_spec)
             Number of simulation advances done.
         """
-        if len(self.sims) == 1:
-            # Handle arguments
-            filename = None
-            if len(args) > 0:
-                filename = args[0]
-            if "filename" in kwargs:
-                filename = kwargs["filename"]
-            snapshot = -1
-            if len(args) > 1:
-                snapshot = args[1]
-            if "snapshot" in kwargs:
-                snapshot = kwargs["snapshot"]
-        else:
-            filename = None
-            if len(args) > 0 or "filename" in kwargs:
-                print("You have passed additional arguments implying multiple scheduled simulations.")
-                print("Please schedule only one simulation to append to the archive.")
-                print("Returning...")
-                return
-            snapshot = -1
 
         print("Starting scheduled simulations.")
         save_freq = kwargs.get("save_freq", 1)

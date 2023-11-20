@@ -41,13 +41,21 @@ class DefaultFields:
 
     def _get_default_parameters(self):
         self.species = {}
-        with open('resources/input_parameters.txt') as f:
-            data = f.read().splitlines(True)
-            self.int_spec = json.loads(data[["integration_specifics" in s for s in data].index(True)])["integration_specifics"]
-            self.therm_spec = json.loads(data[["thermal_evap_parameters" in s for s in data].index(True)])[
-                "thermal_evap_parameters"]
-            for k, v in json.loads(data[-1]).items():
-                self.species[f"{k}"] = Species(**v)
+        #with open('resources/input_parameters.txt') as f:
+        #    data = f.read().splitlines(True)
+        #    self.int_spec = json.loads(data[["integration_specifics" in s for s in data].index(True)])["integration_specifics"]
+        #    self.therm_spec = json.loads(data[["thermal_evap_parameters" in s for s in data].index(True)])[
+        #        "thermal_evap_parameters"]
+        #    for k, v in json.loads(data[-1]).items():
+        #        self.species[f"{k}"] = Species(**v)
+
+        with open('resources/input_parameters.json', 'r') as f:
+            params = json.load(f)
+            self.int_spec = params[0]["INTEGRATION_SPECIFICS"]
+            self.therm_spec = params[0]["THERMAL_EVAP_PARAMETERS"]
+            for species in params[1:]:
+                for k, v in species.items():
+                    self.species[f"{k}"] = Species(**v)
 
         source_key = find_source_object(self.celest)
         source_index = list(self.celest).index(source_key)

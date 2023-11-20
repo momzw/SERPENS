@@ -39,7 +39,7 @@ def heartbeat(sim_pointer):
 
 # def rebx_setup(reb_sim):
 #    # REBOUNDX ADDITIONAL FORCES
-#    # This is a way of saving the particle information with REBX, but it appears to be slower.
+#    # This is a way of saving the particle information with REBX, but it appears to be memory-unstable.
 #    # ==========================
 #    rebx = reboundx.Extras(reb_sim)
 #    rf = rebx.load_force("radiation_forces")
@@ -423,7 +423,8 @@ class SerpensSimulation:
         dc = self._sim_partial_processes[dc_index]
         dc.dt = adv / 10
         dc.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
-        dc.save_to_file(f"proc/archiveProcess{dc_index}.bin", delete_file=True)
+
+        #dc.save_to_file(f"proc/archiveProcess{dc_index}.bin", delete_file=True)
 
         # REBX: dc_rebx = self.__rebx_deepcopies[dc_index]
         # REBX: dc_rebx.save(f"proc/archiveRebx{dc_index}.bin")
@@ -437,12 +438,13 @@ class SerpensSimulation:
         for x in split[proc]:
             dc.add(self._sim.particles[int(x)])
         self._advance_integration(proc)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            self._sim_partial_processes[proc] = rebound.Simulation(f"proc/archiveProcess{proc}.bin")
-            set_pointers(self._sim_partial_processes[proc])
-            # w/REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
-            # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
+
+        #with warnings.catch_warnings():
+        #    warnings.simplefilter("ignore")
+        #    self._sim_partial_processes[proc] = rebound.Simulation(f"proc/archiveProcess{proc}.bin")
+        #    set_pointers(self._sim_partial_processes[proc])
+        #    # w/REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
+        #    # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
 
     def single_advance(self, verbose=False):
         cpus = multiprocessing.cpu_count()
@@ -568,7 +570,7 @@ class SerpensSimulation:
             # Handle steady state (1/2)
             if np.abs(self._sim.N - n_before) < 50:
                 steady_state_counter += 1
-                if steady_state_counter == 10 and self.params.int_spec["stop_at_steady_state"] == True:
+                if steady_state_counter == 10 and self.params.int_spec["stop_at_steady_state"] is True:
                     print("Steady state reached!")
                     print("Stopping after another successful revolution...")
                     steady_state_breaker = 1
