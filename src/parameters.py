@@ -10,7 +10,7 @@ def find_source_object(object_dict):
                 source_key.append(key)
                 #return key
     if len(source_key) > 1:
-        raise ValueError("Currently we only support single-source system. Please make sure you only have one source.")
+        raise ValueError("Currently we only support single-source systems. Please make sure you only have one source.")
     elif len(source_key) == 1:
         return source_key[0]
     else:
@@ -34,21 +34,11 @@ class DefaultFields:
 
     def _get_default_objects(self):
         with open('resources/objects.json', 'r') as f:
-            #data = f.read().splitlines(True)
-            #self.celest = json.loads(data[["Jupiter (Europa-Source)" in s for s in data].index(True)])
             systems = json.load(f)
             self.celest = [objects for condition, objects in zip([s['SYSTEM-NAME']=='Jupiter (Europa-Source)' for s in systems], systems) if condition][0]
 
     def _get_default_parameters(self):
         self.species = {}
-        #with open('resources/input_parameters.txt') as f:
-        #    data = f.read().splitlines(True)
-        #    self.int_spec = json.loads(data[["integration_specifics" in s for s in data].index(True)])["integration_specifics"]
-        #    self.therm_spec = json.loads(data[["thermal_evap_parameters" in s for s in data].index(True)])[
-        #        "thermal_evap_parameters"]
-        #    for k, v in json.loads(data[-1]).items():
-        #        self.species[f"{k}"] = Species(**v)
-
         with open('resources/input_parameters.json', 'r') as f:
             params = json.load(f)
             self.int_spec = params[0]["INTEGRATION_SPECIFICS"]
