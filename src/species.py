@@ -72,6 +72,9 @@ class Species(SpeciesSpecifics):
         if self.electron_density is not None:
             self.network = Network(self.species_id, e_scaling=self.electron_density).network
 
+        if self.tau is not None:
+            self.network = self.tau
+
         self.description = kwargs.get("description", self.name)
 
         # Merge the provided sput_spec with the default_sput_spec
