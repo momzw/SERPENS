@@ -5,19 +5,19 @@ from src.parameters import Parameters
 import matplotlib
 
 
-ssim = SerpensSimulation(system="HD-189733")
-ssim.advance(45, verbose=False)
+#ssim = SerpensSimulation(system="HD-189733")
+#ssim.advance(45, verbose=False)
 
 sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
-sa.plot_planar(timestep=44, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1,
-               lim=8, celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
-               colormap=matplotlib.colormaps["afmhot"], show_source=True)
+#sa.plot_planar(timestep=44, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1,
+#               lim=8, celest_colors=['orange', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'],
+#               colormap=matplotlib.colormaps["afmhot"], show_source=True)
 
-#sa.plot_lineofsight(timestep=5, show=True, show_planet=True, show_moon=True, lim=8,
+#sa.plot_lineofsight(timestep=44, show=True, show_planet=True, show_moon=True, lim=8,
 #       celest_colors=['yellow', 'sandybrown', 'red', 'gainsboro', 'tan', 'grey'], scatter=True, colormesh=False,
 #       colormap=matplotlib.colormaps["afmhot"])
 
-#sa.plot3d(15, log_cutoff=2)
+sa.plot3d(40, log_cutoff=2)
 
 """ ############################################################# """
 
