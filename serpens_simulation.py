@@ -277,13 +277,12 @@ class SerpensSimulation:
             iter = len(arch) - 1 if snapshot == -1 else snapshot
             self.hash_dict = self.hash_supdict[f"{iter + 1}"]
 
-        self._sim_deepcopies = []
+        self._sim_partial_processes = []
+        # REBX: self.__rebx_deepcopies = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             for _ in range(multiprocessing.cpu_count()):
-                copy = self._sim.copy()
-                set_pointers(copy)
-                self._sim_deepcopies.append(copy)
+                self._sim_partial_processes.append(self._sim.copy())
 
         self.var = {"iter": iter,
                     "source_a": self._sim.particles["source"].orbit(
@@ -293,9 +292,9 @@ class SerpensSimulation:
 
         self.var["boundary"] = self.params.int_spec["r_max"] * self.var["source_a"]
 
-        #set_pointers(self._sim)
-        for dc in self._sim_deepcopies:
-            #set_pointers(dc)
+        set_pointers(self._sim)
+        for dc in self._sim_partial_processes:
+            set_pointers(dc)
             dc.t = self.var["iter"] * self.var["source_P"] * self.params.int_spec["sim_advance"]
 
     def _add_particles(self):
@@ -427,7 +426,7 @@ class SerpensSimulation:
         Saves the partial simulation to a process archive file in order to recombine after multiprocessing.
         """
         adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
-        dc = self._sim_deepcopies[dc_index]
+        dc = self._sim_partial_processes[dc_index]
         dc.dt = adv / 10
         dc.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
 
@@ -441,7 +440,7 @@ class SerpensSimulation:
         Internal use only.
         Wrapper function to assign sub-simulations a subset of all particles before integration.
         """
-        dc = self._sim_deepcopies[proc]
+        dc = self._sim_partial_processes[proc]
         for x in split[proc]:
             dc.add(self._sim.particles[int(x)])
         self._advance_integration(proc)
@@ -476,24 +475,24 @@ class SerpensSimulation:
         del self._sim.particles
 
         # Copy active objects from first simulation copy:
-        for act in range(self._sim_deepcopies[0].N_active):
+        for act in range(self._sim_partial_processes[0].N_active):
             try:
-                _ = self._sim_deepcopies[0].particles["source"]
-                _ = self._sim_deepcopies[0].particles["source_primary"]
+                _ = self._sim_partial_processes[0].particles["source"]
+                _ = self._sim_partial_processes[0].particles["source_primary"]
             except rebound.ParticleNotFound:
                 print("ERROR:")
                 print("Source collided with primary or other object!")
                 print("aborting simulation...")
                 return
-            self._sim.add(self._sim_deepcopies[0].particles[act])
+            self._sim.add(self._sim_partial_processes[0].particles[act])
 
-        self._sim.N_active = self._sim_deepcopies[0].N_active
+        self._sim.N_active = self._sim_partial_processes[0].N_active
 
         # Transfer particles
         num_lost = 0
-        for proc in range(len(self._sim_deepcopies)):
+        for proc in range(len(self._sim_partial_processes)):
 
-            dc = self._sim_deepcopies[proc]
+            dc = self._sim_partial_processes[proc]
 
             dc_remove = []
             for particle in dc.particles[dc.N_active:]:
@@ -562,7 +561,7 @@ class SerpensSimulation:
             self._rebx.save("rebx.bin")
 
             if verbose:
-                t = self._sim_deepcopies[0].t
+                t = self._sim_partial_processes[0].t
                 print(f"Advance done! \n"
                       f"Simulation time [h]: {np.around(t / 3600, 2)} \n"
                       f"Simulation runtime [s]: {np.around(time.time() - start_time, 2)} \n"
@@ -612,7 +611,6 @@ class SerpensSimulation:
               '             ^^ ^  \'\ ^          ^       ---        \n         --           -            --  -      - '
               '        ---  __       ^     \n(~ ASCII Art by Robert Casey)  ___--  ^  ^                         --  '
               '__   ')
-
 
 if __name__ == "__main__":
     params = Parameters()

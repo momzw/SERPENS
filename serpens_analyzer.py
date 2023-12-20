@@ -3,6 +3,7 @@ import os as os
 import glob
 import shutil
 import rebound
+import reboundx
 import dill
 import pandas as pd
 import plotly.express as px
@@ -563,7 +564,7 @@ class SerpensAnalyzer:
             del vis
 
     @ensure_data_loaded
-    def plot3d(self, timestep, species_num=1, log_cutoff=None):
+    def plot3d(self, timestep, species_num=1, log_cutoff=None, show_star=False):
         """
         Uses the plotly module to create an interactive 3D plot.
 
@@ -589,13 +590,13 @@ class SerpensAnalyzer:
         z_p = (self._sim_instance.particles["source_primary"].r * np.cos(theta) +
                self._sim_instance.particles["source_primary"].z)
 
-        x_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.cos(phi) +
-               self._sim_instance.particles["star"].x)
-        y_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.sin(phi) +
-               self._sim_instance.particles["star"].y)
-        z_s = (self._sim_instance.particles["star"].r * np.cos(theta) +
-               self._sim_instance.particles["star"].z)
-
+        if show_star:
+            x_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.cos(phi) +
+                   self._sim_instance.particles["star"].x)
+            y_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.sin(phi) +
+                   self._sim_instance.particles["star"].y)
+            z_s = (self._sim_instance.particles["star"].r * np.cos(theta) +
+                   self._sim_instance.particles["star"].z)
 
         np.seterr(divide='ignore')
 
@@ -616,7 +617,8 @@ class SerpensAnalyzer:
             fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens), opacity=.3)
 
         fig.add_trace(go.Surface(x=x_p, y=y_p, z=z_p, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='matter'))
-        fig.add_trace(go.Surface(x=x_s, y=y_s, z=z_s, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='Hot'))
+        if show_star:
+            fig.add_trace(go.Surface(x=x_s, y=y_s, z=z_s, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='Hot'))
         fig.update_coloraxes(colorbar_exponentformat='e')
         fig.update_layout(scene_aspectmode='data')
         fig.show()
