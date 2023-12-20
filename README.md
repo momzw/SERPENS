@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/522167778.svg)](https://zenodo.org/badge/latestdoi/522167778)
 
-# SERPENS
+# Welcome to SERPENS
 
 ![SERPENS Examples](docs/img/W69.png?raw=true)
 
