@@ -273,11 +273,7 @@ class SerpensSimulation:
                     self._sim.particles[identifier].params["serpens_species"] = species.id
                     self._sim.particles[identifier].params["serpens_weight"] = 1.
 
-    def single_advance(self):
-
-        # ADD & REMOVE PARTICLES
-        self._add_particles()
-
+    def integrate(self):
         weightop = self._rebx.create_operator("weightloss")
         weightop.operator_type = "recorder"
         weightop.step_function = weight_operator
@@ -289,6 +285,13 @@ class SerpensSimulation:
 
         # HAVE TO REMOVE BECAUSE OPERATOR CORRUPTS SAVE
         self._rebx.remove_operator(weightop)
+
+    def single_advance(self):
+
+        # ADD & REMOVE PARTICLES
+        self._add_particles()
+
+        self.integrate()
 
         remove = []
         for particle in self._sim.particles[self._sim.N_active:]:
@@ -377,20 +380,13 @@ class SerpensSimulation:
             if verbose:
                 print("\t ... done!\n============================================")
 
-        print('                 .                     .        .   *          .            \n . '
-              '         \          .            .       .           .      .            \n      .      \   ,          '
-              '          ,                ,    ,               \n   .          o     .           SIMULATION FINISHED! '
-              '               .       \n     .         \                 ,                       .                . '
-              '\n               #\##\#      .                              .        .        \n             #  '
-              '#O##\###                .                        .          \n   .        #*#  #\##\###                '
-              '       .                     ,     \n        .   ##*#  #\##\##               .                     .   '
-              '          \n      .      ##*#  #o##\#         .                             ,       .   \n          .  '
-              '   *#  #\#     .                    .             .          , \n                      \          .    '
-              '                     .                '
-              '\n____^/\___^--____/\____O______________/\/\---/\___________---______________ \n   /\^   ^  ^    ^     '
-              '             ^^ ^  \'\ ^          ^       ---        \n         --           -            --  -      - '
-              '        ---  __       ^     \n(~ ASCII Art by Robert Casey)  ___--  ^  ^                         --  '
-              '__   ')
+        self.print_simulation_end_message()
+
+    @staticmethod
+    def print_simulation_end_message():
+        with open('docs/sim_end_message.txt', 'r') as f:
+            end_message = f.read()
+        print(end_message)
 
 
 if __name__ == "__main__":
