@@ -4,7 +4,7 @@ import numpy as np
 import warnings
 import multiprocessing
 import concurrent.futures
-import dill
+import pickle
 from src.create_particle import create_particle
 from src.parameters import Parameters
 from tqdm import tqdm
@@ -145,8 +145,8 @@ def rebound_setup(params):
     with open(f"Parameters.txt", "w") as f:
         f.write(f"{params.__str__()}")
 
-    with open("Parameters.pickle", 'wb') as f:
-        dill.dump(params, f, protocol=dill.HIGHEST_PROTOCOL)
+    with open("Parameters.pkl", 'wb') as f:
+        pickle.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("\t \t ... done!")
 
@@ -387,12 +387,3 @@ class SerpensSimulation:
         with open('docs/sim_end_message.txt', 'r') as f:
             end_message = f.read()
         print(end_message)
-
-
-if __name__ == "__main__":
-    params = Parameters()
-    with open("Parameters.pickle", 'wb') as f:
-        dill.dump(params, f, protocol=dill.HIGHEST_PROTOCOL)
-
-    ssim = SerpensSimulation(system="Jupiter (Europa-Source)")
-    ssim.advance(Parameters.int_spec["num_sim_advances"])

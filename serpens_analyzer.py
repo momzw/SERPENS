@@ -4,7 +4,7 @@ import glob
 import shutil
 import rebound
 import reboundx
-import dill
+import pickle
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -78,12 +78,11 @@ class SerpensAnalyzer:
 
         try:
             with open('Parameters.pickle', 'rb') as handle:
-                params_load = dill.load(handle)
+                params_load = pickle.load(handle)
                 params_load()
         except Exception:
             raise Exception("hash_library.pickle and/or Parameters.pickle not found.")
 
-        self.hash_supdict = self._load_hash_supdict()
         self.sa = self._load_simulation_archive()
         self.save = save_output
         self.save_arch = save_archive
@@ -128,23 +127,6 @@ class SerpensAnalyzer:
                 print("\t hash library...")
                 shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/output/{self.path}")
                 print("\t ...done!")
-
-    @staticmethod
-    def _load_hash_supdict():
-        """
-        Loads hash dictionary file. This file contains information about species and weight of a super-particle.
-        """
-        hash_supdict = {}
-        with open('hash_library.pickle', 'rb') as f:
-            while True:
-                try:
-                    a = dill.load(f)
-                    dict_timestep = list(a.keys())[0]
-                except EOFError:
-                    break
-                else:
-                    hash_supdict[dict_timestep] = a[dict_timestep]
-        return hash_supdict
 
     @staticmethod
     def _load_simulation_archive():
@@ -225,9 +207,8 @@ class SerpensAnalyzer:
         else:
             self.cached_timestep = timestep
 
-        self._sim_instance = self.sa[timestep]
-        rebx = reboundx.Extras(self._sim_instance, "rebx.bin")
-        #self._sim_instance = self.sa[int(timestep)]
+        self._sim_instance = self.sa[int(timestep)]
+        _ = reboundx.Extras(self._sim_instance, "rebx.bin")
 
         if self.reference_system == "geocentric":
             if timestep not in self.rotated_timesteps:
@@ -414,7 +395,6 @@ class SerpensAnalyzer:
         ts_list = np.atleast_1d(timestep).astype(int)
 
         for ts in ts_list:
-            ts = min([eval(i) for i in list(self.hash_supdict.keys())], key=lambda x: abs(ts - x))
             self.pull_data(ts)
             vis = Visualize(self._sim_instance, **kwargs)
 
@@ -830,7 +810,7 @@ class PhaseCurve(SerpensAnalyzer):
 
         #dl = np.zeros(len(ts_list))
         for i, timestep in enumerate(ts_list):
-            self.pull_data(int(timestep))
+            self.pull_data(timestep)
             phase = self._sim_instance.particles["moon"].orbit(
                 primary=self._sim_instance.particles["planet"]).theta * 180 / np.pi
             if self.reference_system == 'geocentric':

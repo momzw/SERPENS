@@ -5,8 +5,8 @@ from src.parameters import Parameters
 import matplotlib
 
 
-ssim = SerpensSimulation(system="HD-189733")
-ssim.advance(15, verbose=False)
+#ssim = SerpensSimulation(system="HD-189733")
+#ssim.advance(15, verbose=False)
 
 sa = SerpensAnalyzer(save_output=False, reference_system="geocentric")
 sa.plot_planar(timestep=14, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1,
