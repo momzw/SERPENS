@@ -12,6 +12,22 @@ from src.create_particle import create_particle
 from src.parameters import Parameters
 from tqdm import tqdm
 import time
+from multiprocessing import Pool
+
+
+def weight_operator(sim_pointer, rebx_operator, dt):
+    sim = sim_pointer.contents
+    params = Parameters()
+    for particle in sim.particles[sim.N_active:]:
+        species_id = particle.params["serpens_species"]
+        species = params.get_species(id=species_id)
+        if species.duplicate is not None:
+            species_id = int(str(species_id)[0])
+            species = params.get_species(id=species_id)
+        tau = species.network
+        particle.params['serpens_weight'] *= np.exp(-sim.dt/tau)
+
+    #sim.particles[5].params['serpens_weight'] += 1e-3*dt
 
 
 def heartbeat(sim_pointer):
@@ -37,20 +53,6 @@ def heartbeat(sim_pointer):
         sim.particles["source"].vxyz = p1.vxyz
 
 
-def rebx_setup(reb_sim):
-    # REBOUNDX ADDITIONAL FORCES
-    # This is a way of saving the particle information with REBX, but it appears to be slower.
-    # ==========================
-    rebx = reboundx.Extras(reb_sim)
-    rf = rebx.load_force("radiation_forces")
-    rebx.add_force(rf)
-    rf.params["c"] = 3.e8
-    reb_sim.particles["star"].params["radiation_source"] = 1
-    rebx.register_param('serpens_species', 'REBX_TYPE_INT')
-    rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
-    return rebx
-
-
 def rebound_setup(params):
     """
     Not meant for external use.
@@ -62,15 +64,17 @@ def rebound_setup(params):
 
     reb_sim = rebound.Simulation()
     reb_sim.integrator = "whfast"  # Fast and unbiased symplectic Wisdom-Holman integrator.
-    reb_sim.ri_whfast.kernel = "lazy"
+    #reb_sim.ri_whfast.kernel = "lazy"
     reb_sim.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
     reb_sim.collision_resolve = "merge"
+    if Parameters.int_spec["fix_source_circular_orbit"]:
+        reb_sim.heartbeat = heartbeat
 
     # SI units:
     reb_sim.units = ('m', 's', 'kg')
     reb_sim.G = 6.6743e-11
 
-    reb_sim.dt = 500
+    #reb_sim.dt = 100
 
     for k, v in Parameters.celest.items():
         if not type(v) == dict:
@@ -101,6 +105,7 @@ def rebound_setup(params):
                         reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"])
                 else:
                     reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"])
+
     reb_sim.N_active = len(Parameters.celest) - 1
 
     reb_sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
@@ -111,11 +116,22 @@ def rebound_setup(params):
     #   sim.ri_whfast.recalculate_coordinates_this_timestep
     # * Synchronization is needed if simulation gets manipulated or particle states get printed.
     # Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
-    # => sim.ri_whfast.safe_mode = 0
+    #
+    # sim.ri_whfast.safe_mode = 0
 
-    rebx = rebx_setup(reb_sim)
+    # REBOUNDX ADDITIONAL FORCES
+    # ==========================
+    rebx = reboundx.Extras(reb_sim)
+    rf = rebx.load_force("radiation_forces")
+    rebx.add_force(rf)
+    rf.params["c"] = 3.e8
+    reb_sim.particles["star"].params["radiation_source"] = 1
+    rebx.register_param('serpens_species', 'REBX_TYPE_INT')
+    rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
 
     reb_sim.save_to_file("archive.bin", delete_file=True)
+    rebx.save("rebx.bin")
+
     with open(f"Parameters.txt", "w") as f:
         f.write(f"{params.__str__()}")
 
@@ -124,30 +140,7 @@ def rebound_setup(params):
 
     print("\t \t ... done!")
 
-    return reb_sim, rebx
-
-
-def set_pointers(reb_sim):
-    """
-    Not meant for external use.
-    Sets the pointers for handling simulation sub-instances in the integration process.
-    Responsible for including REBOUNDX additional forces.
-    """
-    # Brute force collision search, scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
-    reb_sim.collision = "direct"
-    reb_sim.collision_resolve = "merge"
-    if Parameters.int_spec["fix_source_circular_orbit"]:
-        reb_sim.heartbeat = heartbeat
-
-    # REBOUNDX ADDITIONAL FORCES
-    # ==========================
-    rebxdc = reboundx.Extras(reb_sim)
-    rf = rebxdc.load_force("radiation_forces")
-    rebxdc.add_force(rf)
-    rf.params["c"] = 3.e8
-    reb_sim.particles["star"].params["radiation_source"] = 1
-    rebxdc.register_param('serpens_species', 'REBX_TYPE_INT')
-    rebxdc.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
+    #return reb_sim, rebx
 
 
 def create(source_state, source_r, phys_process, species):
@@ -209,7 +202,7 @@ class SerpensSimulation:
     (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)
     """
 
-    def __init__(self, system='default', *args, **kw):
+    def __init__(self, system='default'):
         """
         Initializes a REBOUND simulation instance, as well as used class instance variables.
 
@@ -223,22 +216,6 @@ class SerpensSimulation:
         print("SERPENS simulation has been created.")
         print("=======================================")
 
-        self.hash_supdict = {}
-        self.hash_dict = {}
-
-        # Handle arguments
-        filename = None
-        if len(args) > 0:
-            filename = args[0]
-        if "filename" in kw:
-            filename = kw["filename"]
-        if filename is not None:
-            with open('hash_library.pickle', 'rb') as handle:
-                self.hash_supdict = dill.load(handle)
-            with open('Parameters.pickle', 'rb') as handle:
-                params_load = dill.load(handle)
-                params_load()
-
         self.params = Parameters()
         if not system == 'default':
             try:
@@ -248,42 +225,16 @@ class SerpensSimulation:
                 print("Exiting...")
                 exit()
 
-        snapshot = -1
-        if len(args) > 1:
-            snapshot = args[1]
-        if "snapshot" in kw:
-            snapshot = kw["snapshot"]
+        # Create a new simulation
+        #self._sim, self._rebx = rebound_setup(self.params)
+        rebound_setup(self.params)
+        self._sim = rebound.Simulation("archive.bin")
+        self._rebx = reboundx.Extras(self._sim, "rebx.bin")
 
-        # Create simulation
-        if filename is None:
-            # Create a new simulation
-            # reb_sim = rebound_setup(self.params)
+        self._sim.collision = "direct"
+        self._sim.collision_resolve = "merge"
 
-            reb_sim, rebx = rebound_setup(self.params)
-            self._rebx = rebx
-
-            self._sim = reb_sim
-            iter = 0
-
-            if os.path.exists("hash_library.pickle"):
-                os.remove("hash_library.pickle")
-        else:
-            #arch = rebound.Simulationarchive(filename, process_warnings=False)
-            #self._sim = arch[snapshot]
-
-            arch, rebx = reboundx.Simulationarchive(filename, rebxfilename="rebx.bin")
-            self._sim, self._rebx = arch[snapshot]
-
-            iter = len(arch) - 1 if snapshot == -1 else snapshot
-            self.hash_dict = self.hash_supdict[f"{iter + 1}"]
-
-        self._sim_partial_processes = []
-        # REBX: self.__rebx_deepcopies = []
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            for _ in range(multiprocessing.cpu_count()):
-                self._sim_partial_processes.append(self._sim.copy())
-
+        iter = 0
         self.var = {"iter": iter,
                     "source_a": self._sim.particles["source"].orbit(
                         primary=self._sim.particles["source_primary"]).a,
@@ -291,11 +242,6 @@ class SerpensSimulation:
                         primary=self._sim.particles["source_primary"]).P}
 
         self.var["boundary"] = self.params.int_spec["r_max"] * self.var["source_a"]
-
-        set_pointers(self._sim)
-        for dc in self._sim_partial_processes:
-            set_pointers(dc)
-            dc.t = self.var["iter"] * self.var["source_P"] * self.params.int_spec["sim_advance"]
 
     def _add_particles(self):
         """
@@ -320,217 +266,55 @@ class SerpensSimulation:
                     self._sim.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5],
                                   hash=identifier)
 
-                    # sim.particles[identifier].params["kappa"] = 1.0e-6 / species.mass_num
                     self._sim.particles[identifier].params["beta"] = species.beta
                     self._sim.particles[identifier].params["serpens_species"] = species.id
                     self._sim.particles[identifier].params["serpens_weight"] = 1.
 
-                    self.hash_dict[str(self._sim.particles[identifier].hash.value)] = {"id": species.id,
-                                                                                       "weight": 1}
-
-    def _check_shadow(self, particle_pos):
-        """
-        Internal use only.
-        Checks if a particle resides inside the shadow of the planet.
-        Returns a boolean value.
-        """
-        planet = self._sim.particles[1]
-        star = self._sim.particles[0]
-        shadow_apex = np.asarray(planet.xyz) * (1 + planet.r / (star.r - planet.r))
-
-        h = np.linalg.norm(planet.xyz) * planet.r / (star.r - planet.r)
-        axis_normal_vec = - np.asarray(planet.xyz) / np.linalg.norm(planet.xyz)
-
-        cone_constant = planet.r ** 2 / h
-
-        Y0 = np.dot(axis_normal_vec, shadow_apex)
-
-        coneY = np.dot(particle_pos, axis_normal_vec) - Y0
-        if (coneY < 0) or (coneY > h):
-            in_cone = False
-        else:
-            X = particle_pos - shadow_apex - coneY * axis_normal_vec
-            X_square = np.dot(X, X)
-            if X_square > cone_constant * coneY:
-                in_cone = False
-            else:
-                in_cone = True
-
-        return in_cone
-
-    def _loss_per_advance(self):
-        """
-        Internal use only.
-        Reads the hash dictionary and updates the weight of particles according to the species lifetime and time that
-        the particles have been in the simulation. The weight is important for density calculations.
-        """
-        # Check all particles
-        exception_counter = 0
-        for particle in self._sim.particles[self._sim.N_active:]:
-
-            try:
-                particle_weight = self.hash_dict[f"{particle.hash.value}"]["weight"]
-                species_id = self.hash_dict[f"{particle.hash.value}"]["id"]
-            except:
-                print("Particle not found.")
-                exception_counter += 1
-                if exception_counter == 20:
-                    raise Exception("Something went wrong..")
-                else:
-                    continue
-
-            particle_weight = particle.params["serpens_weight"]
-            species_id = particle.params["serpens_species"]
-
-            species = self.params.get_species(id=species_id)
-
-            if species.duplicate is not None:
-                species_id = int(str(species_id)[0])
-                species = self.params.get_species(id=species_id)
-
-            if isinstance(species.tau_shielded, (float, int)) or (
-                    self.params.int_spec["radiation_pressure_shield"] and species.beta > 0):
-                if self._check_shadow(particle.xyz):
-                    if isinstance(species.tau_shielded, (float, int)):
-                        chem_network = species.tau_shielded
-                    else:
-                        chem_network = species.network
-
-                    if self.params.int_spec["radiation_pressure_shield"]:
-                        particle.params["beta"] = 0
-                else:
-                    chem_network = species.network
-                    particle.params["beta"] = species.beta
-            else:
-                chem_network = species.network  # tau (str), educts (str), products (str), velocities (str)
-
-            dt = self.params.int_spec["sim_advance"] * self.var["source_P"]
-
-            if not isinstance(chem_network, (int, float)):
-                # Go through all reactions/lifetimes
-                for l in range(np.size(chem_network[:, 0])):
-                    tau = float(chem_network[:, 0][l])
-                    particle_weight = particle_weight * np.exp(-dt / tau)
-            else:
-                tau = chem_network
-                particle_weight = particle_weight * np.exp(-dt / tau)
-                particle.params["serpens_weight"] = particle_weight
-
-            self.hash_dict[f"{particle.hash.value}"].update({'weight': particle_weight})
-
-    def _advance_integration(self, dc_index):
-        """
-        Internal use only.
-        Function to integrate a REBOUND simulation instance that has been split from the main simulation.
-        Multiprocessing allows for the integration of multiple sub-simulations at the same time.
-        Saves the partial simulation to a process archive file in order to recombine after multiprocessing.
-        """
-        adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
-        dc = self._sim_partial_processes[dc_index]
-        dc.dt = adv / 10
-        dc.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
-
-        #dc.save_to_file(f"proc/archiveProcess{dc_index}.bin", delete_file=True)
-
-        # REBX: dc_rebx = self.__rebx_deepcopies[dc_index]
-        # REBX: dc_rebx.save(f"proc/archiveRebx{dc_index}.bin")
-
-    def _advance_integration_wrapper(self, proc, split):
-        """
-        Internal use only.
-        Wrapper function to assign sub-simulations a subset of all particles before integration.
-        """
-        dc = self._sim_partial_processes[proc]
-        for x in split[proc]:
-            dc.add(self._sim.particles[int(x)])
-        self._advance_integration(proc)
-
-        #with warnings.catch_warnings():
-        #    warnings.simplefilter("ignore")
-        #    self._sim_partial_processes[proc] = rebound.Simulation(f"proc/archiveProcess{proc}.bin")
-        #    set_pointers(self._sim_partial_processes[proc])
-        #    # w/REBX: self.__rebx_deepcopies[ind] = reboundx.Extras(self.__sim_deepcopies[ind],
-        #    # w/REBX:                                             f"proc/archiveRebx{ind}.bin")
-
     def single_advance(self, verbose=False):
-        cpus = multiprocessing.cpu_count()
-
-        n_before = self._sim.N
 
         # ADD & REMOVE PARTICLES
         self._add_particles()
-        self._loss_per_advance()
 
-        # ADVANCE SIMULATION
-        lst = list(range(n_before, self._sim.N))
-        split = np.array_split(lst, cpus)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
-            wrapped_fn = functools.partial(self._advance_integration_wrapper, split=split)
-            executor.map(wrapped_fn, range(cpus))
+        weightop = self._rebx.create_operator("weightloss")
+        weightop.operator_type = "recorder"
+        weightop.step_function = weight_operator
+        self._rebx.add_operator(weightop, dtfraction=1., timing="post")
 
-        if verbose:
-            print("\t MP Processes joined.")
-            print("Transferring particle data...")
+        adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
+        self._sim.dt = adv / 10
+        self._sim.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
 
-        del self._sim.particles
+        # HAVE TO REMOVE BECAUSE OPERATOR CORRUPTS SAVE
+        self._rebx.remove_operator(weightop)
 
-        # Copy active objects from first simulation copy:
-        for act in range(self._sim_partial_processes[0].N_active):
+        remove = []
+        for particle in self._sim.particles[self._sim.N_active:]:
+
             try:
-                _ = self._sim_partial_processes[0].particles["source"]
-                _ = self._sim_partial_processes[0].particles["source_primary"]
-            except rebound.ParticleNotFound:
-                print("ERROR:")
-                print("Source collided with primary or other object!")
-                print("aborting simulation...")
-                return
-            self._sim.add(self._sim_partial_processes[0].particles[act])
+                w = particle.params["serpens_weight"]
+                species_id = particle.params["serpens_species"]
+            except:
+                print("Particle not found.")
+                remove.append(particle.hash)
+                continue
 
-        self._sim.N_active = self._sim_partial_processes[0].N_active
+            species = self.params.get_species(id=species_id)
+            mass_inject_per_advance = (species.mass_per_sec * self.params.int_spec["sim_advance"] *
+                                       self.var["source_P"])
+            pps = species.particles_per_superparticle(mass_inject_per_advance)
 
-        # Transfer particles
-        num_lost = 0
-        for proc in range(len(self._sim_partial_processes)):
+            particle_distance = np.linalg.norm(
+                np.asarray(particle.xyz) - np.asarray(self._sim.particles["source_primary"].xyz))
 
-            dc = self._sim_partial_processes[proc]
-
-            dc_remove = []
-            for particle in dc.particles[dc.N_active:]:
-
+            if particle_distance > self.var["boundary"] or w * pps < 1e10:
                 try:
-                    w = self.hash_dict[f"{particle.hash.value}"]['weight']
-                    species_id = self.hash_dict[f"{particle.hash.value}"]['id']
-                    w = particle.params["serpens_weight"]
-                    species_id = particle.params["serpens_species"]
-                except:
-                    print("Particle not found.")
-                    dc_remove.append(particle.hash)
-                    continue
+                    remove.append(particle.hash)
+                except RuntimeError:
+                    print("Removal error occurred.")
+                    pass
 
-                species = self.params.get_species(id=species_id)
-                mass_inject_per_advance = (species.mass_per_sec * self.params.int_spec["sim_advance"] *
-                                           self.var["source_P"])
-                pps = species.particles_per_superparticle(mass_inject_per_advance)
-
-                particle_distance = np.linalg.norm(
-                    np.asarray(particle.xyz) - np.asarray(self._sim.particles["source_primary"].xyz))
-
-                if particle_distance > self.var["boundary"] or w * pps < 1e10:
-                    try:
-                        dc_remove.append(particle.hash)
-                    except RuntimeError:
-                        print("Removal error occurred.")
-                        pass
-                else:
-                    self._sim.add(particle)
-
-            for hash in dc_remove:
-                dc.remove(hash=hash)
-                try:
-                    del self.hash_dict[f"{hash.value}"]
-                except:
-                    continue
-                num_lost += 1
+        for hash in remove:
+            self._sim.remove(hash=hash)
 
     def advance(self, num_sim_advances, save_freq=1, verbose=False):
         """
@@ -561,18 +345,11 @@ class SerpensSimulation:
             self._rebx.save("rebx.bin")
 
             if verbose:
-                t = self._sim_partial_processes[0].t
+                t = self._sim.t
                 print(f"Advance done! \n"
                       f"Simulation time [h]: {np.around(t / 3600, 2)} \n"
                       f"Simulation runtime [s]: {np.around(time.time() - start_time, 2)} \n"
                       f"Number of particles: {self._sim.N}")
-
-            # Handle saves
-            if self.var["iter"] % save_freq == 0:
-                if verbose: print("Saving hash dict...")
-                dict_saver = {f"{str(self.var['iter'] + 1)}": copy.deepcopy(self.hash_dict)}
-                with open("hash_library.pickle", 'ab') as f:
-                    dill.dump(dict_saver, f, dill.HIGHEST_PROTOCOL)
 
             # Handle steady state (1/2)
             if np.abs(self._sim.N - n_before) < 50:
@@ -611,6 +388,7 @@ class SerpensSimulation:
               '             ^^ ^  \'\ ^          ^       ---        \n         --           -            --  -      - '
               '        ---  __       ^     \n(~ ASCII Art by Robert Casey)  ___--  ^  ^                         --  '
               '__   ')
+
 
 if __name__ == "__main__":
     params = Parameters()

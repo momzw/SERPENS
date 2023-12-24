@@ -153,7 +153,7 @@ class SerpensAnalyzer:
         See https://rebound.readthedocs.io/en/latest/ipython_examples/SimulationArchive/ for more information.
         """
         try:
-            return rebound.Simulationarchive("archive.bin", process_warnings=False)
+            return rebound.Simulationarchive("archive.bin")
         except Exception:
             raise Exception("simulation archive not found.")
 
@@ -225,8 +225,9 @@ class SerpensAnalyzer:
         else:
             self.cached_timestep = timestep
 
-        # REBX: sim_instance, rebx = self.sa[timestep]
-        self._sim_instance = self.sa[int(timestep)]
+        self._sim_instance = self.sa[timestep]
+        rebx = reboundx.Extras(self._sim_instance, "rebx.bin")
+        #self._sim_instance = self.sa[int(timestep)]
 
         if self.reference_system == "geocentric":
             if timestep not in self.rotated_timesteps:
@@ -239,25 +240,11 @@ class SerpensAnalyzer:
         self._sim_instance.serialize_particle_data(xyz=self._particle_positions, vxvyvz=self._particle_velocities,
                                                    hash=self._particle_hashes)
 
-        if not timestep == 0:
-            hash_dict_current = self.hash_supdict[str(timestep)]
-        else:
-            hash_dict_current = {}
-
         self._particle_species = np.zeros(self._sim_instance.N, dtype="int")
         self._particle_weights = np.zeros(self._sim_instance.N, dtype="float64")
         for k1 in range(self._sim_instance.N_active, self._sim_instance.N):
-            self._particle_species[k1] = hash_dict_current[str(self._particle_hashes[k1])]["id"]
-            self._particle_weights[k1] = hash_dict_current[str(self._particle_hashes[k1])]["weight"]
-
-            # REBX:
-            # try:
-            #     self._p_species[k1] = sim_instance.particles[rebound.hash(int(self._p_hashes[k1]))].params["serpens_species"]
-            #     self._p_weights[k1] = sim_instance.particles[rebound.hash(int(self._p_hashes[k1]))].params["serpens_weight"]
-            # except AttributeError:
-            #     self._p_species[k1] = 0
-            #     self._p_weights[k1] = 0
-            #     print("Particle not weightable")
+            self._particle_species[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_species"]
+            self._particle_weights[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_weight"]
 
         self._apply_masks()
 
