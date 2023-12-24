@@ -5,14 +5,10 @@ import warnings
 import multiprocessing
 import concurrent.futures
 import dill
-import copy
-import os as os
-import functools
 from src.create_particle import create_particle
 from src.parameters import Parameters
 from tqdm import tqdm
 import time
-from multiprocessing import Pool
 
 
 def weight_operator(sim_pointer, rebx_operator, dt):
@@ -26,8 +22,6 @@ def weight_operator(sim_pointer, rebx_operator, dt):
             species = params.get_species(id=species_id)
         tau = species.network
         particle.params['serpens_weight'] *= np.exp(-sim.dt/tau)
-
-    #sim.particles[5].params['serpens_weight'] += 1e-3*dt
 
 
 def heartbeat(sim_pointer):
@@ -53,18 +47,49 @@ def heartbeat(sim_pointer):
         sim.particles["source"].vxyz = p1.vxyz
 
 
+class ReboundSetUp:
+    def __init__(self, reb_sim):
+        self.reb_sim = reb_sim
+
+    def add_initial_particle(self, v_copy):
+        source_is_planet = Parameters.int_spec["source_index"] == 2
+        if source_is_planet:
+            self.reb_sim.add(**v_copy, hash="source_primary")
+        else:
+            self.reb_sim.add(**v_copy, hash="star")
+
+    def add_second_particle(self, v_copy):
+        source_index = Parameters.int_spec["source_index"]
+        source_is_planet = source_index == 2
+        if source_is_planet:
+            self.reb_sim.add(**v_copy, primary=self.reb_sim.particles[0], hash="source")
+        else:
+            self.reb_sim.add(**v_copy, primary=self.reb_sim.particles[0], hash="source_primary")
+
+    def add_other_particles(self, v_copy):
+        source_index = Parameters.int_spec["source_index"]
+        source_is_planet = source_index == 2
+        if not source_is_planet:
+            if self.reb_sim.N == source_index - 1:
+                self.reb_sim.add(**v_copy, primary=self.reb_sim.particles["source_primary"], hash='source')
+            else:
+                self.reb_sim.add(**v_copy, primary=self.reb_sim.particles["source_primary"])
+        else:
+            self.reb_sim.add(**v_copy, primary=self.reb_sim.particles["source_primary"])
+
+
 def rebound_setup(params):
     """
-    Not meant for external use.
-    REBOUND simulation set up. Sets integrator and collision algorithm.
-    Adds the gravitationally acting bodies to the simulation.
-    Saves used parameters to drive.
-    """
+     Not meant for external use.
+     REBOUND simulation set up. Sets integrator and collision algorithm.
+     Adds the gravitationally acting bodies to the simulation.
+     Saves used parameters to drive.
+     """
     print("Initializing new simulation instance...")
 
     reb_sim = rebound.Simulation()
     reb_sim.integrator = "whfast"  # Fast and unbiased symplectic Wisdom-Holman integrator.
-    #reb_sim.ri_whfast.kernel = "lazy"
+    # reb_sim.ri_whfast.kernel = "lazy"
     reb_sim.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
     reb_sim.collision_resolve = "merge"
     if Parameters.int_spec["fix_source_circular_orbit"]:
@@ -74,7 +99,7 @@ def rebound_setup(params):
     reb_sim.units = ('m', 's', 'kg')
     reb_sim.G = 6.6743e-11
 
-    #reb_sim.dt = 100
+    setup = ReboundSetUp(reb_sim)
 
     for k, v in Parameters.celest.items():
         if not type(v) == dict:
@@ -83,28 +108,12 @@ def rebound_setup(params):
             v_copy = v.copy()
             v_copy.pop("primary", 0)
             v_copy.pop("source", 0)
-            source_index = Parameters.int_spec["source_index"]
-            source_is_planet = source_index == 2
             if reb_sim.N == 0:
-                if source_is_planet:
-                    reb_sim.add(**v_copy, hash="source_primary")
-                else:
-                    reb_sim.add(**v_copy, hash="star")
-                continue
-            if reb_sim.N == 1:
-                if source_is_planet:
-                    reb_sim.add(**v_copy, primary=reb_sim.particles[0], hash="source")
-                else:
-                    reb_sim.add(**v_copy, primary=reb_sim.particles[0], hash="source_primary")
-                continue
+                setup.add_initial_particle(v_copy)
+            elif reb_sim.N == 1:
+                setup.add_second_particle(v_copy)
             else:
-                if not source_is_planet:
-                    if reb_sim.N == source_index - 1:
-                        reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"], hash='source')
-                    else:
-                        reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"])
-                else:
-                    reb_sim.add(**v_copy, primary=reb_sim.particles["source_primary"])
+                setup.add_other_particles(v_copy)
 
     reb_sim.N_active = len(Parameters.celest) - 1
 
@@ -129,6 +138,7 @@ def rebound_setup(params):
     rebx.register_param('serpens_species', 'REBX_TYPE_INT')
     rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
 
+    # Init save
     reb_sim.save_to_file("archive.bin", delete_file=True)
     rebx.save("rebx.bin")
 
@@ -140,7 +150,7 @@ def rebound_setup(params):
 
     print("\t \t ... done!")
 
-    #return reb_sim, rebx
+    return reb_sim, rebx
 
 
 def create(source_state, source_r, phys_process, species):
@@ -226,16 +236,9 @@ class SerpensSimulation:
                 exit()
 
         # Create a new simulation
-        #self._sim, self._rebx = rebound_setup(self.params)
-        rebound_setup(self.params)
-        self._sim = rebound.Simulation("archive.bin")
-        self._rebx = reboundx.Extras(self._sim, "rebx.bin")
+        self._sim, self._rebx = rebound_setup(self.params)
 
-        self._sim.collision = "direct"
-        self._sim.collision_resolve = "merge"
-
-        iter = 0
-        self.var = {"iter": iter,
+        self.var = {"iter": 0,
                     "source_a": self._sim.particles["source"].orbit(
                         primary=self._sim.particles["source_primary"]).a,
                     "source_P": self._sim.particles["source"].orbit(
@@ -270,7 +273,7 @@ class SerpensSimulation:
                     self._sim.particles[identifier].params["serpens_species"] = species.id
                     self._sim.particles[identifier].params["serpens_weight"] = 1.
 
-    def single_advance(self, verbose=False):
+    def single_advance(self):
 
         # ADD & REMOVE PARTICLES
         self._add_particles()
@@ -340,7 +343,7 @@ class SerpensSimulation:
                 print(f"Starting advance {self.var['iter']} ... ")
 
             n_before = self._sim.N
-            self.single_advance(verbose=verbose)
+            self.single_advance()
             self._sim.save_to_file("archive.bin")
             self._rebx.save("rebx.bin")
 
