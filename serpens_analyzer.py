@@ -77,11 +77,11 @@ class SerpensAnalyzer:
         """
 
         try:
-            with open('Parameters.pickle', 'rb') as handle:
+            with open('Parameters.pkl', 'rb') as handle:
                 params_load = pickle.load(handle)
                 params_load()
         except Exception:
-            raise Exception("hash_library.pickle and/or Parameters.pickle not found.")
+            raise Exception("Parameters.pickle not found.")
 
         self.sa = self._load_simulation_archive()
         self.save = save_output
@@ -124,9 +124,6 @@ class SerpensAnalyzer:
             if save_archive:
                 print("\t archive...")
                 shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/output/{self.path}")
-                print("\t hash library...")
-                shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/output/{self.path}")
-                print("\t ...done!")
 
     @staticmethod
     def _load_simulation_archive():
@@ -778,8 +775,7 @@ class PhaseCurve(SerpensAnalyzer):
 
             print("\t copying ...")
             shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/archive.bin', f'{os.getcwd()}')
-            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/hash_library.pickle', f'{os.getcwd()}')
-            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/Parameters.pickle', f'{os.getcwd()}')
+            shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/Parameters.pkl', f'{os.getcwd()}')
             shutil.copy2(f'{os.getcwd()}/schedule_archive/{archive_from}/Parameters.txt', f'{os.getcwd()}')
             print("\t ... done!")
 

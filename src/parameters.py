@@ -8,13 +8,13 @@ def find_source_object(object_dict):
         if "source" in subdict:
             if subdict["source"]:
                 source_key.append(key)
-                #return key
+                # return key
     if len(source_key) > 1:
         raise ValueError("Currently we only support single-source systems. Please make sure you only have one source.")
     elif len(source_key) == 1:
         return source_key[0]
     else:
-        raise ValueError("No source found.")
+        return None
 
 
 class DefaultFields:
@@ -35,7 +35,9 @@ class DefaultFields:
     def _get_default_objects(self):
         with open('resources/objects.json', 'r') as f:
             systems = json.load(f)
-            self.celest = [objects for condition, objects in zip([s['SYSTEM-NAME']=='Jupiter (Europa-Source)' for s in systems], systems) if condition][0]
+            self.celest = [objects for condition, objects in
+                           zip([s['SYSTEM-NAME'] == 'Jupiter (Europa-Source)' for s in systems], systems)
+                           if condition][0]
 
     def _get_default_parameters(self):
         self.species = {}
@@ -48,9 +50,9 @@ class DefaultFields:
                     self.species[f"{k}"] = Species(**v)
 
         source_key = find_source_object(self.celest)
-        source_index = list(self.celest).index(source_key)
+        source_index = list(self.celest).index(source_key) if source_key is not None else None
         self.int_spec["source_index"] = source_index
-        if source_index > 2:    # Also includes SYSTEM-NAME
+        if source_index is not None and source_index > 2:  # Also includes SYSTEM-NAME
             self.int_spec["moon"] = True
         else:
             self.int_spec["moon"] = False
@@ -131,15 +133,15 @@ class Parameters:
 
         elif id is not None:
             for i in range(self.num_species):
-                if self.species[f"species{i+1}"].id == id:
-                    return self.species[f"species{i+1}"]
+                if self.species[f"species{i + 1}"].id == id:
+                    return self.species[f"species{i + 1}"]
             return None
 
         elif name is not None:
             for i in range(self.num_species):
 
-                if self.species[f"species{i+1}"].name == name:
-                    return self.species[f"species{i+1}"]
+                if self.species[f"species{i + 1}"].name == name:
+                    return self.species[f"species{i + 1}"]
             return None
 
         else:
@@ -176,13 +178,13 @@ class Parameters:
         """
         if celestial_name is not None:
             with open('resources/objects.json', 'r') as f:
-                #saved_objects = f.read().splitlines(True)
-                #cls.celest = json.loads(saved_objects[[f"{celestial_name}" in s for s in saved_objects].index(True)])
+                # saved_objects = f.read().splitlines(True)
+                # cls.celest = json.loads(saved_objects[[f"{celestial_name}" in s for s in saved_objects].index(True)])
 
                 systems = json.load(f)
                 cls.celest = [objects for condition, objects in
-                               zip([s['SYSTEM-NAME'] == f"{celestial_name}" for s in systems], systems) if
-                               condition][0]
+                              zip([s['SYSTEM-NAME'] == f"{celestial_name}" for s in systems], systems) if
+                              condition][0]
 
                 source_key = find_source_object(cls.celest)
                 source_index = list(cls.celest).index(source_key)
@@ -226,6 +228,7 @@ class NewParams:
     This class allows for modification of the parameter singleton settings.
     In order to apply the changes one needs to call the class initiated.
     """
+
     def __init__(self, species=None, objects=None, int_spec=None, therm_spec=None, celestial_name=None):
         """
         Set new objects/parameters.
@@ -290,4 +293,3 @@ class NewParams:
             Parameters.modify_spec(int_spec=self.int_spec, therm_spec=self.therm_spec)
 
         return
-

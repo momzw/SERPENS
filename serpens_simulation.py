@@ -1,7 +1,6 @@
 import rebound
 import reboundx
 import numpy as np
-import warnings
 import multiprocessing
 import concurrent.futures
 import pickle
@@ -78,81 +77,6 @@ class ReboundSetUp:
             self.reb_sim.add(**v_copy, primary=self.reb_sim.particles["source_primary"])
 
 
-def rebound_setup(params):
-    """
-     Not meant for external use.
-     REBOUND simulation set up. Sets integrator and collision algorithm.
-     Adds the gravitationally acting bodies to the simulation.
-     Saves used parameters to drive.
-     """
-    print("Initializing new simulation instance...")
-
-    reb_sim = rebound.Simulation()
-    reb_sim.integrator = "whfast"  # Fast and unbiased symplectic Wisdom-Holman integrator.
-    # reb_sim.ri_whfast.kernel = "lazy"
-    reb_sim.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
-    reb_sim.collision_resolve = "merge"
-    if Parameters.int_spec["fix_source_circular_orbit"]:
-        reb_sim.heartbeat = heartbeat
-
-    # SI units:
-    reb_sim.units = ('m', 's', 'kg')
-    reb_sim.G = 6.6743e-11
-
-    setup = ReboundSetUp(reb_sim)
-
-    for k, v in Parameters.celest.items():
-        if not type(v) == dict:
-            continue
-        else:
-            v_copy = v.copy()
-            v_copy.pop("primary", 0)
-            v_copy.pop("source", 0)
-            if reb_sim.N == 0:
-                setup.add_initial_particle(v_copy)
-            elif reb_sim.N == 1:
-                setup.add_second_particle(v_copy)
-            else:
-                setup.add_other_particles(v_copy)
-
-    reb_sim.N_active = len(Parameters.celest) - 1
-
-    reb_sim.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
-
-    # IMPORTANT:
-    # * This setting boosts WHFast's performance, but stops automatic synchronization and recalculation of Jacobi coordinates!
-    # * If particle masses are changed or massive particles' position/velocity are changed manually you need to include
-    #   sim.ri_whfast.recalculate_coordinates_this_timestep
-    # * Synchronization is needed if simulation gets manipulated or particle states get printed.
-    # Refer to https://rebound.readthedocs.io/en/latest/ipython_examples/AdvWHFast/
-    #
-    # sim.ri_whfast.safe_mode = 0
-
-    # REBOUNDX ADDITIONAL FORCES
-    # ==========================
-    rebx = reboundx.Extras(reb_sim)
-    rf = rebx.load_force("radiation_forces")
-    rebx.add_force(rf)
-    rf.params["c"] = 3.e8
-    reb_sim.particles["star"].params["radiation_source"] = 1
-    rebx.register_param('serpens_species', 'REBX_TYPE_INT')
-    rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
-
-    # Init save
-    reb_sim.save_to_file("archive.bin", delete_file=True)
-    rebx.save("rebx.bin")
-
-    with open(f"Parameters.txt", "w") as f:
-        f.write(f"{params.__str__()}")
-
-    with open("Parameters.pkl", 'wb') as f:
-        pickle.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    print("\t \t ... done!")
-
-    return reb_sim, rebx
-
-
 def create(source_state, source_r, phys_process, species):
     """
     Creates a batch of particles to be added to a SERPENS simulation.
@@ -206,11 +130,14 @@ def create(source_state, source_r, phys_process, species):
     return results
 
 
-class SerpensSimulation:
+class SerpensSimulation(rebound.Simulation):
     """
     Main class responsible for the Monte Carlo process of SERPENS.
     (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)
     """
+
+    def __new__(cls, *args, **kwargs):
+        return super(SerpensSimulation, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, system='default'):
         """
@@ -222,12 +149,9 @@ class SerpensSimulation:
             Name of the celestial system to be simulated.
             Valid are all names that have been set up in the src/objects.txt.
         """
-        print("=======================================")
-        print("SERPENS simulation has been created.")
-        print("=======================================")
-
+        super().__init__()
         self.params = Parameters()
-        if not system == 'default':
+        if system != 'default':
             try:
                 Parameters.modify_objects(celestial_name=system)
             except Exception:
@@ -236,15 +160,79 @@ class SerpensSimulation:
                 exit()
 
         # Create a new simulation
-        self._sim, self._rebx = rebound_setup(self.params)
+        self.rebound_setup(self.params)
 
-        self.var = {"iter": 0,
-                    "source_a": self._sim.particles["source"].orbit(
-                        primary=self._sim.particles["source_primary"]).a,
-                    "source_P": self._sim.particles["source"].orbit(
-                        primary=self._sim.particles["source_primary"]).P}
+        self.var = {
+            "iter": 0,
+            "source_a": self.particles["source"].orbit(
+                primary=self.particles["source_primary"]).a,
+            "source_P": self.particles["source"].orbit(
+                primary=self.particles["source_primary"]).P
+        }
 
         self.var["boundary"] = self.params.int_spec["r_max"] * self.var["source_a"]
+
+    def rebound_setup(self, params):
+        """
+        Not meant for external use.
+        REBOUND simulation set up. Sets integrator and collision algorithm.
+        Adds the gravitationally acting bodies to the simulation.
+        Saves used parameters to drive.
+        """
+        print("Initializing new simulation instance...")
+
+        self.integrator = "whfast"  # Fast and unbiased symplectic Wisdom-Holman integrator.
+        # reb_sim.ri_whfast.kernel = "lazy"
+        self.collision = "direct"  # Brute force collision search and scales as O(N^2). It checks for instantaneous overlaps between every particle pair.
+        self.collision_resolve = "merge"
+        if Parameters.int_spec["fix_source_circular_orbit"]:
+            self.heartbeat = heartbeat
+
+        # SI units:
+        self.units = ('m', 's', 'kg')
+        self.G = 6.6743e-11
+
+        setup = ReboundSetUp(self)
+
+        for k, v in Parameters.celest.items():
+            if not type(v) == dict:
+                continue
+            else:
+                v_copy = v.copy()
+                v_copy.pop("primary", 0)
+                v_copy.pop("source", 0)
+                if self.N == 0:
+                    setup.add_initial_particle(v_copy)
+                elif self.N == 1:
+                    setup.add_second_particle(v_copy)
+                else:
+                    setup.add_other_particles(v_copy)
+
+        self.N_active = len(Parameters.celest) - 1
+        self.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
+
+        # REBOUNDx Additional Forces
+        self.rebx = reboundx.Extras(self)
+        rf = self.rebx.load_force("radiation_forces")
+        self.rebx.add_force(rf)
+        rf.params["c"] = 3.e8
+        self.particles["star"].params["radiation_source"] = 1
+        self.rebx.register_param('serpens_species', 'REBX_TYPE_INT')
+        self.rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
+
+        # Init save
+        self.save_to_file("archive.bin", delete_file=True)
+        self.rebx.save("rebx.bin")
+
+        with open(f"Parameters.txt", "w") as f:
+            f.write(f"{params.__str__()}")
+
+        with open("Parameters.pkl", 'wb') as f:
+            pickle.dump(params, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        print("\t \t ... done!")
+
+        return self
 
     def _add_particles(self):
         """
@@ -252,7 +240,7 @@ class SerpensSimulation:
         Calls particle creation and adds the created particles to the REBOUND simulation instance.
         Saves particle hashes to a dictionary which contains information about a particle's species and weight factor.
         """
-        source = self._sim.particles["source"]
+        source = self.particles["source"]
         source_state = np.array([source.xyz, source.vxyz])
 
         if self.params.int_spec["gen_max"] is None or self.var['iter'] < self.params.int_spec["gen_max"]:
@@ -266,43 +254,37 @@ class SerpensSimulation:
 
                 for index, coord in enumerate(r):
                     identifier = f"{species.id}_{self.var['iter']}_{index}"
-                    self._sim.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5],
-                                  hash=identifier)
+                    self.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5],
+                                 hash=identifier)
 
-                    self._sim.particles[identifier].params["beta"] = species.beta
-                    self._sim.particles[identifier].params["serpens_species"] = species.id
-                    self._sim.particles[identifier].params["serpens_weight"] = 1.
+                    self.particles[identifier].params["beta"] = species.beta
+                    self.particles[identifier].params["serpens_species"] = species.id
+                    self.particles[identifier].params["serpens_weight"] = 1.
 
-    def integrate(self):
-        weightop = self._rebx.create_operator("weightloss")
+    def advance_integrate(self):
+        weightop = self.rebx.create_operator("weightloss")
         weightop.operator_type = "recorder"
         weightop.step_function = weight_operator
-        self._rebx.add_operator(weightop, dtfraction=1., timing="post")
+        self.rebx.add_operator(weightop, dtfraction=1., timing="post")
 
         adv = self.var["source_P"] * self.params.int_spec["sim_advance"]
-        self._sim.dt = adv / 10
-        self._sim.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
+        self.dt = adv / 10
+        self.integrate(adv * (self.var["iter"] + 1), exact_finish_time=0)
 
         # HAVE TO REMOVE BECAUSE OPERATOR CORRUPTS SAVE
-        self._rebx.remove_operator(weightop)
+        self.rebx.remove_operator(weightop)
 
-    def single_advance(self):
+    def advance_single(self):
 
         # ADD & REMOVE PARTICLES
         self._add_particles()
-
-        self.integrate()
+        self.advance_integrate()
 
         remove = []
-        for particle in self._sim.particles[self._sim.N_active:]:
+        for particle in self.particles[self.N_active:]:
 
-            try:
-                w = particle.params["serpens_weight"]
-                species_id = particle.params["serpens_species"]
-            except:
-                print("Particle not found.")
-                remove.append(particle.hash)
-                continue
+            w = particle.params["serpens_weight"]
+            species_id = particle.params["serpens_species"]
 
             species = self.params.get_species(id=species_id)
             mass_inject_per_advance = (species.mass_per_sec * self.params.int_spec["sim_advance"] *
@@ -310,7 +292,7 @@ class SerpensSimulation:
             pps = species.particles_per_superparticle(mass_inject_per_advance)
 
             particle_distance = np.linalg.norm(
-                np.asarray(particle.xyz) - np.asarray(self._sim.particles["source_primary"].xyz))
+                np.asarray(particle.xyz) - np.asarray(self.particles["source_primary"].xyz))
 
             if particle_distance > self.var["boundary"] or w * pps < 1e10:
                 try:
@@ -320,7 +302,10 @@ class SerpensSimulation:
                     pass
 
         for hash in remove:
-            self._sim.remove(hash=hash)
+            self.remove(hash=hash)
+
+        self.save_to_file("archive.bin")
+        self.rebx.save("rebx.bin")
 
     def advance(self, num_sim_advances, save_freq=1, verbose=False):
         """
@@ -345,20 +330,18 @@ class SerpensSimulation:
             if verbose:
                 print(f"Starting advance {self.var['iter']} ... ")
 
-            n_before = self._sim.N
-            self.single_advance()
-            self._sim.save_to_file("archive.bin")
-            self._rebx.save("rebx.bin")
+            n_before = self.N
+            self.advance_single()
 
             if verbose:
-                t = self._sim.t
+                t = self.t
                 print(f"Advance done! \n"
                       f"Simulation time [h]: {np.around(t / 3600, 2)} \n"
                       f"Simulation runtime [s]: {np.around(time.time() - start_time, 2)} \n"
-                      f"Number of particles: {self._sim.N}")
+                      f"Number of particles: {self.N}")
 
             # Handle steady state (1/2)
-            if np.abs(self._sim.N - n_before) < 50:
+            if np.abs(self.N - n_before) < 50:
                 steady_state_counter += 1
                 if steady_state_counter == 10 and self.params.int_spec["stop_at_steady_state"] is True:
                     print("Steady state reached!")
