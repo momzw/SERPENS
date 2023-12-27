@@ -96,8 +96,8 @@ class BaseVisualizer(ArgumentProcessor):
                 self.axs[ax_num].set_facecolor('k')
                 self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
 
-        self.boundary = params.int_spec["r_max"] * self.sim.particles["source"].orbit(
-            primary=self.sim.particles["source_primary"]).a
+        self.boundary = params.int_spec["r_max"] * self.sim.particles["source0"].orbit(
+            primary=self.sim.particles["source_primary0"]).a
 
     def _init_celestial_colors(self):
         if len(self.vis_params['celest_colors']) == 0:
@@ -113,7 +113,7 @@ class BaseVisualizer(ArgumentProcessor):
 
     def setup_ax(self, ax):
         ax.set_aspect("equal")
-        lim = self.vis_params['lim'] * self.ps["source_primary"].r
+        lim = self.vis_params['lim'] * self.ps["source_primary0"].r
 
         if self.vis_params["perspective"] == "topdown":
             ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15, color='w')
@@ -124,7 +124,7 @@ class BaseVisualizer(ArgumentProcessor):
         else:
             raise ValueError("Invalid perspective in plotting.")
 
-        primary_coord1, primary_coord2 = self._get_coordinates("source_primary")
+        primary_coord1, primary_coord2 = self._get_coordinates("source_primary0")
 
         ax.set_xlim([-lim + primary_coord1, lim + primary_coord1])
         ax.set_ylim([-lim + primary_coord2, lim + primary_coord2])
@@ -132,8 +132,8 @@ class BaseVisualizer(ArgumentProcessor):
         loc_num = self.vis_params['lim'] + 1
         xlocs = np.linspace(-lim + primary_coord1, lim + primary_coord1, loc_num)
         ylocs = np.linspace(-lim + primary_coord2, lim + primary_coord2, loc_num)
-        xlabels = np.around((np.array(xlocs) - primary_coord1) / self.ps["source_primary"].r, 1)
-        ylabels = np.around((np.array(ylocs) - primary_coord2) / self.ps["source_primary"].r, 1)
+        xlabels = np.around((np.array(xlocs) - primary_coord1) / self.ps["source_primary0"].r, 1)
+        ylabels = np.around((np.array(ylocs) - primary_coord2) / self.ps["source_primary0"].r, 1)
 
         ax.set_xticks(xlocs[1:-1])
         ax.set_xticklabels([str(x) for x in xlabels][1:-1])
@@ -169,8 +169,8 @@ class BaseVisualizer(ArgumentProcessor):
                 self._add_planetstar_connection(ax)
 
             line_color = self.fc[Parameters.int_spec["source_index"] - 1]
-            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=["source"], color=line_color,
-                                   primary=self.ps["source_primary"])
+            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=["source0"], color=line_color,
+                                   primary=self.ps["source_primary0"])
             op.particles.set_color(line_color)
             op.particles.set_sizes([0])
 
@@ -178,7 +178,7 @@ class BaseVisualizer(ArgumentProcessor):
         self._add_additional_celestials(ax)
 
     def _get_coordinates(self, obj_str):
-        valid_obj = ['source', 'source_primary']
+        valid_obj = ['source0', 'source_primary0']
         if obj_str in valid_obj:
             if self.vis_params["perspective"] == "topdown":
                 return self.ps[obj_str].x, self.ps[obj_str].y
@@ -191,20 +191,20 @@ class BaseVisualizer(ArgumentProcessor):
 
         if self.vis_params['show_primary']:
             fc = self.fc[1] if Parameters.int_spec["source_index"] > 2 else self.fc[0]
-            coord1, coord2 = self._get_coordinates("source_primary")
-            primary_patch = plt.Circle((coord1, coord2), self.ps["source_primary"].r, fc=fc, zorder=10, label="primary")
+            coord1, coord2 = self._get_coordinates("source_primary0")
+            primary_patch = plt.Circle((coord1, coord2), self.ps["source_primary0"].r, fc=fc, zorder=10, label="primary")
             ax.add_patch(primary_patch)
 
         if self.vis_params['show_source']:
             fc = self.fc[Parameters.int_spec["source_index"] - 1]
-            coord1, coord2 = self._get_coordinates("source")
-            source_patch = plt.Circle((coord1, coord2), self.ps["source"].r, fc=fc, ec='k',
+            coord1, coord2 = self._get_coordinates("source0")
+            source_patch = plt.Circle((coord1, coord2), self.ps["source0"].r, fc=fc, ec='k',
                                       label="source", zorder=10, fill=True)
             ax.add_patch(source_patch)
 
         if self.source_is_moon and self.vis_params['show_hill']:
-            coord1, coord2 = self._get_coordinates("source_primary")
-            hill_patch = plt.Circle((coord1, coord2), self.ps["source_primary"].rhill, fc='green', fill=False)
+            coord1, coord2 = self._get_coordinates("source_primary0")
+            hill_patch = plt.Circle((coord1, coord2), self.ps["source_primary0"].rhill, fc='green', fill=False)
             ax.add_patch(hill_patch)
 
     def _add_shadow_polygon(self, ax):
@@ -284,8 +284,8 @@ class Visualize(BaseVisualizer):
 
         if save_path is not None:
             fn = kwargs.get("filename", -1)
-            orbit_phase = np.around(self.sim.particles["source"].orbit(
-                primary=self.sim.particles["source_primary"]).theta * 180 / np.pi)
+            orbit_phase = np.around(self.sim.particles["source0"].orbit(
+                primary=self.sim.particles["source_primary0"]).theta * 180 / np.pi)
 
             frame_identifier = f"SERPENS_{fn}"
             plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png', bbox_inches='tight')

@@ -144,8 +144,8 @@ class SerpensAnalyzer:
         Returns a 2d or 3d grid at which densities can be calculated from linear interpolation of DTFE results.
         Arguments handled by other class functions.
         """
-        boundary = self.params.int_spec["r_max"] * self._sim_instance.particles["source"].orbit(
-            primary=self._sim_instance.particles["source_primary"]).a
+        boundary = self.params.int_spec["r_max"] * self._sim_instance.particles["source0"].orbit(
+            primary=self._sim_instance.particles["source_primary0"]).a
         x_offset, y_offset, z_offset = self._calculate_offsets(plane)
 
         if plane == '3d':
@@ -165,7 +165,7 @@ class SerpensAnalyzer:
         Arguments handled by class functions.
         """
         if self.source_is_moon:
-            planet = self._sim_instance.particles["source_primary"]
+            planet = self._sim_instance.particles["source_primary0"]
             if plane == 'xy':
                 return planet.x, planet.y, 0
             elif plane == 'yz':
@@ -240,13 +240,13 @@ class SerpensAnalyzer:
                 condition = None
 
                 if cutoff_type == "z":
-                    condition = (self._particle_positions[:, 2] < cutoff_value * self._sim_instance.particles["source_primary"].r) & \
-                                (self._particle_positions[:, 2] > -cutoff_value * self._sim_instance.particles["source_primary"].r)
+                    condition = (self._particle_positions[:, 2] < cutoff_value * self._sim_instance.particles["source_primary0"].r) & \
+                                (self._particle_positions[:, 2] > -cutoff_value * self._sim_instance.particles["source_primary0"].r)
                 elif cutoff_type == "r":
-                    r = np.linalg.norm(self._particle_positions - self._sim_instance.particles["source_primary"].xyz, axis=1)
-                    condition = r < cutoff_value * self._sim_instance.particles["source_primary"].r
+                    r = np.linalg.norm(self._particle_positions - self._sim_instance.particles["source_primary0"].xyz, axis=1)
+                    condition = r < cutoff_value * self._sim_instance.particles["source_primary0"].r
                 elif cutoff_type == "v":
-                    v = np.linalg.norm(self._particle_velocities - self._sim_instance.particles["source"].vxyz, axis=1)
+                    v = np.linalg.norm(self._particle_velocities - self._sim_instance.particles["source0"].vxyz, axis=1)
                     condition = v < cutoff_value
 
                 if condition is not None:
@@ -288,8 +288,8 @@ class SerpensAnalyzer:
             are not hidden.
         """
         simulation_time = (timestep * self.params.int_spec["sim_advance"] *
-                           self._sim_instance.particles["source"].orbit(
-                              primary=self._sim_instance.particles["source_primary"]).P)
+                           self._sim_instance.particles["source0"].orbit(
+                              primary=self._sim_instance.particles["source_primary0"]).P)
 
         points_mask = np.where(self._particle_species == species.id)
 
@@ -313,10 +313,10 @@ class SerpensAnalyzer:
         if d == 2:
 
             if los:
-                los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["source_primary"].y) ** 2 +
-                                             (points[:, 2] - self._sim_instance.particles["source_primary"].z) ** 2)
-                mask = ((los_dist_to_planet < self._sim_instance.particles["source_primary"].r) &
-                        (points[:, 0] - self._sim_instance.particles["source_primary"].x < 0))
+                los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["source_primary0"].y) ** 2 +
+                                             (points[:, 2] - self._sim_instance.particles["source_primary0"].z) ** 2)
+                mask = ((los_dist_to_planet < self._sim_instance.particles["source_primary0"].r) &
+                        (points[:, 0] - self._sim_instance.particles["source_primary0"].x < 0))
 
                 dtfe = DTFE.DTFE(points[:, 1:3], velocities[:, 1:3], phys_weights)
                 if grid:
@@ -502,10 +502,10 @@ class SerpensAnalyzer:
                         if kwargs.get('lvlmax', None) == 'auto':
                             vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
 
-                    los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["source_primary"].y) ** 2 +
-                                                 (points[:, 2] - self._sim_instance.particles['source_primary'].z) ** 2)
-                    mask = (los_dist_to_planet > self._sim_instance.particles["source_primary"].r) | \
-                           (points[:, 0] - np.abs(self._sim_instance.particles["source_primary"].x) > 0)
+                    los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["source_primary0"].y) ** 2 +
+                                                 (points[:, 2] - self._sim_instance.particles['source_primary0'].z) ** 2)
+                    mask = (los_dist_to_planet > self._sim_instance.particles["source_primary0"].r) | \
+                           (points[:, 0] - np.abs(self._sim_instance.particles["source_primary0"].x) > 0)
                     vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask], d=2)
 
             if self.save:
@@ -547,12 +547,12 @@ class SerpensAnalyzer:
         dens, _ = self.delaunay_field_estimation(timestep, species, d=3, grid=False)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
-        x_p = (self._sim_instance.particles["source_primary"].r * np.sin(theta) * np.cos(phi) +
-               self._sim_instance.particles["source_primary"].x)
-        y_p = (self._sim_instance.particles["source_primary"].r * np.sin(theta) * np.sin(phi) +
-               self._sim_instance.particles["source_primary"].y)
-        z_p = (self._sim_instance.particles["source_primary"].r * np.cos(theta) +
-               self._sim_instance.particles["source_primary"].z)
+        x_p = (self._sim_instance.particles["source_primary0"].r * np.sin(theta) * np.cos(phi) +
+               self._sim_instance.particles["source_primary0"].x)
+        y_p = (self._sim_instance.particles["source_primary0"].r * np.sin(theta) * np.sin(phi) +
+               self._sim_instance.particles["source_primary0"].y)
+        z_p = (self._sim_instance.particles["source_primary0"].r * np.cos(theta) +
+               self._sim_instance.particles["source_primary0"].z)
 
         if show_star:
             x_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.cos(phi) +

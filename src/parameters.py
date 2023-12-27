@@ -38,7 +38,9 @@ class DefaultFields:
             self.celest = [objects for condition, objects in
                            zip([s['SYSTEM-NAME'] == 'Jupiter (Europa-Source)' for s in systems], systems)
                            if condition][0]
+            self.celest.pop("SYSTEM-NAME", None)
 
+            self.celest = {}
     def _get_default_parameters(self):
         self.species = {}
         with open('resources/input_parameters.json', 'r') as f:
@@ -49,13 +51,13 @@ class DefaultFields:
                 for k, v in species.items():
                     self.species[f"{k}"] = Species(**v)
 
-        source_key = find_source_object(self.celest)
-        source_index = list(self.celest).index(source_key) if source_key is not None else None
-        self.int_spec["source_index"] = source_index
-        if source_index is not None and source_index > 2:  # Also includes SYSTEM-NAME
-            self.int_spec["moon"] = True
-        else:
-            self.int_spec["moon"] = False
+        #source_key = find_source_object(self.celest)
+        #source_index = list(self.celest).index(source_key) if source_key is not None else None
+        #self.int_spec["source_index"] = source_index
+        #if source_index is not None and source_index > 1:
+        #    self.int_spec["moon"] = True
+        #else:
+        #    self.int_spec["moon"] = False
 
     @classmethod
     def change_defaults(cls, **kwargs):
@@ -187,9 +189,9 @@ class Parameters:
                               condition][0]
 
                 source_key = find_source_object(cls.celest)
-                source_index = list(cls.celest).index(source_key)
+                source_index = list(cls.celest).index(source_key) if source_key is not None else None
                 cls.int_spec["source_index"] = source_index
-                if source_index > 2:  # Also includes SYSTEM-NAME
+                if source_index is not None and source_index > 1:
                     cls.int_spec["moon"] = True
                 else:
                     cls.int_spec["moon"] = False
