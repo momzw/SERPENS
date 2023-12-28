@@ -89,7 +89,7 @@ class SerpensAnalyzer:
         self.save_index = 1
 
         self.params = Parameters()
-        self.source_is_moon = self.params.int_spec["moon"]
+        #self.source_is_moon = self.params.int_spec["moon"]
 
         self._sim_instance = None
         self._particle_positions = None
@@ -106,10 +106,11 @@ class SerpensAnalyzer:
         if save_output:
             print("Copying and saving...")
             if folder_name is None:
-                if self.source_is_moon:
-                    self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_moonsource"
-                else:
-                    self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_planetsource"
+                #if self.source_is_moon:
+                #    self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_moonsource"
+                #else:
+                #    self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_planetsource"
+                self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M")
             else:
                 self.path = folder_name
 
@@ -145,7 +146,7 @@ class SerpensAnalyzer:
         Arguments handled by other class functions.
         """
         boundary = self.params.int_spec["r_max"] * self._sim_instance.particles["source0"].orbit(
-            primary=self._sim_instance.particles["source_primary0"]).a
+            primary=self.get_primary(0)).a
         x_offset, y_offset, z_offset = self._calculate_offsets(plane)
 
         if plane == '3d':
@@ -164,34 +165,45 @@ class SerpensAnalyzer:
         Returns coordinate offsets if the primary is a planet (source is moon).
         Arguments handled by class functions.
         """
-        if self.source_is_moon:
-            planet = self._sim_instance.particles["source_primary0"]
-            if plane == 'xy':
-                return planet.x, planet.y, 0
-            elif plane == 'yz':
-                return planet.y, planet.z, 0
-            elif plane == '3d':
-                return planet.x, planet.y, planet.z
-        else:
-            return 0, 0, 0
+        #if self.source_is_moon:
+        #    planet = self._sim_instance.particles["planet"]
+        #    if plane == 'xy':
+        #        return planet.x, planet.y, 0
+        #    elif plane == 'yz':
+        #        return planet.y, planet.z, 0
+        #    elif plane == '3d':
+        #        return planet.x, planet.y, planet.z
+        #else:
+        #    return 0, 0, 0
+        planet = self.get_primary(0)
+        if plane == 'xy':
+            return planet.x, planet.y, 0
+        elif plane == 'yz':
+            return planet.y, planet.z, 0
+        elif plane == '3d':
+            return planet.x, planet.y, planet.z
 
     def _rotate_reference_system(self):
         """
         Internal use only.
         Applies a rotation (coordinate transformation) to all particles if the reference system is geocentric.
         """
-        if self.source_is_moon:
-            phase = np.arctan2(self._sim_instance.particles[1].y, self._sim_instance.particles[1].x)
+        #if self.source_is_moon:
+        phase = np.arctan2(self.get_primary(0).y, self.get_primary(0).x)
 
-            inc = self._sim_instance.particles[1].orbit().inc
+        inc = self.get_primary(0).orbit().inc
 
-            reb_rot = rebound.Rotation(angle=phase, axis='z')
-            reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
-            for particle in self._sim_instance.particles:
-                particle.rotate(reb_rot.inverse())
-                particle.rotate(reb_rot_inc)
-        else:
-            pass
+        reb_rot = rebound.Rotation(angle=phase, axis='z')
+        reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
+        for particle in self._sim_instance.particles:
+            particle.rotate(reb_rot.inverse())
+            particle.rotate(reb_rot_inc)
+        #else:
+        #    pass
+
+    def get_primary(self, source_index) -> rebound.Particle:
+        return self._sim_instance.particles[
+            rebound.hash(self._sim_instance.particles[f"source{source_index}"].params['source_primary'])]
 
     def pull_data(self, timestep):
         """
@@ -220,9 +232,12 @@ class SerpensAnalyzer:
 
         self._particle_species = np.zeros(self._sim_instance.N, dtype="int")
         self._particle_weights = np.zeros(self._sim_instance.N, dtype="float64")
-        for k1 in range(self._sim_instance.N_active, self._sim_instance.N):
-            self._particle_species[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_species"]
-            self._particle_weights[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_weight"]
+        for k1 in range(self._sim_instance.N):
+            try:
+                self._particle_species[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_species"]
+                self._particle_weights[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_weight"]
+            except AttributeError:
+                continue
 
         self._apply_masks()
 
@@ -240,11 +255,11 @@ class SerpensAnalyzer:
                 condition = None
 
                 if cutoff_type == "z":
-                    condition = (self._particle_positions[:, 2] < cutoff_value * self._sim_instance.particles["source_primary0"].r) & \
-                                (self._particle_positions[:, 2] > -cutoff_value * self._sim_instance.particles["source_primary0"].r)
+                    condition = (self._particle_positions[:, 2] < cutoff_value * self.get_primary(0).r) & \
+                                (self._particle_positions[:, 2] > -cutoff_value * self.get_primary(0).r)
                 elif cutoff_type == "r":
-                    r = np.linalg.norm(self._particle_positions - self._sim_instance.particles["source_primary0"].xyz, axis=1)
-                    condition = r < cutoff_value * self._sim_instance.particles["source_primary0"].r
+                    r = np.linalg.norm(self._particle_positions - self.get_primary(0).xyz, axis=1)
+                    condition = r < cutoff_value * self.get_primary(0).r
                 elif cutoff_type == "v":
                     v = np.linalg.norm(self._particle_velocities - self._sim_instance.particles["source0"].vxyz, axis=1)
                     condition = v < cutoff_value
@@ -289,7 +304,7 @@ class SerpensAnalyzer:
         """
         simulation_time = (timestep * self.params.int_spec["sim_advance"] *
                            self._sim_instance.particles["source0"].orbit(
-                              primary=self._sim_instance.particles["source_primary0"]).P)
+                              primary=self.get_primary(0)).P)
 
         points_mask = np.where(self._particle_species == species.id)
 
@@ -313,10 +328,10 @@ class SerpensAnalyzer:
         if d == 2:
 
             if los:
-                los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["source_primary0"].y) ** 2 +
-                                             (points[:, 2] - self._sim_instance.particles["source_primary0"].z) ** 2)
-                mask = ((los_dist_to_planet < self._sim_instance.particles["source_primary0"].r) &
-                        (points[:, 0] - self._sim_instance.particles["source_primary0"].x < 0))
+                los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(0).y) ** 2 +
+                                             (points[:, 2] - self.get_primary(0).z) ** 2)
+                mask = ((los_dist_to_planet < self.get_primary(0).r) &
+                        (points[:, 0] - self.get_primary(0).x < 0))
 
                 dtfe = DTFE.DTFE(points[:, 1:3], velocities[:, 1:3], phys_weights)
                 if grid:
@@ -502,10 +517,10 @@ class SerpensAnalyzer:
                         if kwargs.get('lvlmax', None) == 'auto':
                             vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
 
-                    los_dist_to_planet = np.sqrt((points[:, 1] - self._sim_instance.particles["source_primary0"].y) ** 2 +
-                                                 (points[:, 2] - self._sim_instance.particles['source_primary0'].z) ** 2)
-                    mask = (los_dist_to_planet > self._sim_instance.particles["source_primary0"].r) | \
-                           (points[:, 0] - np.abs(self._sim_instance.particles["source_primary0"].x) > 0)
+                    los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(0).y) ** 2 +
+                                                 (points[:, 2] - self.get_primary(0).z) ** 2)
+                    mask = (los_dist_to_planet > self.get_primary(0).r) | \
+                           (points[:, 0] - np.abs(self.get_primary(0).x) > 0)
                     vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask], d=2)
 
             if self.save:
@@ -547,12 +562,12 @@ class SerpensAnalyzer:
         dens, _ = self.delaunay_field_estimation(timestep, species, d=3, grid=False)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
-        x_p = (self._sim_instance.particles["source_primary0"].r * np.sin(theta) * np.cos(phi) +
-               self._sim_instance.particles["source_primary0"].x)
-        y_p = (self._sim_instance.particles["source_primary0"].r * np.sin(theta) * np.sin(phi) +
-               self._sim_instance.particles["source_primary0"].y)
-        z_p = (self._sim_instance.particles["source_primary0"].r * np.cos(theta) +
-               self._sim_instance.particles["source_primary0"].z)
+        x_p = (self.get_primary(0).r * np.sin(theta) * np.cos(phi) +
+               self.get_primary(0).x)
+        y_p = (self.get_primary(0).r * np.sin(theta) * np.sin(phi) +
+               self.get_primary(0).y)
+        z_p = (self.get_primary(0).r * np.cos(theta) +
+               self.get_primary(0).z)
 
         if show_star:
             x_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.cos(phi) +

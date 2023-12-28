@@ -13,15 +13,17 @@ import time
 def weight_operator(sim_pointer, rebx_operator, dt):
     sim = sim_pointer.contents
     params = Parameters()
-    for particle in sim.particles[sim.N_active:]:
-        species_id = particle.params["serpens_species"]
-        species = params.get_species(id=species_id)
-        if species.duplicate is not None:
-            species_id = int(str(species_id)[0])
+    for particle in sim.particles:
+        try:
+            species_id = particle.params["serpens_species"]
             species = params.get_species(id=species_id)
-        tau = species.network
-        particle.params['serpens_weight'] *= np.exp(-sim.dt/tau)
-
+            if species.duplicate is not None:
+                species_id = int(str(species_id)[0])
+                species = params.get_species(id=species_id)
+            tau = species.network
+            particle.params['serpens_weight'] *= np.exp(-sim.dt/tau)
+        except AttributeError:
+            continue
 
 def heartbeat(sim_pointer):
     """
@@ -30,20 +32,27 @@ def heartbeat(sim_pointer):
     """
     sim = sim_pointer.contents
 
-    if Parameters.int_spec["source_index"] > 2:
-        for key, subdict in Parameters.celest.items():
-            if "source" in subdict:
-                par = subdict.copy()
-        par.pop('primary', None)
-        par.pop('source', None)
+    i = 0
+    while True:
+        try:
+            for key, subdict in Parameters.celest.items():
+                if "source" in subdict:
+                    par = subdict.copy()
+            par.pop('primary', None)
+            par.pop('source', None)
 
-        p0 = rebound.Particle(simulation=sim, **par, primary=sim.particles["source_primary0"])
-        o = p0.orbit(primary=sim.particles["source_primary0"], G=sim.G)
-        mean_anomaly = o.n * sim.t
-        p1 = rebound.Particle(simulation=sim, M=mean_anomaly, **par, primary=sim.particles["source_primary0"])
+            p0 = rebound.Particle(simulation=sim, **par, primary=sim.particles[f"source_primary{i}"])
+            o = p0.orbit(primary=sim.particles[f"source_primary{i}"], G=sim.G)
+            mean_anomaly = o.n * sim.t
+            p1 = rebound.Particle(simulation=sim, M=mean_anomaly, **par, primary=sim.particles[f"source_primary{i}"])
 
-        sim.particles["source0"].xyz = p1.xyz
-        sim.particles["source0"].vxyz = p1.vxyz
+            sim.particles[f"source{i}"].xyz = p1.xyz
+            sim.particles[f"source{i}"].vxyz = p1.vxyz
+
+            i += 1
+
+        except rebound.ParticleNotFound:
+            break
 
 
 def create(source_state, source_r, phys_process, species):
@@ -100,7 +109,9 @@ def create(source_state, source_r, phys_process, species):
 
 
 class SerpensSimulation(rebound.Simulation):
-    # TODO: Implement Multi-Source
+    # TODO: improve multi-source implementation
+    # TODO: N_active variable
+    # TODO: Fix heartbeat
     """
     Main class responsible for the Monte Carlo process of SERPENS.
     (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)
@@ -135,6 +146,8 @@ class SerpensSimulation(rebound.Simulation):
 
         self.serpens_iter = 0
 
+        self.add(m=8.8e+22, a=267868894.98, r=1820000.0, primary="planet", source=True)
+
     def rebound_setup(self):
         """
         Not meant for external use.
@@ -161,6 +174,7 @@ class SerpensSimulation(rebound.Simulation):
         rf.params["c"] = 3.e8
         self.rebx.register_param('serpens_species', 'REBX_TYPE_INT')
         self.rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
+        self.rebx.register_param('source_primary', 'REBX_TYPE_INT')
 
         for k, v in Parameters.celest.items():
             if not type(v) == dict:
@@ -173,7 +187,7 @@ class SerpensSimulation(rebound.Simulation):
                 else:
                     self.add(**v_copy, hash=k)
 
-        self.N_active = len(Parameters.celest) - 1
+        #self.N_active = len(Parameters.celest) - 1
         self.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
         # Init save
@@ -190,16 +204,16 @@ class SerpensSimulation(rebound.Simulation):
 
         return self
 
-    def add(self, particle=None, source=False, **kwargs):
+    def add(self, particle=None, source=False, test_particle=False, **kwargs):
         if source:
             assert "primary" in kwargs, "Please provide the primary for a sourcing object."
             kwargs.pop("hash", None)
             super().add(particle, **kwargs, hash=f"source{self.num_sources}")
 
             if isinstance(kwargs["primary"], rebound.Particle):
-                kwargs["primary"].hash = f"source_primary{self.num_sources}"
+                self.particles[-1].params['source_primary'] = kwargs["primary"].hash.value
             elif isinstance(kwargs["primary"], str):
-                self.particles[kwargs["primary"]].hash = f"source_primary{self.num_sources}"
+                self.particles[-1].params['source_primary'] = self.particles[kwargs["primary"]].hash.value
             else:
                 raise TypeError(f"Unsupported type {type(kwargs['primary'])} for primary.")
 
@@ -207,32 +221,38 @@ class SerpensSimulation(rebound.Simulation):
         else:
             super().add(particle, **kwargs)
 
+        # super().add creates a Particle and calls 'add' again if particle is not a Particle yet.
+        #if not test_particle and isinstance(particle, rebound.Particle):
+        #    self.N_active += 1
+
     def _add_particles(self):
         """
         Internal use only.
         Calls particle creation and adds the created particles to the REBOUND simulation instance.
         Saves particle hashes to a dictionary which contains information about a particle's species and weight factor.
         """
-        source = self.particles["source0"]
-        source_state = np.array([source.xyz, source.vxyz])
 
-        if self.params.int_spec["gen_max"] is None or self.serpens_iter < self.params.int_spec["gen_max"]:
-            for s in range(self.params.num_species):
-                species = self.params.get_species(num=s + 1)
+        for source_index in range(self.num_sources):
+            source = self.particles[f"source{source_index}"]
+            source_state = np.array([source.xyz, source.vxyz])
 
-                rth = create(source_state, source.r, "thermal", species)
-                rsp = create(source_state, source.r, "sputter", species)
+            if self.params.int_spec["gen_max"] is None or self.serpens_iter < self.params.int_spec["gen_max"]:
+                for s in range(self.params.num_species):
+                    species = self.params.get_species(num=s + 1)
 
-                r = np.vstack((rth.reshape(len(rth), 6), rsp.reshape(len(rsp), 6)))
+                    rth = create(source_state, source.r, "thermal", species)
+                    rsp = create(source_state, source.r, "sputter", species)
 
-                for index, coord in enumerate(r):
-                    identifier = f"{species.id}_{self.serpens_iter}_{index}"
-                    self.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5],
-                                 hash=identifier)
+                    r = np.vstack((rth.reshape(len(rth), 6), rsp.reshape(len(rsp), 6)))
 
-                    self.particles[identifier].params["beta"] = species.beta
-                    self.particles[identifier].params["serpens_species"] = species.id
-                    self.particles[identifier].params["serpens_weight"] = 1.
+                    for index, coord in enumerate(r):
+                        identifier = f"{species.id}_{self.serpens_iter}_{source_index}_{index}"
+                        self.add(x=coord[0], y=coord[1], z=coord[2], vx=coord[3], vy=coord[4], vz=coord[5],
+                                 hash=identifier, test_particle=True)
+
+                        self.particles[identifier].params["beta"] = species.beta
+                        self.particles[identifier].params["serpens_species"] = species.id
+                        self.particles[identifier].params["serpens_weight"] = 1.
 
     def advance_integrate(self):
         weightop = self.rebx.create_operator("weightloss")
@@ -240,7 +260,8 @@ class SerpensSimulation(rebound.Simulation):
         weightop.step_function = weight_operator
         self.rebx.add_operator(weightop, dtfraction=1., timing="post")
 
-        orbital_period0 = self.particles["source0"].orbit(primary=self.particles["source_primary0"]).P
+        primary = self.particles[rebound.hash(self.particles["source0"].params['source_primary'])]
+        orbital_period0 = self.particles["source0"].orbit(primary=primary).P
         adv = orbital_period0 * self.params.int_spec["sim_advance"]
         self.dt = adv / 10
         self.integrate(adv * (self.serpens_iter + 1), exact_finish_time=0)
@@ -254,22 +275,24 @@ class SerpensSimulation(rebound.Simulation):
         self._add_particles()
         self.advance_integrate()
 
-        orbital_period0 = self.particles["source0"].orbit(primary=self.particles["source_primary0"]).P
-        boundary0 = self.params.int_spec["r_max"] * self.particles["source0"].orbit(
-            primary=self.particles["source_primary0"]).a
+        primary = self.particles[rebound.hash(self.particles["source0"].params['source_primary'])]
+        orbital_period0 = self.particles["source0"].orbit(primary=primary).P
+        boundary0 = self.params.int_spec["r_max"] * self.particles["source0"].orbit(primary=primary).a
 
         remove = []
-        for particle in self.particles[self.N_active:]:
+        for particle in self.particles:
 
-            w = particle.params["serpens_weight"]
-            species_id = particle.params["serpens_species"]
+            try:
+                w = particle.params["serpens_weight"]
+                species_id = particle.params["serpens_species"]
+            except AttributeError:
+                continue
 
             species = self.params.get_species(id=species_id)
             mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * orbital_period0
             pps = species.particles_per_superparticle(mass_inject_per_advance)
 
-            particle_distance = np.linalg.norm(
-                np.asarray(particle.xyz) - np.asarray(self.particles["source_primary0"].xyz))
+            particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(primary.xyz))
 
             if particle_distance > boundary0 or w * pps < 1e10:
                 try:
@@ -305,7 +328,7 @@ class SerpensSimulation(rebound.Simulation):
 
         for _ in tqdm(range(num_sim_advances), disable=verbose):
             if verbose:
-                print(f"Starting advance {self.serpens_iter} ... ")
+                print(f"Starting SERPENS advance {self.serpens_iter} ... ")
 
             n_before = self.N
             self.advance_single()
