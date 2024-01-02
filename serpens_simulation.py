@@ -112,6 +112,8 @@ class SerpensSimulation(rebound.Simulation):
     # TODO: improve multi-source implementation
     # TODO: N_active variable
     # TODO: Fix heartbeat
+    # TODO: Test normal REBOUND functionality.
+    # TODO: Increase performance
     """
     Main class responsible for the Monte Carlo process of SERPENS.
     (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)

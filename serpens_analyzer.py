@@ -89,7 +89,6 @@ class SerpensAnalyzer:
         self.save_index = 1
 
         self.params = Parameters()
-        #self.source_is_moon = self.params.int_spec["moon"]
 
         self._sim_instance = None
         self._particle_positions = None
@@ -106,11 +105,7 @@ class SerpensAnalyzer:
         if save_output:
             print("Copying and saving...")
             if folder_name is None:
-                #if self.source_is_moon:
-                #    self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_moonsource"
-                #else:
-                #    self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M") + "_planetsource"
-                self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M")
+                self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M-%S")
             else:
                 self.path = folder_name
 
@@ -136,28 +131,6 @@ class SerpensAnalyzer:
             return rebound.Simulationarchive("archive.bin")
         except Exception:
             raise Exception("simulation archive not found.")
-
-    @ensure_data_loaded
-    def _grid(self, timestep, plane='xy'):
-        """
-        Internal use only.
-        Automatically runs the "pull_data" function through the decorator.
-        Returns a 2d or 3d grid at which densities can be calculated from linear interpolation of DTFE results.
-        Arguments handled by other class functions.
-        """
-        boundary = self.params.int_spec["r_max"] * self._sim_instance.particles["source0"].orbit(
-            primary=self.get_primary(0)).a
-        x_offset, y_offset, z_offset = self._calculate_offsets(plane)
-
-        if plane == '3d':
-            X, Y, Z = np.meshgrid(np.linspace(-boundary + x_offset, boundary + x_offset, 100),
-                                  np.linspace(-boundary + y_offset, boundary + y_offset, 100),
-                                  np.linspace(-boundary + z_offset, boundary + z_offset, 100))
-            return X, Y, Z
-        else:
-            X, Y = np.meshgrid(np.linspace(-boundary + x_offset, boundary + x_offset, 300),
-                               np.linspace(-boundary + y_offset, boundary + y_offset, 300))
-            return X, Y
 
     def _calculate_offsets(self, plane):
         """
@@ -234,8 +207,10 @@ class SerpensAnalyzer:
         self._particle_weights = np.zeros(self._sim_instance.N, dtype="float64")
         for k1 in range(self._sim_instance.N):
             try:
-                self._particle_species[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_species"]
-                self._particle_weights[k1] = self._sim_instance.particles[rebound.hash(int(self._particle_hashes[k1]))].params["serpens_weight"]
+                self._particle_species[k1] = self._sim_instance.particles[
+                    rebound.hash(int(self._particle_hashes[k1]))].params["serpens_species"]
+                self._particle_weights[k1] = self._sim_instance.particles[
+                    rebound.hash(int(self._particle_hashes[k1]))].params["serpens_weight"]
             except AttributeError:
                 continue
 
@@ -274,7 +249,7 @@ class SerpensAnalyzer:
         self._particle_weights = self._particle_weights[combined_mask]
 
     @ensure_data_loaded
-    def delaunay_field_estimation(self, timestep, species, d=2, grid=True, los=False):
+    def delaunay_field_estimation(self, timestep, species, d=2, los=False):
         """
         Main function to get density values by initializing the DTFE estimator at a certain timestep.
         Automatically runs the "pull_data" function through the decorator.
@@ -292,9 +267,6 @@ class SerpensAnalyzer:
             Dimension of analysis.
             For d=2 the returning densities will be particles per cm^2.
             For d=3 the returning densities will be particles per cm^3.
-        grid : bool     (default: True)
-            Whether to use grid-points on which to calculate densities or not.
-            If False, densities will be calculated at the positions of the particles.
         los : bool      (default: False)
             If 'True', we assume that we look at the system from the positive x-axis (line of sight).
             A large quantity of particles may be hidden behind the source's primary from this POV.
@@ -334,28 +306,17 @@ class SerpensAnalyzer:
                         (points[:, 0] - self.get_primary(0).x < 0))
 
                 dtfe = DTFE.DTFE(points[:, 1:3], velocities[:, 1:3], phys_weights)
-                if grid:
-                    Y, Z = self._grid(timestep, plane='yz')
-                    dens = dtfe.density(Y.flat, Z.flat).reshape((300, 300)) / 1e4
-                else:
-                    dens = dtfe.density(points[:, 1], points[:, 2]) / 1e4
-                    dens[mask] = 0
+
+                dens = dtfe.density(points[:, 1], points[:, 2]) / 1e4
+                dens[mask] = 0
 
             else:
                 dtfe = DTFE.DTFE(points[:, :2], velocities[:, :2], phys_weights)
-                if grid:
-                    X, Y = self._grid(timestep)
-                    dens = dtfe.density(X.flat, Y.flat).reshape((300, 300)) / 1e4
-                else:
-                    dens = dtfe.density(points[:, 0], points[:, 1]) / 1e4
+                dens = dtfe.density(points[:, 0], points[:, 1]) / 1e4
 
         elif d == 3:
             dtfe = DTFE3D.DTFE(points, velocities, phys_weights)
-            if not los and grid:
-                X, Y, Z = self._grid(timestep, plane='3d')
-                dens = dtfe.density(X.flat, Y.flat, Z.flat).reshape((100, 100, 100)) / 1e6
-            else:
-                dens = dtfe.density(points[:, 0], points[:, 1], points[:, 2]) / 1e6
+            dens = dtfe.density(points[:, 0], points[:, 1], points[:, 2]) / 1e6
 
         else:
             raise ValueError("Invalid dimension in DTFE.")
@@ -377,7 +338,7 @@ class SerpensAnalyzer:
         """
         return self._particle_positions, self._particle_velocities
 
-    def plot_planar(self, timestep, d=3, colormesh=False, scatter=True, triplot=False, show=True, **kwargs):
+    def plot_planar(self, timestep, d=3, scatter=True, triplot=False, show=True, **kwargs):
         """
         Returns a plot of the system looking at the orbital plane (top-down view).
         Accesses the 'Visualizer' class to construct the plots and forwards keyword arguments.
@@ -390,8 +351,6 @@ class SerpensAnalyzer:
             Dimension of density calculation.
             For d=2 the returning density plot will depict particles per cm^2.
             For d=3 the returning density plot will be particles per cm^3.
-        colormesh : bool    (default: False)
-            Whether to plot a colormesh (currently not available).
         scatter : bool      (default: True)
             Whether to create a scatter plot. Scatters are defined by particle positions and their color represents
             density as calculated with the DTFE in dimension d.
@@ -418,16 +377,7 @@ class SerpensAnalyzer:
                     vis.empty(k)
                     continue
 
-                dens, delaunay = self.delaunay_field_estimation(ts, species, d=d, grid=False)
-
-                #if colormesh:
-                #    if d == 3:
-                #        print("WARNING: Colormesh activated with dim 3. Calculating with dim 2 as this is the only option.")
-                #    dens_grid, _ = self.delaunay_field_estimation(ts, species, d=2, grid=True)
-                #    X, Y = self._grid(ts)
-                #    vis.add_colormesh(k, X, Y, dens_grid, contour=kw["contour"], fill_contour=kw["fill_contour"], zorder=5, numlvls=25,
-                #                      celest_colors=kw["celest_colors"], lvlmax=kw['lvl_max'], lvlmin=kw['lvl_min'],
-                #                      cfilter_coeff=kw["smoothing"], show_planet=kw["show_planet"], show_moon=kw["show_moon"])
+                dens, delaunay = self.delaunay_field_estimation(ts, species, d=d)
 
                 if scatter:
                     vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, d=d)
@@ -456,7 +406,7 @@ class SerpensAnalyzer:
 
             del vis
 
-    def plot_lineofsight(self, timestep, show=False, colormesh=False, scatter=True, **kwargs):
+    def plot_lineofsight(self, timestep, show=False, scatter=True, **kwargs):
         """
         Returns a plot of the system from a line of sight perspective.
         Accesses the 'Visualizer' class to construct the plots and forwards keyword arguments.
@@ -489,27 +439,9 @@ class SerpensAnalyzer:
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
 
-                #if colormesh:
-                #    dens, delaunay = self.delaunay_field_estimation(ts, species, d=2, grid=True, los=True)
-                #
-                #    if running_index == 0:
-                #        if kwargs.get('lvlmin', None) == 'auto':
-                #            vis.vis_params.update({"lvlmin": np.log10(np.min(dens[dens > 0])) - .5})
-                #        if kwargs.get('lvlmax', None) == 'auto':
-                #            vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
-                #
-                #    Y, Z = self._grid(ts, plane='yz')
-                #    self.pull_data(ts)
-                #    vis.add_colormesh(k, -Y, Z, dens, contour=True, fill_contour=True, zorder=9, numlvls=25, perspective='plot_lineofsight',
-                #                      lvlmax=kw['lvlmax'], lvlmin=kw['lvlmin'],
-                #                      show_planet=kw["show_planet"], show_moon=kw["show_moon"],
-                #                      celest_colors=kw["celest_colors"])
-                #
-                #    #vis.set_title(r"Particle Densities $log_{10} (N[\mathrm{cm}^{-2}])$ around Planetary Body", size=25)
-
                 if scatter:
                     points = self._particle_positions[np.where(self._particle_species == species.id)]
-                    dens, delaunay = self.delaunay_field_estimation(ts, species, d=2, grid=False, los=True)
+                    dens, delaunay = self.delaunay_field_estimation(ts, species, d=2, los=True)
 
                     if running_index == 0:
                         if kwargs.get('lvlmin', None) == 'auto':
@@ -559,7 +491,7 @@ class SerpensAnalyzer:
         """
         species = self.params.get_species(num=species_num)
         pos = self._particle_positions[np.where(self._particle_species == species.id)]
-        dens, _ = self.delaunay_field_estimation(timestep, species, d=3, grid=False)
+        dens, _ = self.delaunay_field_estimation(timestep, species, d=3)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
         x_p = (self.get_primary(0).r * np.sin(theta) * np.cos(phi) +
@@ -642,8 +574,8 @@ class SerpensAnalyzer:
             self.pull_data(ts)
             self._sim_instance = self.sa[ts]
 
-            dens2d, _ = self.delaunay_field_estimation(ts, species, d=2, grid=False, los=True)
-            dens3d, _ = self.delaunay_field_estimation(ts, species, d=3, grid=False)
+            dens2d, _ = self.delaunay_field_estimation(ts, species, d=2, los=True)
+            dens3d, _ = self.delaunay_field_estimation(ts, species, d=3)
 
             logDens2dInvSort = np.log10(np.sort(dens2d[dens2d > 0])[::-1])
             logDens3dInvSort = np.log10(np.sort(dens3d[dens3d > 0])[::-1])

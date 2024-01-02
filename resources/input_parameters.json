@@ -19,7 +19,7 @@
     "species1": {
       "name": "Na",
       "n_th": 0,
-      "n_sp": 200,
+      "n_sp": 75,
       "mass_per_sec": 63095,
       "sput_spec": {
         "model_smyth_v_b": 950,
