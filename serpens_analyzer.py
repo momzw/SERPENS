@@ -9,11 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
-from scipy.interpolate import make_interp_spline
-
-import matplotlib.pyplot as plt
 import matplotlib
-from matplotlib.patches import FancyArrowPatch
 
 from src import DTFE, DTFE3D
 from src.parameters import Parameters
@@ -44,7 +40,7 @@ class SerpensAnalyzer:
     It also provides the main interface for plotting.
     """
     def __init__(self, save_output=False, save_archive=False, folder_name=None,
-                 z_cutoff=None, r_cutoff=None, v_cutoff=None, reference_system="heliocentric"):
+                 z_cutoff=None, r_cutoff=None, v_cutoff=None, reference_system=None):
         """
         Initialize the analyzer by loading the archive.bin and hash dictionary files.
         We state whether outputs shall be saved or not, including the archive files.
@@ -71,9 +67,6 @@ class SerpensAnalyzer:
         v_cutoff : float        (default: None)
             Velocity cutoff of particles in units of meter per second. This is an upper limit.
             Particles with velocities greater than v_cutoff will not be considered in the analysis.
-        reference_system : str      (default: "heliocentric")
-            Can either be "heliocentric" or "geocentric". Latter will rotate the system, such that the (exo-)planet
-            keeps y-coordinate 0. This is equal to a co-rotating observer.
         """
 
         try:
@@ -101,6 +94,11 @@ class SerpensAnalyzer:
 
         self.cutoffs = {"z": z_cutoff, "r": r_cutoff, "v": v_cutoff}
         self.reference_system = reference_system
+
+        if self.reference_system is not None and self.reference_system.lower().startswith('source'):
+            self.source_index = int(self.reference_system[6:])  # extract source index from string
+        else:
+            self.source_index = None  # Default case
 
         if save_output:
             print("Copying and saving...")
@@ -138,17 +136,7 @@ class SerpensAnalyzer:
         Returns coordinate offsets if the primary is a planet (source is moon).
         Arguments handled by class functions.
         """
-        #if self.source_is_moon:
-        #    planet = self._sim_instance.particles["planet"]
-        #    if plane == 'xy':
-        #        return planet.x, planet.y, 0
-        #    elif plane == 'yz':
-        #        return planet.y, planet.z, 0
-        #    elif plane == '3d':
-        #        return planet.x, planet.y, planet.z
-        #else:
-        #    return 0, 0, 0
-        planet = self.get_primary(0)
+        planet = self.get_primary(self.source_index)
         if plane == 'xy':
             return planet.x, planet.y, 0
         elif plane == 'yz':
@@ -161,22 +149,22 @@ class SerpensAnalyzer:
         Internal use only.
         Applies a rotation (coordinate transformation) to all particles if the reference system is geocentric.
         """
-        #if self.source_is_moon:
-        phase = np.arctan2(self.get_primary(0).y, self.get_primary(0).x)
+        phase = np.arctan2(self.get_primary(self.source_index).y, self.get_primary(self.source_index).x)
 
-        inc = self.get_primary(0).orbit().inc
+        inc = self.get_primary(self.source_index).orbit().inc
 
         reb_rot = rebound.Rotation(angle=phase, axis='z')
         reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
         for particle in self._sim_instance.particles:
             particle.rotate(reb_rot.inverse())
             particle.rotate(reb_rot_inc)
-        #else:
-        #    pass
 
     def get_primary(self, source_index) -> rebound.Particle:
-        return self._sim_instance.particles[
-            rebound.hash(self._sim_instance.particles[f"source{source_index}"].params['source_primary'])]
+        if source_index is not None:
+            return self._sim_instance.particles[
+                rebound.hash(self._sim_instance.particles[f"source{source_index}"].params['source_primary'])]
+        else:
+            return self._sim_instance.particles[0]
 
     def pull_data(self, timestep):
         """
@@ -192,7 +180,7 @@ class SerpensAnalyzer:
         self._sim_instance = self.sa[int(timestep)]
         _ = reboundx.Extras(self._sim_instance, "rebx.bin")
 
-        if self.reference_system == "geocentric":
+        if self.reference_system is not None:
             if timestep not in self.rotated_timesteps:
                 self._rotate_reference_system()
                 self.rotated_timesteps.append(timestep)
@@ -205,15 +193,20 @@ class SerpensAnalyzer:
 
         self._particle_species = np.zeros(self._sim_instance.N, dtype="int")
         self._particle_weights = np.zeros(self._sim_instance.N, dtype="float64")
+        self._particle_source_indices = np.zeros(self._sim_instance.N, dtype="int")
+
         for k1 in range(self._sim_instance.N):
             try:
                 self._particle_species[k1] = self._sim_instance.particles[
                     rebound.hash(int(self._particle_hashes[k1]))].params["serpens_species"]
                 self._particle_weights[k1] = self._sim_instance.particles[
                     rebound.hash(int(self._particle_hashes[k1]))].params["serpens_weight"]
+                self._particle_source_indices[k1] = self._sim_instance.particles[
+                    rebound.hash(int(self._particle_hashes[k1]))].params["source_index"]
             except AttributeError:
                 continue
 
+        self.num_sources = len(np.unique(self._particle_source_indices))
         self._apply_masks()
 
     def _apply_masks(self):
@@ -221,32 +214,56 @@ class SerpensAnalyzer:
         Internal use only.
         Apply filters to particles. Removes all particles according to z_cutoff, r_cutoff, and v_cutoff.
         """
-        combined_mask = np.ones(len(self._particle_positions), dtype=bool)
-        for cutoff_type in self.cutoffs:
-            cutoff_value = self.cutoffs[cutoff_type]
 
-            if cutoff_value is not None:
-                assert isinstance(cutoff_value, (float, int))
-                condition = None
+        masks_for_each_source = []
 
-                if cutoff_type == "z":
-                    condition = (self._particle_positions[:, 2] < cutoff_value * self.get_primary(0).r) & \
-                                (self._particle_positions[:, 2] > -cutoff_value * self.get_primary(0).r)
-                elif cutoff_type == "r":
-                    r = np.linalg.norm(self._particle_positions - self.get_primary(0).xyz, axis=1)
-                    condition = r < cutoff_value * self.get_primary(0).r
-                elif cutoff_type == "v":
-                    v = np.linalg.norm(self._particle_velocities - self._sim_instance.particles["source0"].vxyz, axis=1)
-                    condition = v < cutoff_value
+        for source_index in range(self.num_sources):
+            source_primary = self.get_primary(source_index)
+            source_particles_mask = self._particle_source_indices == source_index
 
-                if condition is not None:
-                    combined_mask &= condition
+            combined_mask = np.ones(len(self._particle_positions[source_particles_mask]), dtype=bool)
 
-        self._particle_positions = self._particle_positions[combined_mask]
-        self._particle_velocities = self._particle_velocities[combined_mask]
-        self._particle_hashes = self._particle_hashes[combined_mask]
-        self._particle_species = self._particle_species[combined_mask]
-        self._particle_weights = self._particle_weights[combined_mask]
+            for cutoff_type in self.cutoffs:
+                cutoff_value = self.cutoffs[cutoff_type]
+
+                if cutoff_value is not None:
+                    assert isinstance(cutoff_value, (float, int))
+                    condition = None
+
+                    if cutoff_type == "z":
+                        condition = (self._particle_positions[source_particles_mask, 2] < cutoff_value * source_primary.r) & \
+                                    (self._particle_positions[source_particles_mask, 2] > -cutoff_value * source_primary.r)
+                    elif cutoff_type == "r":
+                        r = np.linalg.norm(self._particle_positions[source_particles_mask] - source_primary.xyz, axis=1)
+                        condition = r < cutoff_value * source_primary.r
+                    elif cutoff_type == "v":
+                        v = np.linalg.norm(self._particle_velocities[source_particles_mask] - self._sim_instance.particles[f"source{source_index}"].vxyz, axis=1)
+                        condition = v < cutoff_value
+
+                    if condition is not None:
+                        combined_mask &= condition
+
+            # Keep the indices to preserve for this source
+            indices_to_keep_source = np.where(source_particles_mask)[0][combined_mask]
+
+            # Create a full size mask for this source's kept indices (initially all False)
+            full_size_mask = np.zeros(len(self._particle_positions), dtype=bool)
+
+            # Mark the indices to keep as True
+            full_size_mask[indices_to_keep_source] = True
+
+            # Save this source mask
+            masks_for_each_source.append(full_size_mask)
+
+        # Overall mask (use logical OR operation over the masks from all sources)
+        overall_mask = np.logical_or.reduce(masks_for_each_source)
+
+        # Then apply the overall_mask to your arrays:
+        self._particle_positions = self._particle_positions[overall_mask]
+        self._particle_velocities = self._particle_velocities[overall_mask]
+        self._particle_hashes = self._particle_hashes[overall_mask]
+        self._particle_species = self._particle_species[overall_mask]
+        self._particle_weights = self._particle_weights[overall_mask]
 
     @ensure_data_loaded
     def delaunay_field_estimation(self, timestep, species, d=2, los=False):
@@ -274,41 +291,43 @@ class SerpensAnalyzer:
             Important to set to 'False' if we consider looking on the orbital plane. Particles won't be masked as they
             are not hidden.
         """
-        simulation_time = (timestep * self.params.int_spec["sim_advance"] *
-                           self._sim_instance.particles["source0"].orbit(
-                              primary=self.get_primary(0)).P)
-
         points_mask = np.where(self._particle_species == species.id)
 
         points = self._particle_positions[points_mask]
         velocities = self._particle_velocities[points_mask]
         weights = self._particle_weights[points_mask]
-
-        # Filter points:
-        indices = np.unique([tuple(row) for row in points], axis=0, return_index=True)[1]
-        weights = weights[np.sort(indices)]
-        points = points[np.sort(indices)]
-        velocities = velocities[np.sort(indices)]
+        source_indices = self._particle_source_indices[points_mask]
 
         # Physical weight calculation:
         total_injected = timestep * (species.n_sp + species.n_th)
         remaining_part = len(points[:, 0])
-        mass_in_system = remaining_part / total_injected * species.mass_per_sec * simulation_time
+        mass_in_system = remaining_part / total_injected * species.mass_per_sec * self._sim_instance.t
         number_of_particles = mass_in_system / species.m
         phys_weights = number_of_particles * weights/np.sum(weights)
 
         if d == 2:
 
             if los:
-                los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(0).y) ** 2 +
-                                             (points[:, 2] - self.get_primary(0).z) ** 2)
-                mask = ((los_dist_to_planet < self.get_primary(0).r) &
-                        (points[:, 0] - self.get_primary(0).x < 0))
+                masks_for_each_source = []
+                for source_index in range(self.num_sources):
+                    source_primary = self.get_primary(source_index)
+                    source_particles_mask = source_indices == source_index
+
+                    los_dist_to_planet = np.sqrt((points[source_particles_mask, 1] - source_primary.y) ** 2 +
+                                                 (points[source_particles_mask, 2] - source_primary.z) ** 2)
+
+                    mask = ((los_dist_to_planet < source_primary.r) &
+                            (points[source_particles_mask, 0] - source_primary.x < 0))
+
+                    indices_to_keep = np.where(source_particles_mask)[0][mask]
+                    full_size_mask = np.zeros(len(points), dtype=bool)
+                    full_size_mask[indices_to_keep] = True
+                    masks_for_each_source.append(full_size_mask)
 
                 dtfe = DTFE.DTFE(points[:, 1:3], velocities[:, 1:3], phys_weights)
 
                 dens = dtfe.density(points[:, 1], points[:, 2]) / 1e4
-                dens[mask] = 0
+                dens[np.logical_or.reduce(masks_for_each_source)] = 0
 
             else:
                 dtfe = DTFE.DTFE(points[:, :2], velocities[:, :2], phys_weights)
@@ -449,10 +468,10 @@ class SerpensAnalyzer:
                         if kwargs.get('lvlmax', None) == 'auto':
                             vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
 
-                    los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(0).y) ** 2 +
-                                                 (points[:, 2] - self.get_primary(0).z) ** 2)
-                    mask = (los_dist_to_planet > self.get_primary(0).r) | \
-                           (points[:, 0] - np.abs(self.get_primary(0).x) > 0)
+                    los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(self.source_index).y) ** 2 +
+                                                 (points[:, 2] - self.get_primary(self.source_index).z) ** 2)
+                    mask = (los_dist_to_planet > self.get_primary(self.source_index).r) | \
+                           (points[:, 0] - np.abs(self.get_primary(self.source_index).x) > 0)
                     vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask], d=2)
 
             if self.save:
@@ -494,12 +513,12 @@ class SerpensAnalyzer:
         dens, _ = self.delaunay_field_estimation(timestep, species, d=3)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
-        x_p = (self.get_primary(0).r * np.sin(theta) * np.cos(phi) +
-               self.get_primary(0).x)
-        y_p = (self.get_primary(0).r * np.sin(theta) * np.sin(phi) +
-               self.get_primary(0).y)
-        z_p = (self.get_primary(0).r * np.cos(theta) +
-               self.get_primary(0).z)
+        x_p = (self.get_primary(self.source_index).r * np.sin(theta) * np.cos(phi) +
+               self.get_primary(self.source_index).x)
+        y_p = (self.get_primary(self.source_index).r * np.sin(theta) * np.sin(phi) +
+               self.get_primary(self.source_index).y)
+        z_p = (self.get_primary(self.source_index).r * np.cos(theta) +
+               self.get_primary(self.source_index).z)
 
         if show_star:
             x_s = (self._sim_instance.particles["star"].r * np.sin(theta) * np.cos(phi) +

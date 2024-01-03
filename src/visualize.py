@@ -57,10 +57,9 @@ class BaseVisualizer(ArgumentProcessor):
 
     def __init__(self, rebsim, **kwargs):
         super().__init__(**kwargs)
-        params = Parameters()
+        Parameters()
         self.sim = rebsim
         self.ps = rebsim.particles
-        #self.source_is_moon = params.int_spec['moon']
         self.fc = self._init_celestial_colors()
 
         self._init_figure()
@@ -100,9 +99,6 @@ class BaseVisualizer(ArgumentProcessor):
                 self.axs[ax_num].set_facecolor('k')
                 self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
 
-        self.boundary = params.int_spec["r_max"] * self.sim.particles["source0"].orbit(
-            primary=self.get_primary(0)).a
-
     def _init_celestial_colors(self):
         if len(self.vis_params['celest_colors']) == 0:
             fc = ['yellow', 'sandybrown', 'yellow']
@@ -128,8 +124,7 @@ class BaseVisualizer(ArgumentProcessor):
         else:
             raise ValueError("Invalid perspective in plotting.")
 
-        #primary_coord1, primary_coord2 = self._get_coordinates("source_primary0")
-        primary_coord1, primary_coord2 = self.get_primary(0).x, self.get_primary(0).y
+        primary_coord1, primary_coord2 = self._get_coordinates_primary(source_index=0)
 
         ax.set_xlim([-lim + primary_coord1, lim + primary_coord1])
         ax.set_ylim([-lim + primary_coord2, lim + primary_coord2])
@@ -183,30 +178,37 @@ class BaseVisualizer(ArgumentProcessor):
         self._add_patches(ax)
         self._add_additional_celestials(ax)
 
-    def _get_coordinates(self, obj_str):
-        valid_obj = ['source0', 'source_primary0']
-        if obj_str in valid_obj:
-            if self.vis_params["perspective"] == "topdown":
-                return self.ps[obj_str].x, self.ps[obj_str].y
-            elif self.vis_params["perspective"] == "los":
-                return -self.ps[obj_str].y, self.ps[obj_str].z
-            else:
-                pass
+    def _get_coordinates_source(self, source_index):
+        obj_str = f"source{source_index}"
+        if self.vis_params["perspective"] == "topdown":
+            return self.ps[obj_str].x, self.ps[obj_str].y
+        elif self.vis_params["perspective"] == "los":
+            return -self.ps[obj_str].y, self.ps[obj_str].z
+        else:
+            pass
+
+    def _get_coordinates_primary(self, source_index):
+        primary = self.get_primary(source_index)
+        if self.vis_params["perspective"] == "topdown":
+            return primary.x, primary.y
+        elif self.vis_params["perspective"] == "los":
+            return -primary.y, primary.z
+        else:
+            pass
 
     def _add_patches(self, ax):
 
         if self.vis_params['show_primary']:
             #fc = self.fc[1] if Parameters.int_spec["source_index"] > 2 else self.fc[0]
             fc = self.fc[0]
-            #coord1, coord2 = self._get_coordinates("source_primary0")
-            coord1, coord2 = self.get_primary(0).x, self.get_primary(0).y
+            coord1, coord2 = self._get_coordinates_primary(source_index=0)
             primary_patch = plt.Circle((coord1, coord2), self.get_primary(0).r, fc=fc, zorder=10, label="primary")
             ax.add_patch(primary_patch)
 
         if self.vis_params['show_source']:
             #fc = self.fc[Parameters.int_spec["source_index"] - 1]
             fc = self.fc[2]
-            coord1, coord2 = self._get_coordinates("source0")
+            coord1, coord2 = self._get_coordinates_source(source_index=0)
             source_patch = plt.Circle((coord1, coord2), self.ps["source0"].r, fc=fc, ec='k',
                                       label="source", zorder=10, fill=True)
             ax.add_patch(source_patch)

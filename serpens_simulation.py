@@ -177,6 +177,7 @@ class SerpensSimulation(rebound.Simulation):
         self.rebx.register_param('serpens_species', 'REBX_TYPE_INT')
         self.rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
         self.rebx.register_param('source_primary', 'REBX_TYPE_INT')
+        self.rebx.register_param('source_index', 'REBX_TYPE_INT')
 
         for k, v in Parameters.celest.items():
             if not type(v) == dict:
@@ -255,6 +256,7 @@ class SerpensSimulation(rebound.Simulation):
                         self.particles[identifier].params["beta"] = species.beta
                         self.particles[identifier].params["serpens_species"] = species.id
                         self.particles[identifier].params["serpens_weight"] = 1.
+                        self.particles[identifier].params["source_index"] = source_index
 
     def advance_integrate(self):
         weightop = self.rebx.create_operator("weightloss")
