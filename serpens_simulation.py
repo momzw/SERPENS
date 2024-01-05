@@ -35,19 +35,14 @@ def heartbeat(sim_pointer):
     i = 0
     while True:
         try:
-            for key, subdict in Parameters.celest.items():
-                if "source" in subdict:
-                    par = subdict.copy()
-            par.pop('primary', None)
-            par.pop('source', None)
+            primary = sim.particles[rebound.hash(sim.particles[f"source{i}"].params['source_primary'])]
+            source = sim.particles[f"source{i}"]
+            o = source.orbit(primary=primary)
+            newP = rebound.Particle(simulation=sim, primary=primary, m=source.m, a=o.a, e=0, inc=o.inc,
+                                    omega=o.omega, Omega=o.Omega, f=o.f)
 
-            p0 = rebound.Particle(simulation=sim, **par, primary=sim.particles[f"source_primary{i}"])
-            o = p0.orbit(primary=sim.particles[f"source_primary{i}"], G=sim.G)
-            mean_anomaly = o.n * sim.t
-            p1 = rebound.Particle(simulation=sim, M=mean_anomaly, **par, primary=sim.particles[f"source_primary{i}"])
-
-            sim.particles[f"source{i}"].xyz = p1.xyz
-            sim.particles[f"source{i}"].vxyz = p1.vxyz
+            sim.particles[f"source{i}"].xyz = newP.xyz
+            sim.particles[f"source{i}"].vxyz = newP.vxyz
 
             i += 1
 
@@ -109,11 +104,8 @@ def create(source_state, source_r, phys_process, species):
 
 
 class SerpensSimulation(rebound.Simulation):
-    # TODO: improve multi-source implementation
-    # TODO: N_active variable
-    # TODO: Fix heartbeat
     # TODO: Test normal REBOUND functionality.
-    # TODO: Increase performance
+    # TODO: Improve performance
     """
     Main class responsible for the Monte Carlo process of SERPENS.
     (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)
@@ -149,6 +141,7 @@ class SerpensSimulation(rebound.Simulation):
         self.serpens_iter = 0
 
         self.add(m=8.8e+22, a=267868894.98, r=1820000.0, primary="planet", source=True)
+        self.add(m=8.8e+22, a=200000000.98, r=1820000.0, primary="planet", source=True)
 
     def rebound_setup(self):
         """
@@ -208,10 +201,13 @@ class SerpensSimulation(rebound.Simulation):
         return self
 
     def add(self, particle=None, source=False, test_particle=False, **kwargs):
+
         if source:
             assert "primary" in kwargs, "Please provide the primary for a sourcing object."
-            kwargs.pop("hash", None)
-            super().add(particle, **kwargs, hash=f"source{self.num_sources}")
+            kwargs["hash"] = f"source{self.num_sources}"
+            if particle is None:
+                particle = rebound.Particle(simulation=self, **kwargs)
+            super().add(particle)
 
             if isinstance(kwargs["primary"], rebound.Particle):
                 self.particles[-1].params['source_primary'] = kwargs["primary"].hash.value
@@ -222,11 +218,15 @@ class SerpensSimulation(rebound.Simulation):
 
             self.num_sources += 1
         else:
-            super().add(particle, **kwargs)
+            if particle is None:
+                particle = rebound.Particle(simulation=self, **kwargs)
+            super().add(particle)
 
-        # super().add creates a Particle and calls 'add' again if particle is not a Particle yet.
-        #if not test_particle and isinstance(particle, rebound.Particle):
-        #    self.N_active += 1
+        if not test_particle:
+            if self.N_active == -1:
+                self.N_active += 2
+            else:
+                self.N_active += 1
 
     def _add_particles(self):
         """

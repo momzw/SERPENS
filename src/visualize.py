@@ -199,15 +199,14 @@ class BaseVisualizer(ArgumentProcessor):
     def _add_patches(self, ax):
 
         if self.vis_params['show_primary']:
-            #fc = self.fc[1] if Parameters.int_spec["source_index"] > 2 else self.fc[0]
-            fc = self.fc[0]
+            fc_index = self.ps[rebound.hash(self.ps["source0"].params["source_primary"])].index
+            fc = self.fc[fc_index]
             coord1, coord2 = self._get_coordinates_primary(source_index=0)
             primary_patch = plt.Circle((coord1, coord2), self.get_primary(0).r, fc=fc, zorder=10, label="primary")
             ax.add_patch(primary_patch)
 
         if self.vis_params['show_source']:
-            #fc = self.fc[Parameters.int_spec["source_index"] - 1]
-            fc = self.fc[2]
+            fc = self.fc[self.ps["source0"].index]
             coord1, coord2 = self._get_coordinates_source(source_index=0)
             source_patch = plt.Circle((coord1, coord2), self.ps["source0"].r, fc=fc, ec='k',
                                       label="source", zorder=10, fill=True)
@@ -237,12 +236,10 @@ class BaseVisualizer(ArgumentProcessor):
 
     def _add_additional_celestials(self, ax):
         # Additional celestial objects
-        number_additional_celest = self.sim.N_active - 3 #if self.source_is_moon else self.sim.N_active - 2
+        source_is_moon = self.ps[rebound.hash(self.ps["source0"].params["source_primary"])].index > 0
+        number_additional_celest = self.sim.N_active - 3 if source_is_moon else self.sim.N_active - 2
         if number_additional_celest > 0:
-            moons_indices = [i for i in range(2, self.sim.N_active)]
-            if not Parameters.int_spec["source_index"] == 2:
-                moons_indices.remove(Parameters.int_spec["source_index"] - 1)
-
+            moons_indices = [i for i in range(self.sim.N_active - number_additional_celest, self.sim.N_active)]
             if self.vis_params["perspective"] == 'topdown':
                 op_add = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=moons_indices,
                                            color=self.fc[moons_indices[0]:], primary=self.ps[1],
@@ -267,8 +264,6 @@ class BaseVisualizer(ArgumentProcessor):
 
 
 class Visualize(BaseVisualizer):
-
-    # TODO: Check out Plotly as an alternative
 
     def __init__(self, rebsim, interactive=True, **kwargs):
         super().__init__(rebsim, **kwargs)

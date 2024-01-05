@@ -2,8 +2,8 @@ from serpens_analyzer import SerpensAnalyzer
 from serpens_simulation import SerpensSimulation
 import matplotlib
 
-#ssim = SerpensSimulation(system="HD-189733")
-#ssim.advance(15, verbose=False)
+ssim = SerpensSimulation(system="HD-189733")
+ssim.advance(15, verbose=False)
 
 sa = SerpensAnalyzer(save_output=False, reference_system="source0")
 sa.plot_planar(timestep=14, d=2, colormesh=False, scatter=True, triplot=False, show=True, smoothing=.5, trialpha=1,
