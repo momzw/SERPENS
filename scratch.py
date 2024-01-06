@@ -3,6 +3,8 @@ from serpens_simulation import SerpensSimulation
 import matplotlib
 
 ssim = SerpensSimulation(system="HD-189733")
+ssim.add(m=8.8e+22, a=267868894.98, r=1820000.0, primary="planet", source=True)
+ssim.add(m=8.8e+22, a=200000000.98, r=1820000.0, primary="planet", source=True)
 ssim.advance(15, verbose=False)
 
 sa = SerpensAnalyzer(save_output=False, reference_system="source0")

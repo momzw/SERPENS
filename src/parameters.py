@@ -2,21 +2,6 @@ from src.species import Species
 import json
 
 
-def find_source_object(object_dict):
-    source_key = []
-    for key, subdict in object_dict.items():
-        if "source" in subdict:
-            if subdict["source"]:
-                source_key.append(key)
-                # return key
-    if len(source_key) > 1:
-        raise ValueError("Currently we only support single-source systems. Please make sure you only have one source.")
-    elif len(source_key) == 1:
-        return source_key[0]
-    else:
-        return None
-
-
 class DefaultFields:
     _instance = None
 
@@ -33,14 +18,14 @@ class DefaultFields:
         return cls._instance
 
     def _get_default_objects(self):
-        with open('resources/objects.json', 'r') as f:
-            systems = json.load(f)
-            self.celest = [objects for condition, objects in
-                           zip([s['SYSTEM-NAME'] == 'Jupiter (Europa-Source)' for s in systems], systems)
-                           if condition][0]
-            self.celest.pop("SYSTEM-NAME", None)
+        #with open('resources/objects.json', 'r') as f:
+        #    systems = json.load(f)
+        #    self.celest = [objects for condition, objects in
+        #                   zip([s['SYSTEM-NAME'] == 'Jupiter (Europa-Source)' for s in systems], systems)
+        #                   if condition][0]
+        #    self.celest.pop("SYSTEM-NAME", None)
+        self.celest = {}
 
-            self.celest = {}
     def _get_default_parameters(self):
         self.species = {}
         with open('resources/input_parameters.json', 'r') as f:
@@ -50,14 +35,6 @@ class DefaultFields:
             for species in params[1:]:
                 for k, v in species.items():
                     self.species[f"{k}"] = Species(**v)
-
-        #source_key = find_source_object(self.celest)
-        #source_index = list(self.celest).index(source_key) if source_key is not None else None
-        #self.int_spec["source_index"] = source_index
-        #if source_index is not None and source_index > 1:
-        #    self.int_spec["moon"] = True
-        #else:
-        #    self.int_spec["moon"] = False
 
     @classmethod
     def change_defaults(cls, **kwargs):
@@ -180,26 +157,13 @@ class Parameters:
         """
         if celestial_name is not None:
             with open('resources/objects.json', 'r') as f:
-                # saved_objects = f.read().splitlines(True)
-                # cls.celest = json.loads(saved_objects[[f"{celestial_name}" in s for s in saved_objects].index(True)])
-
                 systems = json.load(f)
                 cls.celest = [objects for condition, objects in
                               zip([s['SYSTEM-NAME'] == f"{celestial_name}" for s in systems], systems) if
                               condition][0]
 
-                source_key = find_source_object(cls.celest)
-                source_index = list(cls.celest).index(source_key) if source_key is not None else None
-                cls.int_spec["source_index"] = source_index
-                if source_index is not None and source_index > 1:
-                    cls.int_spec["moon"] = True
-                else:
-                    cls.int_spec["moon"] = False
-
         if object is not None:
             if as_new_source:
-                source_key = find_source_object(cls.celest)
-                del cls.celest[source_key]["source"]
                 cls.celest[object]["source"] = True
                 print("Globally modified source object.")
 
@@ -258,7 +222,7 @@ class NewParams:
         --------
         *   newp = NewParams(celestial_name = 'Jupiter (Europa-Source)', objects = {'Io': {'source': True, 'm': 1e23, 'a': 3e9})
             newp()
-            --> Loads the 'Jupiter (Europa-Source)' from src/objects.txt, but modifies the mass and semi-major axis of Io,
+            --> Loads the 'Jupiter (Europa-Source)' from src/objects.json, but modifies the mass and semi-major axis of Io,
                 and switches from Europa as source to using Io as the particle sourcing object.
 
         """

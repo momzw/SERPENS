@@ -28,7 +28,7 @@ def weight_operator(sim_pointer, rebx_operator, dt):
 def heartbeat(sim_pointer):
     """
     Not meant for external use.
-    REBOUND heartbeat function to fix a source's orbit to be circular if the source is a moon.
+    REBOUND heartbeat function to fix a source's orbit to be circular.
     """
     sim = sim_pointer.contents
 
@@ -139,9 +139,6 @@ class SerpensSimulation(rebound.Simulation):
         self.rebound_setup()
 
         self.serpens_iter = 0
-
-        self.add(m=8.8e+22, a=267868894.98, r=1820000.0, primary="planet", source=True)
-        self.add(m=8.8e+22, a=200000000.98, r=1820000.0, primary="planet", source=True)
 
     def rebound_setup(self):
         """
