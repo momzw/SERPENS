@@ -46,9 +46,7 @@ class Species(SpeciesSpecifics):
     }
 
     def __init__(self, name=None, n_th=0, n_sp=0, mass_per_sec=None, duplicate=None, **kwargs):
-        self.implementedSpecies = self.species_info.keys()
-
-        if name in self.implementedSpecies:
+        if name in self.species_info.keys():
             mass_number, species_id = self.species_info[name]
             super().__init__(mass_number, species_id)
         else:
@@ -85,6 +83,10 @@ class Species(SpeciesSpecifics):
         return f"Species {self.name}: \n\tMdot [kg/s] = {self.mass_per_sec}, \n\tlifetime [s] / network = {self.network}," \
                f"\n\tNumber of thermal superparticles = {self.n_th}," \
                f"\n\tNumber of sputtered superparticles = {self.n_sp}"
+
+    def copy(self):
+        new_species = Species()
+
 
     def validate_sput_spec(self):
         valid_models = ["smyth", "maxwell", "wurz"]

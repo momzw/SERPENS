@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 from src import DTFE, DTFE3D
-from src.parameters import Parameters
+from src.parameters import Parameters, NewParams
 from src.visualize import Visualize
 
 
@@ -77,6 +77,9 @@ class SerpensAnalyzer:
 
         self.params = Parameters()
 
+        with open('test_dat.pkl', 'rb') as f:
+            self.source_parameter_sets = pickle.load(f)
+
         self.sim = None
         self.particle_positions = None
         self.particle_velocities = None
@@ -123,6 +126,15 @@ class SerpensAnalyzer:
             return rebound.Simulationarchive("archive.bin")
         except Exception:
             raise Exception("simulation archive not found.")
+
+    def _load_source_parameters(self, source_index):
+        parameter_set = self.source_parameter_sets[source_index]
+        NewParams(species=list(parameter_set['species'].values()),
+                  int_spec=parameter_set['int_spec'],
+                  therm_spec=parameter_set['therm_spec'],
+                  celestial_name=parameter_set['celest']['SYSTEM-NAME']
+                  )()
+
 
     def _calculate_offsets(self, plane):
         """
@@ -382,26 +394,31 @@ class SerpensAnalyzer:
             self.pull_data(ts)
             vis = Visualize(self.sim, **kwargs)
 
-            for k in range(self.params.num_species):
-                species = self.params.get_species(num=k + 1)
-                points = self.particle_positions[np.where(self.particle_species == species.id)]
+            for source_index in range(len(self.source_parameter_sets)):
+                self._load_source_parameters(source_index)
 
-                if len(points) == 0:
-                    vis.empty(k)
-                    continue
+                for k in range(self.params.num_species):
+                    species = self.params.get_species(num=k + 1)
+                    points = self.particle_positions[np.where(self.particle_species == species.id)]
 
-                dens, delaunay = self.delaunay_field_estimation(ts, species, d=d)
+                    if len(points) == 0:
+                        vis.empty(k)
+                        continue
 
-                if scatter:
-                    vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, d=d)
+                    dens, delaunay = self.delaunay_field_estimation(ts, species, d=d)
 
-                if triplot:
-                    if d == 3:
-                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3])
-                    elif d == 2:
-                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
+                    if scatter:
+                        vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, d=d)
 
-                vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
+                    if triplot:
+                        if d == 3:
+                            vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3])
+                        elif d == 2:
+                            vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
+
+                    vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
+
+                Parameters.reset()
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'TD_{ts}_000{self.save_index}')

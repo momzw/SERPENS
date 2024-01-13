@@ -1,5 +1,6 @@
 from src.species import Species
 import json
+import copy
 
 
 class DefaultFields:
@@ -126,6 +127,18 @@ class Parameters:
         else:
             return
 
+    def get_current_parameters(self):
+        """
+        Get a copy of the current parameters.
+        """
+        return copy.deepcopy({  # ensure a deep copy
+            'int_spec': self.int_spec,
+            'therm_spec': self.therm_spec,
+            'species': self.species,
+            'celest': self.celest,
+            'num_species': self.num_species
+        })
+
     @classmethod
     def modify_species(cls, *args):
         """
@@ -136,7 +149,7 @@ class Parameters:
             for index, arg in enumerate(args):
                 cls.species[f"species{index + 1}"] = arg
             cls.num_species = len(args)
-            print("Species loaded.")
+            #print("Species loaded.")
 
     @classmethod
     def modify_objects(cls, celestial_name=None, object=None, as_new_source=False, new_properties=None):

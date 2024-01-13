@@ -4,10 +4,12 @@ import numpy as np
 import multiprocessing
 import concurrent.futures
 import pickle
+import json
 from src.create_particle import create_particle
-from src.parameters import Parameters
+from src.parameters import Parameters, NewParams
 from tqdm import tqdm
 import time
+from src.species import Species
 
 
 def weight_operator(sim_pointer, rebx_operator, dt):
@@ -24,6 +26,7 @@ def weight_operator(sim_pointer, rebx_operator, dt):
             particle.params['serpens_weight'] *= np.exp(-sim.dt/tau)
         except AttributeError:
             continue
+
 
 def heartbeat(sim_pointer):
     """
@@ -126,6 +129,7 @@ class SerpensSimulation(rebound.Simulation):
         """
         super().__init__()
         self.params = Parameters()
+        self.source_parameter_sets = []
         if system != 'default':
             try:
                 Parameters.modify_objects(celestial_name=system)
@@ -133,7 +137,6 @@ class SerpensSimulation(rebound.Simulation):
                 print("Cannot load the celestial objects. Are you sure you have implemented this system?")
                 print("Exiting...")
                 exit()
-
         # Create a new simulation
         self.num_sources = 0
         self.rebound_setup()
@@ -201,7 +204,7 @@ class SerpensSimulation(rebound.Simulation):
 
         if source:
             assert "primary" in kwargs, "Please provide the primary for a sourcing object."
-            kwargs["hash"] = f"source{self.num_sources}"
+            kwargs["hash"] = f"source{self.num_sources}"    # overwrites hash (if passed) for later reference.
             if particle is None:
                 particle = rebound.Particle(simulation=self, **kwargs)
             super().add(particle)
@@ -213,6 +216,15 @@ class SerpensSimulation(rebound.Simulation):
             else:
                 raise TypeError(f"Unsupported type {type(kwargs['primary'])} for primary.")
 
+            if self.num_sources == 1:
+                Parameters.modify_species(Species('H2', n_th=0, n_sp=75, mass_per_sec=10**4.8,
+                                                  model_smyth_v_b=0.95*1000, model_smyth_v_M=15.24*1000,
+                                                  lifetime=4*60, beta=0))
+
+            with open('test_dat.pkl', 'wb') as f:
+                pickle.dump(self.source_parameter_sets, f)
+
+            self.source_parameter_sets.append(Parameters().get_current_parameters())
             self.num_sources += 1
         else:
             if particle is None:
@@ -235,6 +247,7 @@ class SerpensSimulation(rebound.Simulation):
         for source_index in range(self.num_sources):
             source = self.particles[f"source{source_index}"]
             source_state = np.array([source.xyz, source.vxyz])
+            self._load_source_parameters(source_index)
 
             if self.params.int_spec["gen_max"] is None or self.serpens_iter < self.params.int_spec["gen_max"]:
                 for s in range(self.params.num_species):
@@ -254,6 +267,16 @@ class SerpensSimulation(rebound.Simulation):
                         self.particles[identifier].params["serpens_species"] = species.id
                         self.particles[identifier].params["serpens_weight"] = 1.
                         self.particles[identifier].params["source_index"] = source_index
+
+            Parameters.reset()
+
+    def _load_source_parameters(self, source_index):
+        parameter_set = self.source_parameter_sets[source_index]
+        NewParams(species=list(parameter_set['species'].values()),
+                  int_spec=parameter_set['int_spec'],
+                  therm_spec=parameter_set['therm_spec'],
+                  celestial_name=parameter_set['celest']['SYSTEM-NAME']
+                  )()
 
     def advance_integrate(self):
         weightop = self.rebx.create_operator("weightloss")
@@ -284,18 +307,20 @@ class SerpensSimulation(rebound.Simulation):
         for particle in self.particles:
 
             try:
+                source_index = particle.params["source_index"]
                 w = particle.params["serpens_weight"]
+                #self._load_source_parameters(source_index)
                 species_id = particle.params["serpens_species"]
             except AttributeError:
                 continue
 
-            species = self.params.get_species(id=species_id)
-            mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * orbital_period0
-            pps = species.particles_per_superparticle(mass_inject_per_advance)
+            #species = self.params.get_species(id=species_id)
+            #mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * orbital_period0
+            #pps = species.particles_per_superparticle(mass_inject_per_advance)
 
             particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(primary.xyz))
 
-            if particle_distance > boundary0 or w * pps < 1e10:
+            if particle_distance > boundary0: #or w * pps < 1e10:
                 try:
                     remove.append(particle.hash)
                 except RuntimeError:
