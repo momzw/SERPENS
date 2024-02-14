@@ -221,10 +221,10 @@ class SerpensSimulation(rebound.Simulation):
                                                   model_smyth_v_b=0.95*1000, model_smyth_v_M=15.24*1000,
                                                   lifetime=4*60, beta=0))
 
+            self.source_parameter_sets.append(Parameters().get_current_parameters())
             with open('test_dat.pkl', 'wb') as f:
                 pickle.dump(self.source_parameter_sets, f)
 
-            self.source_parameter_sets.append(Parameters().get_current_parameters())
             self.num_sources += 1
         else:
             if particle is None:
