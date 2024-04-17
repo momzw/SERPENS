@@ -203,12 +203,22 @@ class SerpensSimulation(rebound.Simulation):
     def add(self, particle=None, source=False, test_particle=False, **kwargs):
 
         if source:
+            # First check if source has also an associated primary body.
             assert "primary" in kwargs, "Please provide the primary for a sourcing object."
+
+            # Read whether the species should be modified.
+            if "species" in kwargs:
+                species = kwargs.pop("species")
+                species = [species] if not isinstance(species, list) else species
+                Parameters.modify_species(*species)
+
+            # Add the source to the simulation.
             kwargs["hash"] = f"source{self.num_sources}"    # overwrites hash (if passed) for later reference.
             if particle is None:
                 particle = rebound.Particle(simulation=self, **kwargs)
             super().add(particle)
 
+            # Assign SERPENS parameters to the source particle.
             if isinstance(kwargs["primary"], rebound.Particle):
                 self.particles[-1].params['source_primary'] = kwargs["primary"].hash.value
             elif isinstance(kwargs["primary"], str):
@@ -216,11 +226,12 @@ class SerpensSimulation(rebound.Simulation):
             else:
                 raise TypeError(f"Unsupported type {type(kwargs['primary'])} for primary.")
 
-            if self.num_sources == 1:
-                Parameters.modify_species(Species('H2', n_th=0, n_sp=75, mass_per_sec=10**4.8,
-                                                  model_smyth_v_b=0.95*1000, model_smyth_v_M=15.24*1000,
-                                                  lifetime=4*60, beta=0))
+            #if self.num_sources == 1:
+            #    Parameters.modify_species(Species('H2', n_th=0, n_sp=75, mass_per_sec=10**4.8,
+            #                                      model_smyth_v_b=0.95*1000, model_smyth_v_M=15.24*1000,
+            #                                      lifetime=4*60, beta=0))
 
+            # Save the source parameters.
             self.source_parameter_sets.append(Parameters().get_current_parameters())
             with open('test_dat.pkl', 'wb') as f:
                 pickle.dump(self.source_parameter_sets, f)
@@ -271,7 +282,7 @@ class SerpensSimulation(rebound.Simulation):
             Parameters.reset()
 
     def _load_source_parameters(self, source_index):
-        parameter_set = self.source_parameter_sets[source_index]
+        parameter_set: dict = self.source_parameter_sets[source_index]
         NewParams(species=list(parameter_set['species'].values()),
                   int_spec=parameter_set['int_spec'],
                   therm_spec=parameter_set['therm_spec'],
