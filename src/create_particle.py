@@ -200,7 +200,7 @@ def random_vel_sputter(species_id, num=1):
         elev_dist = _elevation_gen(a=0, b=np.pi / 2)
         energy_dist = _sputter_gen(a=0, b=E_i, shapes='E_inc, E_bin')
 
-        ran_vel_sputter_wurz = np.zero((num,3))
+        ran_vel_sputter_wurz = np.zeros((num,3))
         for i in range(num):
             ran_energy = energy_dist.rvs(E_i, E_b)
 
@@ -311,10 +311,6 @@ def create_particle(species_id, process, source, source_r, num=1, **kwargs):
         Maximum temperature on the source (noon)
     """
 
-    #with warnings.catch_warnings():
-    #    warnings.simplefilter("ignore")
-    #    sim = rebound.Simulation("archive.bin")
-
     valid_process = {"thermal": 0, "sputter": 1}
     if process not in valid_process:
         raise ValueError("Invalid escaping mechanism encountered in particle creation")
@@ -333,18 +329,6 @@ def create_particle(species_id, process, source, source_r, num=1, **kwargs):
         ran_vel_not_rotated_in_place = random_vel_thermal(species_id, ran_temp)
 
     else:
-
-        #if moon_exists:
-        #    angle_correction = np.arctan2((sim.particles["moon"].y - planet.y),
-        #                                  (sim.particles["moon"].x - planet.x))
-        #else:
-        #    angle_correction = np.arctan2(sim.particles["planet"].y,sim.particles["planet"].x)
-        #
-        #ran_pos, ran_lat, ran_long = random_pos(sim, lat_dist="uniform", long_dist="truncnorm", a_lat=-np.pi / 2,
-        #                                        b_lat=np.pi / 2, a_long=-np.pi / 2 + angle_correction,
-        #                                        b_long=3 * np.pi / 2 + angle_correction,
-        #                                        loc_long=np.pi / 2 + angle_correction)
-        #ran_temp = random_temp(sim, temp_min, temp_max, ran_lat, ran_long)
 
         ran_pos, ran_lat, ran_long = random_pos(source_r, lat_dist="uniform", long_dist="uniform", num=num)
         ran_vel_not_rotated_in_place = random_vel_sputter(species_id, num=num)

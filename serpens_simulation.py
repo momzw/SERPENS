@@ -9,8 +9,6 @@ from src.create_particle import create_particle
 from src.parameters import Parameters, NewParams
 from tqdm import tqdm
 import time
-from src.species import Species
-
 
 def weight_operator(sim_pointer, rebx_operator, dt):
     sim = sim_pointer.contents
@@ -117,7 +115,7 @@ class SerpensSimulation(rebound.Simulation):
     def __new__(cls, *args, **kwargs):
         return super(SerpensSimulation, cls).__new__(cls, *args, **kwargs)
 
-    def __init__(self, system='default'):
+    def __init__(self, system='default', init_serpens=True):
         """
         Initializes a REBOUND simulation instance, as well as used class instance variables.
 
@@ -126,6 +124,8 @@ class SerpensSimulation(rebound.Simulation):
         system : str    (default: 'default')
             Name of the celestial system to be simulated.
             Valid are all names that have been set up in the src/objects.txt.
+        init_serpens: bool (default: True)
+            Initialize SERPENS. If False, base REBOUND simulation will be used.
         """
         super().__init__()
         self.params = Parameters()
@@ -137,11 +137,12 @@ class SerpensSimulation(rebound.Simulation):
                 print("Cannot load the celestial objects. Are you sure you have implemented this system?")
                 print("Exiting...")
                 exit()
-        # Create a new simulation
-        self.num_sources = 0
-        self.rebound_setup()
 
+        self.num_sources = 0
         self.serpens_iter = 0
+
+        if init_serpens:
+            self.rebound_setup()
 
     def rebound_setup(self):
         """
