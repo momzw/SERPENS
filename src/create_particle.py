@@ -153,6 +153,7 @@ def random_vel_sputter(species_id, num=1):
 
     # MAXWELLIAN MODEL
     def model_maxwell():
+
         model_maxwell_max = species.sput_spec["model_maxwell_max"]
 
         scale = model_maxwell_max / np.sqrt(2)
@@ -174,46 +175,7 @@ def random_vel_sputter(species_id, num=1):
 
     # MODEL 1
     def model_wurz():
-
-        model_wurz_inc_part_speed = species.sput_spec["model_wurz_inc_part_speed"]
-        model_wurz_binding_en = species.sput_spec["model_wurz_binding_en"]
-        model_wurz_inc_mass_in_amu = species.sput_spec["model_wurz_inc_mass_in_amu"]
-        model_wurz_ejected_mass_in_amu = species.sput_spec["model_wurz_ejected_mass_in_amu"]
-        u = 1.660539e-27
-        m = model_wurz_ejected_mass_in_amu * u
-
-        class _sputter_gen(rv_continuous):
-            def _pdf(self, x, E_inc, E_bin):
-                normalization = (E_inc + E_bin) ** 2 / E_inc ** 2
-                f_E = normalization * 2 * E_bin * x / ((x + E_bin) ** 3)
-                return f_E
-
-        class _elevation_gen(rv_continuous):
-            def _pdf(self, x):
-                normalization = 4 / np.pi  # Inverse of integral of cos^2 from 0 to pi/2
-                f_alpha = normalization * np.cos(x) ** 2
-                return f_alpha
-
-        E_i = 1/2 * model_wurz_inc_mass_in_amu * model_wurz_inc_part_speed**2
-        E_b = model_wurz_binding_en
-
-        elev_dist = _elevation_gen(a=0, b=np.pi / 2)
-        energy_dist = _sputter_gen(a=0, b=E_i, shapes='E_inc, E_bin')
-
-        ran_vel_sputter_wurz = np.zeros((num,3))
-        for i in range(num):
-            ran_energy = energy_dist.rvs(E_i, E_b)
-
-            ran_speed = np.sqrt(2 * ran_energy / m)
-            ran_elev = elev_dist.rvs()
-            ran_azi = np.random.default_rng().uniform(0, 2 * np.pi)
-
-            v1 = np.cos(ran_azi) * np.sin(ran_elev)
-            v2 = np.sin(ran_azi) * np.sin(ran_elev)
-            v3 = np.cos(ran_elev)
-
-            ran_vel_sputter_wurz[i] = ran_speed * np.array([v3, v2, -v1]) # Rotated, s.t. reference direction along x-axis. Otherwise, the azimuth may point into the source. For same reason ele only goes to pi/2.
-        return ran_vel_sputter_wurz
+        raise ValueError("Wurz model is deprecated.")
 
     # MODEL 2
     def model_smyth():

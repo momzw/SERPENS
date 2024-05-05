@@ -10,20 +10,14 @@ from src.parameters import Parameters, NewParams
 from tqdm import tqdm
 import time
 
+
 def weight_operator(sim_pointer, rebx_operator, dt):
     sim = sim_pointer.contents
     params = Parameters()
-    for particle in sim.particles:
-        try:
-            species_id = particle.params["serpens_species"]
-            species = params.get_species(id=species_id)
-            if species.duplicate is not None:
-                species_id = int(str(species_id)[0])
-                species = params.get_species(id=species_id)
-            tau = species.network
-            particle.params['serpens_weight'] *= np.exp(-sim.dt/tau)
-        except AttributeError:
-            continue
+    id_weight_multiplicator = {s.id: np.exp(-sim.dt/s.network) for _, s in params.species.items()}
+
+    for particle in sim.particles[sim.N_active:]:
+        particle.params['serpens_weight'] *= id_weight_multiplicator[particle.params["serpens_species"]]
 
 
 def heartbeat(sim_pointer):
@@ -105,7 +99,6 @@ def create(source_state, source_r, phys_process, species):
 
 
 class SerpensSimulation(rebound.Simulation):
-    # TODO: Test normal REBOUND functionality.
     # TODO: Improve performance
     """
     Main class responsible for the Monte Carlo process of SERPENS.
@@ -184,7 +177,6 @@ class SerpensSimulation(rebound.Simulation):
                 else:
                     self.add(**v_copy, hash=k)
 
-        #self.N_active = len(Parameters.celest) - 1
         self.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
 
         # Init save
@@ -226,11 +218,6 @@ class SerpensSimulation(rebound.Simulation):
                 self.particles[-1].params['source_primary'] = self.particles[kwargs["primary"]].hash.value
             else:
                 raise TypeError(f"Unsupported type {type(kwargs['primary'])} for primary.")
-
-            #if self.num_sources == 1:
-            #    Parameters.modify_species(Species('H2', n_th=0, n_sp=75, mass_per_sec=10**4.8,
-            #                                      model_smyth_v_b=0.95*1000, model_smyth_v_M=15.24*1000,
-            #                                      lifetime=4*60, beta=0))
 
             # Save the source parameters.
             self.source_parameter_sets.append(Parameters().get_current_parameters())
@@ -281,6 +268,10 @@ class SerpensSimulation(rebound.Simulation):
                         self.particles[identifier].params["source_index"] = source_index
 
             Parameters.reset()
+
+            # Need to make aware of all species for the integration weight operator:
+            all_species = [s['species'][f'species{i+1}'] for s in self.source_parameter_sets for i in range(len(s['species']))]
+            Parameters.modify_species(*all_species)
 
     def _load_source_parameters(self, source_index):
         parameter_set: dict = self.source_parameter_sets[source_index]
