@@ -99,7 +99,6 @@ def create(source_state, source_r, phys_process, species):
 
 
 class SerpensSimulation(rebound.Simulation):
-    # TODO: Improve performance
     """
     Main class responsible for the Monte Carlo process of SERPENS.
     (Simulating the Evolution of Ring Particles Emergent from Natural Satellites)
@@ -291,6 +290,8 @@ class SerpensSimulation(rebound.Simulation):
         orbital_period0 = self.particles["source0"].orbit(primary=primary).P
         adv = orbital_period0 * self.params.int_spec["sim_advance"]
         self.dt = adv / 10
+
+        # TODO: How to increase performance?
         self.integrate(adv * (self.serpens_iter + 1), exact_finish_time=0)
 
         # HAVE TO REMOVE BECAUSE OPERATOR CORRUPTS SAVE (not sure why)

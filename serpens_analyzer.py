@@ -8,11 +8,28 @@ import pickle
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import functools
+import warnings
 from datetime import datetime
 
 from src import DTFE, DTFE3D
 from src.parameters import Parameters, NewParams
 from src.visualize import Visualize
+
+
+def deprecated(func):
+    """This is a decorator which can be used to mark functions
+    as deprecated. It will result in a warning being emitted
+    when the function is used."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        warnings.simplefilter('always', DeprecationWarning)  # turn off filter
+        warnings.warn("Call to deprecated function {}.".format(func.__name__),
+                      category=DeprecationWarning,
+                      stacklevel=2)
+        warnings.simplefilter('default', DeprecationWarning)  # reset filter
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def ensure_data_loaded(method):
@@ -123,10 +140,11 @@ class SerpensAnalyzer:
         See https://rebound.readthedocs.io/en/latest/ipython_examples/SimulationArchive/ for more information.
         """
         try:
-            return rebound.Simulationarchive("archive.bin")
+            return rebound.Simulationarchive("archive.bin", process_warnings=False)
         except Exception:
             raise Exception("simulation archive not found.")
 
+    @deprecated
     def _load_source_parameters(self, source_index):
         parameter_set = self.source_parameter_sets[source_index]
         NewParams(species=list(parameter_set['species'].values()),
@@ -134,7 +152,6 @@ class SerpensAnalyzer:
                   therm_spec=parameter_set['therm_spec'],
                   celestial_name=parameter_set['celest']['SYSTEM-NAME']
                   )()
-
 
     def _calculate_offsets(self, plane):
         """
@@ -392,33 +409,38 @@ class SerpensAnalyzer:
 
         for ts in ts_list:
             self.pull_data(ts)
+
+            all_species = [s['species'][f'species{i + 1}'] for s in self.source_parameter_sets for i in
+                           range(len(s['species']))]
+            Parameters.modify_species(*all_species)
+
             vis = Visualize(self.sim, **kwargs)
 
-            for source_index in range(len(self.source_parameter_sets)):
-                self._load_source_parameters(source_index)
+            #for _ in range(len(self.source_parameter_sets)):
+            #    self._load_source_parameters(source_index)
 
-                for k in range(self.params.num_species):
-                    species = self.params.get_species(num=k + 1)
-                    points = self.particle_positions[np.where(self.particle_species == species.id)]
+            for k in range(self.params.num_species):
+                species = self.params.get_species(num=k + 1)
+                points = self.particle_positions[np.where(self.particle_species == species.id)]
 
-                    if len(points) == 0:
-                        vis.empty(k)
-                        continue
+                if len(points) == 0:
+                    vis.empty(k)
+                    continue
 
-                    dens, delaunay = self.delaunay_field_estimation(ts, species, d=d)
+                dens, delaunay = self.delaunay_field_estimation(ts, species, d=d)
 
-                    if scatter:
-                        vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, d=d)
+                if scatter:
+                    vis.add_densityscatter(k, points[:, 0], points[:, 1], dens, d=d)
 
-                    if triplot:
-                        if d == 3:
-                            vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3])
-                        elif d == 2:
-                            vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
+                if triplot:
+                    if d == 3:
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3])
+                    elif d == 2:
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
 
-                    vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
+                vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
 
-                Parameters.reset()
+                #Parameters.reset()
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'TD_{ts}_000{self.save_index}')
@@ -463,6 +485,10 @@ class SerpensAnalyzer:
         while running_index < len(ts_list):
             ts = ts_list[::-1][running_index]
             self.pull_data(ts)
+
+            all_species = [s['species'][f'species{i + 1}'] for s in self.source_parameter_sets for i in
+                           range(len(s['species']))]
+            Parameters.modify_species(*all_species)
 
             vis = Visualize(self.sim, perspective='los', **kwargs)
 

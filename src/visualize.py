@@ -1,4 +1,4 @@
-import matplotlib
+import matplotlib as mpl
 
 # Constant configurations for Matplotlib
 FONT_CONFIG = {'family': 'serif', 'serif': ['Computer Modern'], 'size': 18}
@@ -7,10 +7,10 @@ TEX_CONFIG = {'preamble': r'\usepackage{amssymb}'}
 DEFAULT_FACECOLOR = 'yellow'
 
 # Setting the backend and configurations for Matplotlib
-matplotlib.use('TkAgg')
-matplotlib.rc('font', **FONT_CONFIG)
-matplotlib.rc('text', **TEXT_CONFIG)
-matplotlib.rc('text.latex', **TEX_CONFIG)
+mpl.use('TkAgg')
+mpl.rc('font', **FONT_CONFIG)
+mpl.rc('text', **TEXT_CONFIG)
+mpl.rc('text.latex', **TEX_CONFIG)
 
 import numpy as np
 import rebound
@@ -36,9 +36,9 @@ class ArgumentProcessor:
     def process(self):
         # Set default values for missing keyword arguments
         default_values = {
-            'colormap': matplotlib.colormaps["afmhot"],
+            'colormap': mpl.colormaps["afmhot"],
             'lim': 20,
-            'singlePlot': False,
+            "single_plot": False,
             "show_source": True,
             "show_primary": True,
             "show_hill": False,
@@ -85,7 +85,7 @@ class BaseVisualizer(ArgumentProcessor):
                               dpi=self.vis_params['dpi'])
         self.fig.patch.set_facecolor('k')
 
-        if not self.vis_params['singlePlot'] and ns > 1:
+        if not self.vis_params['single_plot'] and ns > 1:
             self.subplot_rows = int(np.ceil(ns / 3))
             self.subplot_columns = params.num_species if ns <= 3 else 3
             self.single = False
@@ -93,6 +93,7 @@ class BaseVisualizer(ArgumentProcessor):
             self.subplot_rows = 1
             self.subplot_columns = 1
             self.single = True
+            print(UserWarning("! Single plot is not fully implemented yet !"))
 
         gs1 = gridspec.GridSpec(self.subplot_rows, self.subplot_columns)
         gs1.update(wspace=0.2, hspace=0.1)
@@ -114,7 +115,7 @@ class BaseVisualizer(ArgumentProcessor):
             fc.append(DEFAULT_FACECOLOR)
         return fc
 
-    def setup_ax(self, ax):
+    def setup_ax(self, ax: plt.Axes) -> None:
         ax.set_aspect("equal")
         lim = self.vis_params['lim'] * self._get_primary(0).r
 
@@ -153,11 +154,6 @@ class BaseVisualizer(ArgumentProcessor):
                 which='both',  # both major and minor ticks are affected
                 left=False)
         ax.tick_params(axis='both', which='major', labelsize=15, pad=10, colors='w')
-        # ax.xaxis.label.set_color('white')
-        # ax.yaxis.label.set_color('white')
-
-        # ax.set_xlabel('')
-        # ax.set_ylabel('')
 
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
@@ -222,7 +218,7 @@ class BaseVisualizer(ArgumentProcessor):
     def _add_shadow_polygon(self, ax):
         assert self.vis_params["perspective"] == "topdown"
         apex = np.asarray(self.particles[1].xyz) * (
-                    1 + self.particles[1].r / (self.particles[0].r - self.particles[1].r))
+                1 + self.particles[1].r / (self.particles[0].r - self.particles[1].r))
 
         orthogonal_vector_to_pos = np.array([-self.particles[1].y, self.particles[1].x, 0]) / np.linalg.norm(
             np.array([-self.particles[1].y, self.particles[1].x, 0]))
@@ -269,6 +265,8 @@ class BaseVisualizer(ArgumentProcessor):
 
 
 class Visualize(BaseVisualizer):
+
+    # TODO: Switch to DASH
 
     def __init__(self, rebsim, interactive=True, **kwargs):
         super().__init__(rebsim, **kwargs)
@@ -399,13 +397,14 @@ class Visualize(BaseVisualizer):
         # Redraw the figure to ensure it updates
         self.fig.canvas.draw_idle()
 
-    def add_densityscatter(self, ax, x, y, density, d=3, **kwargs):
+    def add_densityscatter(self, ax: int, x, y, density, d=3, **kwargs):
         self.vis_params.update(kwargs)
 
         if not self.single:
-            ax_obj = self.axs[ax]
+            ax_obj: plt.Axes = self.axs[ax]
         else:
-            ax_obj = self.axs[0]
+            ax_obj: plt.Axes = self.axs[0]
+
         self.setup_ax(ax_obj)
 
         logdens = np.where(density > 0, np.log(density), 0)
@@ -425,6 +424,7 @@ class Visualize(BaseVisualizer):
                                       vmax=self.vis_params["lvl_max"], s=.2, zorder=self.vis_params["zorder"])
 
         divider = make_axes_locatable(ax_obj)
+
         cax = divider.append_axes('right', size='4%', pad=0.05)
         cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
         self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical',
