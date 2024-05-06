@@ -1,6 +1,9 @@
 [![DOI](https://zenodo.org/badge/522167778.svg)](https://zenodo.org/badge/latestdoi/522167778)
 
-# SERPENS
+# Welcome to SERPENS
+
+![SERPENS Examples](docs/img/W69.png?raw=true)
+
 _Simulating Ring Particles Emergent from Natural Satellites_ <br>
 This project was developed as a 3D weighted test-particle Monte-Carlo simulation of evaporating exomoons and their signatures in exoplanetary spectra. 
 
