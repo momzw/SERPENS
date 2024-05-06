@@ -220,7 +220,7 @@ class SerpensSimulation(rebound.Simulation):
 
             # Save the source parameters.
             self.source_parameter_sets.append(Parameters().get_current_parameters())
-            with open('test_dat.pkl', 'wb') as f:
+            with open('source_parameters.pkl', 'wb') as f:
                 pickle.dump(self.source_parameter_sets, f)
 
             self.num_sources += 1

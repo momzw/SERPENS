@@ -85,7 +85,7 @@ class SerpensAnalyzer:
                 params_load = pickle.load(handle)
                 params_load()
         except Exception:
-            raise Exception("Parameters.pickle not found.")
+            raise Exception("Parameters.pkl not found.")
 
         self.sa = self._load_simulation_archive()
         self.save = save_output
@@ -94,7 +94,7 @@ class SerpensAnalyzer:
 
         self.params = Parameters()
 
-        with open('test_dat.pkl', 'rb') as f:
+        with open('source_parameters.pkl', 'rb') as f:
             self.source_parameter_sets = pickle.load(f)
 
         self.sim = None

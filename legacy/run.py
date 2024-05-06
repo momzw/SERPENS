@@ -29,7 +29,7 @@ def plot_run(path, top_down=True, LOS=False, **kwargs):
     print("\t copying ...")
     #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/archive.bin', f'{os.getcwd()}')
     #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/hash_library.pickle', f'{os.getcwd()}')
-    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.pickle', f'{os.getcwd()}')
+    #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.pkl', f'{os.getcwd()}')
     #shutil.copy(f'{os.getcwd()}/schedule_archive/{path}/Parameters.txt', f'{os.getcwd()}')
     print("\t ... done!")
 

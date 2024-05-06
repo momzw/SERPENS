@@ -103,7 +103,7 @@ class SerpensScheduler:
             shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/{path}")
             shutil.copy2(f"{os.getcwd()}/hash_library.pickle", f"{os.getcwd()}/{path}")
             shutil.copy2(f'{os.getcwd()}/Parameters.txt', f"{os.getcwd()}/{path}")
-            shutil.copy2(f'{os.getcwd()}/Parameters.pickle', f"{os.getcwd()}/{path}")
+            shutil.copy2(f'{os.getcwd()}/Parameters.pkl', f"{os.getcwd()}/{path}")
 
             del sim
 
