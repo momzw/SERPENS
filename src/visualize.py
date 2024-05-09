@@ -81,7 +81,7 @@ class BaseVisualizer(ArgumentProcessor):
         ns = params.num_species
 
         # colorbar: dpi: 800, facecolor w, colors at colorbar k
-        self.fig = plt.figure(figsize=(self.vis_params['figsize'], self.vis_params['figsize']),
+        self.fig = plt.figure(figsize=(self.vis_params['figsize']*Parameters.num_species, self.vis_params['figsize']),
                               dpi=self.vis_params['dpi'])
         self.fig.patch.set_facecolor('k')
 
@@ -274,7 +274,8 @@ class Visualize(BaseVisualizer):
         self.cf = None
         self.c = None
         self.scatter = None
-        self.cb_interact = None
+        self.cb_interact = []
+        self.slider_axs = []
         self.interactive = interactive
 
     def __call__(self, save_path=None, show_bool=True, **kwargs):
@@ -292,43 +293,44 @@ class Visualize(BaseVisualizer):
             print(f"\t plotted {fn}")
             if not show_bool:
                 plt.close('all')
-            # time.sleep(1)
 
         if show_bool:
             if self.cf is None and self.c is None and self.scatter is None:
                 self.interactive = False
 
-            if self.interactive and len(self.axs) == 1:
+            if self.interactive:
 
-                slider_ax = self.fig.add_axes([0.9, 0.15, 0.03, 0.6])
-                if self.cf is not None:
-                    slider = RangeSlider(slider_ax, "Threshold", self.cf.norm.vmin, self.cf.norm.vmax,
-                                         orientation='vertical', facecolor='crimson')
-                elif self.c is not None:
-                    slider = RangeSlider(slider_ax, "Threshold", self.c.norm.vmin, self.c.norm.vmax,
-                                         orientation='vertical', facecolor='crimson')
-                else:
-                    slider = RangeSlider(slider_ax, "Threshold", self.scatter.norm.vmin, self.scatter.norm.vmax,
-                                         orientation='vertical', facecolor='crimson')
+                for ax in self.axs:
+                    slider_ax = self.slider_axs[self.axs.index(ax)]
 
-                if self.cf or self.c is not None:
-                    axfreq = self.fig.add_axes([0.92, 0.15, 0.03, 0.6])
-                    smoothing_slider = Slider(ax=axfreq, label='Smoothing', valmin=0.1, valmax=5, valinit=.8,
-                                              orientation='vertical', facecolor='crimson')
-                    smoothing_slider.on_changed(
-                        lambda update: self.__update_interactive(update, slider, smoothing_slider))
-                    slider.on_changed(lambda update: self.__update_interactive(update, slider, smoothing_slider))
-                    smoothing_slider.label.set_rotation(90)
-                    smoothing_slider.valtext.set_rotation(90)
-                    smoothing_slider.label.set_fontsize(15)
-                else:
-                    slider.on_changed(lambda update: self.__update_interactive(update, slider))
+                    if self.cf is not None:
+                        slider = RangeSlider(slider_ax, "Threshold", self.cf.norm.vmin, self.cf.norm.vmax,
+                                             orientation='vertical', facecolor='crimson')
+                    elif self.c is not None:
+                        slider = RangeSlider(slider_ax, "Threshold", self.c.norm.vmin, self.c.norm.vmax,
+                                             orientation='vertical', facecolor='crimson')
+                    else:
+                        slider = RangeSlider(slider_ax, "Threshold", self.scatter.norm.vmin, self.scatter.norm.vmax,
+                                             orientation='vertical', facecolor='crimson')
 
-                slider.valtext.set_rotation(90)
-                slider.valtext.set_fontsize(12)
-                slider.label.set_rotation(90)
-                slider.label.set_fontsize(12)
-                slider.label.set_color('white')
+                    if self.cf or self.c is not None:
+                        axfreq = self.fig.add_axes([0.92, 0.15, 0.03, 0.6])
+                        smoothing_slider = Slider(ax=axfreq, label='Smoothing', valmin=0.1, valmax=5, valinit=.8,
+                                                  orientation='vertical', facecolor='crimson')
+                        smoothing_slider.on_changed(
+                            lambda update: self.__update_interactive(update, slider, smoothing_slider))
+                        slider.on_changed(lambda update: self.__update_interactive(update, slider, smoothing_slider))
+                        smoothing_slider.label.set_rotation(90)
+                        smoothing_slider.valtext.set_rotation(90)
+                        smoothing_slider.label.set_fontsize(15)
+                    else:
+                        slider.on_changed(lambda update: self.__update_interactive(update, slider, ax_index=self.axs.index(ax)))
+
+                    slider.valtext.set_rotation(90)
+                    slider.valtext.set_fontsize(12)
+                    slider.label.set_rotation(90)
+                    slider.label.set_fontsize(12)
+                    slider.label.set_color('white')
 
                 plt.show()
             else:
@@ -343,7 +345,7 @@ class Visualize(BaseVisualizer):
     def set_title(self, title_string, size='xx-large', color='k'):
         self.fig.suptitle(title_string, size=size, c=color)
 
-    def __update_interactive(self, val, slider=None, smoothing_slider=None):
+    def __update_interactive(self, val, slider=None, smoothing_slider=None, ax_index=0):
         # The val passed to a callback by the RangeSlider will
         # be a tuple of (min, max)
 
@@ -377,9 +379,9 @@ class Visualize(BaseVisualizer):
             self.c = self.axs[0].contour(self.X, self.Y, logdens / np.log(10), levels=lvls, cmap=cmap,
                                          vmin=slider.val[0], vmax=slider.val[1], zorder=4, alpha=1)
 
-        if self.cb_interact is not None:
-            self.cb_interact.norm.vmin = slider.val[0]
-            self.cb_interact.norm.vmax = slider.val[1]
+        if len(self.cb_interact) > 1:
+            self.cb_interact[ax_index].norm.vmin = slider.val[0]
+            self.cb_interact[ax_index].norm.vmax = slider.val[1]
 
         if self.scatter is not None:
             # self.scatter.set_norm(colors.Normalize(vmin=slider.val[0], vmax=slider.val[1]))
@@ -425,15 +427,34 @@ class Visualize(BaseVisualizer):
 
         divider = make_axes_locatable(ax_obj)
 
-        cax = divider.append_axes('right', size='4%', pad=0.05)
-        cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
-        self.cb_interact = plt.colorbar(self.scatter, cax=cax, orientation='vertical',
-                                        format=self.vis_params['cb_format'])
-        self.cb_interact.ax.locator_params(nbins=12)
-        if self.vis_params["perspective"] == 'los':
-            self.cb_interact.ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+        if self.single and Parameters.num_species > 1:
+            for i in range(Parameters.num_species):
+                slider_ax = divider.append_axes('right', size='4%')
+                self.slider_axs.append(slider_ax)
+                cax = divider.append_axes('right', size='4%', pad=0.05*i)
+                cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
+                self.cb_interact.append(plt.colorbar(self.scatter, cax=cax, orientation='vertical',
+                                                format=self.vis_params['cb_format']))
+                self.cb_interact[i].ax.locator_params(nbins=12)
+                if self.vis_params["perspective"] == 'los':
+                    self.cb_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+                else:
+                    self.cb_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
         else:
-            self.cb_interact.ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+            slider_ax = divider.append_axes('right', size='4%')
+            self.slider_axs.append(slider_ax)
+
+            cax = divider.append_axes('right', size='4%', pad=0.05)
+            cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
+            self.cb_interact.append(plt.colorbar(self.scatter, cax=cax, orientation='vertical',
+                                            format=self.vis_params['cb_format']))
+            self.cb_interact[-1].ax.locator_params(nbins=12)
+            if self.vis_params["perspective"] == 'los':
+                self.cb_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+            else:
+                self.cb_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+
+
 
     def add_triplot(self, ax, x, y, simplices, trialpha=.8, **kwargs):
         self.vis_params.update(kwargs)
