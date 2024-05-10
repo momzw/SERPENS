@@ -19,7 +19,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from src.parameters import Parameters
-from scipy.ndimage.filters import gaussian_filter
 from matplotlib.widgets import Slider, RangeSlider
 
 
@@ -274,20 +273,16 @@ class Visualize(BaseVisualizer):
         self.cf = None
         self.c = None
         self.scatter = None
-        self.cb_interact = []
+        self.colorbar_interact = []
         self.slider_axs = []
+        self.scatters =  []
+        self.scatter_axs = []
         self.interactive = interactive
 
     def __call__(self, save_path=None, show_bool=True, **kwargs):
 
-        handles, labels = self.axs[0].get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-
         if save_path is not None:
             fn = kwargs.get("filename", -1)
-            orbit_phase = np.around(self.sim.particles["source0"].orbit(
-                primary=self.sim.particles["source_primary0"]).theta * 180 / np.pi)
-
             frame_identifier = f"SERPENS_{fn}"
             plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png', bbox_inches='tight')
             print(f"\t plotted {fn}")
@@ -295,42 +290,25 @@ class Visualize(BaseVisualizer):
                 plt.close('all')
 
         if show_bool:
-            if self.cf is None and self.c is None and self.scatter is None:
+            if len(self.scatter_axs) == 1:
                 self.interactive = False
 
             if self.interactive:
 
+                sliders = []
                 for ax in self.axs:
-                    slider_ax = self.slider_axs[self.axs.index(ax)]
+                    index = self.axs.index(ax)
+                    slider_ax = self.slider_axs[index]
+                    _slider = RangeSlider(slider_ax, "Threshold", self.scatter_axs[index].norm.vmin, self.scatter_axs[index].norm.vmax,
+                                         orientation='vertical', facecolor='crimson')
+                    sliders.append(_slider)
+                    sliders[index].on_changed(lambda update, s=sliders[index], ind=index: self.__update_interactive(update, s, ax_index=ind))
 
-                    if self.cf is not None:
-                        slider = RangeSlider(slider_ax, "Threshold", self.cf.norm.vmin, self.cf.norm.vmax,
-                                             orientation='vertical', facecolor='crimson')
-                    elif self.c is not None:
-                        slider = RangeSlider(slider_ax, "Threshold", self.c.norm.vmin, self.c.norm.vmax,
-                                             orientation='vertical', facecolor='crimson')
-                    else:
-                        slider = RangeSlider(slider_ax, "Threshold", self.scatter.norm.vmin, self.scatter.norm.vmax,
-                                             orientation='vertical', facecolor='crimson')
-
-                    if self.cf or self.c is not None:
-                        axfreq = self.fig.add_axes([0.92, 0.15, 0.03, 0.6])
-                        smoothing_slider = Slider(ax=axfreq, label='Smoothing', valmin=0.1, valmax=5, valinit=.8,
-                                                  orientation='vertical', facecolor='crimson')
-                        smoothing_slider.on_changed(
-                            lambda update: self.__update_interactive(update, slider, smoothing_slider))
-                        slider.on_changed(lambda update: self.__update_interactive(update, slider, smoothing_slider))
-                        smoothing_slider.label.set_rotation(90)
-                        smoothing_slider.valtext.set_rotation(90)
-                        smoothing_slider.label.set_fontsize(15)
-                    else:
-                        slider.on_changed(lambda update: self.__update_interactive(update, slider, ax_index=self.axs.index(ax)))
-
-                    slider.valtext.set_rotation(90)
-                    slider.valtext.set_fontsize(12)
-                    slider.label.set_rotation(90)
-                    slider.label.set_fontsize(12)
-                    slider.label.set_color('white')
+                    sliders[index].valtext.set_rotation(90)
+                    sliders[index].valtext.set_fontsize(12)
+                    sliders[index].label.set_rotation(90)
+                    sliders[index].label.set_fontsize(12)
+                    sliders[index].label.set_color('white')
 
                 plt.show()
             else:
@@ -345,56 +323,27 @@ class Visualize(BaseVisualizer):
     def set_title(self, title_string, size='xx-large', color='k'):
         self.fig.suptitle(title_string, size=size, c=color)
 
-    def __update_interactive(self, val, slider=None, smoothing_slider=None, ax_index=0):
+    def __update_interactive(self, _, slider=None, ax_index=0):
         # The val passed to a callback by the RangeSlider will
         # be a tuple of (min, max)
 
-        lvls = np.linspace(slider.val[0], slider.val[1], 25)
+        if len(self.colorbar_interact) > 1:
+            self.colorbar_interact[ax_index].norm.vmin = slider.val[0]
+            self.colorbar_interact[ax_index].norm.vmax = slider.val[1]
 
-        if isinstance(self.vis_params["colormap"], list):
-            cmap = self.vis_params["colormap"][0]
-            cmap.set_bad(color='k', alpha=1.)
-        else:
-            cmap = self.vis_params["colormap"]
-            cmap.set_bad(color='k', alpha=1.)
+        if len(self.scatter_axs) > 1:
+            scatx = self.scatters[ax_index][0]
+            scaty = self.scatters[ax_index][1]
+            logdens = self.scatters[ax_index][2]
 
-        if self.cf is not None:
-            for tpcf in self.cf.collections:
-                tpcf.remove()
-            # Update the image's colormap
-            np.seterr(divide='ignore')
-            logdens = np.where(self.dens > 0,
-                               np.log(gaussian_filter(self.dens, smoothing_slider.val, mode='constant')), 0)
-            np.seterr(divide='warn')
-            self.cf = self.axs[0].contourf(self.X, self.Y, logdens / np.log(10), levels=lvls, cmap=cmap,
-                                           vmin=slider.val[0], vmax=slider.val[1], zorder=5, alpha=1)
-
-        if self.c is not None:
-            for tpc in self.c.collections:
-                tpc.remove()
-            np.seterr(divide='ignore')
-            logdens = np.where(self.dens > 0,
-                               np.log(gaussian_filter(self.dens, smoothing_slider.val, mode='constant')), 0)
-            np.seterr(divide='warn')
-            self.c = self.axs[0].contour(self.X, self.Y, logdens / np.log(10), levels=lvls, cmap=cmap,
-                                         vmin=slider.val[0], vmax=slider.val[1], zorder=4, alpha=1)
-
-        if len(self.cb_interact) > 1:
-            self.cb_interact[ax_index].norm.vmin = slider.val[0]
-            self.cb_interact[ax_index].norm.vmax = slider.val[1]
-
-        if self.scatter is not None:
-            # self.scatter.set_norm(colors.Normalize(vmin=slider.val[0], vmax=slider.val[1]))
-
-            logdens = self.scatlogd[
-                (slider.val[0] < self.scatlogd / np.log(10)) & (self.scatlogd / np.log(10) < slider.val[1])]
-            x = self.scatx[(slider.val[0] < self.scatlogd / np.log(10)) & (self.scatlogd / np.log(10) < slider.val[1])]
-            y = self.scaty[(slider.val[0] < self.scatlogd / np.log(10)) & (self.scatlogd / np.log(10) < slider.val[1])]
+            logdens_window = logdens[(slider.val[0] < logdens) & (logdens < slider.val[1])]
+            x = scatx[(slider.val[0] < logdens) & (logdens < slider.val[1])]
+            y = scaty[(slider.val[0] < logdens) & (logdens < slider.val[1])]
             xy = np.vstack((x, y))
 
-            self.scatter.set_offsets(xy.T)
-            self.scatter.set_array(logdens / np.log(10))
-            self.scatter.set_norm(colors.Normalize(vmin=slider.val[0], vmax=slider.val[1]))
+            self.scatter_axs[ax_index].set_offsets(xy.T)
+            self.scatter_axs[ax_index].set_array(logdens_window)
+            self.scatter_axs[ax_index].set_norm(colors.Normalize(vmin=slider.val[0], vmax=slider.val[1]))
 
         # Redraw the figure to ensure it updates
         self.fig.canvas.draw_idle()
@@ -409,11 +358,9 @@ class Visualize(BaseVisualizer):
 
         self.setup_ax(ax_obj)
 
-        logdens = np.where(density > 0, np.log(density), 0)
+        logdens = np.where(density > 0, np.log10(density), 0)
 
-        self.scatx = x
-        self.scaty = y
-        self.scatlogd = logdens
+        self.scatters.append((x, y, logdens))
 
         if isinstance(self.vis_params["colormap"], list):
             cmap = self.vis_params["colormap"][ax]
@@ -422,8 +369,9 @@ class Visualize(BaseVisualizer):
             cmap = self.vis_params["colormap"]
             cmap.set_bad(color='k', alpha=1.)
 
-        self.scatter = ax_obj.scatter(x, y, c=logdens / np.log(10), cmap=cmap, vmin=self.vis_params["lvl_min"],
+        scatter = ax_obj.scatter(x, y, c=logdens, cmap=cmap, vmin=self.vis_params["lvl_min"],
                                       vmax=self.vis_params["lvl_max"], s=.2, zorder=self.vis_params["zorder"])
+        self.scatter_axs.append(scatter)
 
         divider = make_axes_locatable(ax_obj)
 
@@ -433,28 +381,26 @@ class Visualize(BaseVisualizer):
                 self.slider_axs.append(slider_ax)
                 cax = divider.append_axes('right', size='4%', pad=0.05*i)
                 cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
-                self.cb_interact.append(plt.colorbar(self.scatter, cax=cax, orientation='vertical',
-                                                format=self.vis_params['cb_format']))
-                self.cb_interact[i].ax.locator_params(nbins=12)
+                self.colorbar_interact.append(plt.colorbar(scatter, cax=cax, orientation='vertical',
+                                                           format=self.vis_params['cb_format']))
+                self.colorbar_interact[i].ax.locator_params(nbins=12)
                 if self.vis_params["perspective"] == 'los':
-                    self.cb_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+                    self.colorbar_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
                 else:
-                    self.cb_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+                    self.colorbar_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
         else:
             slider_ax = divider.append_axes('right', size='4%')
             self.slider_axs.append(slider_ax)
 
             cax = divider.append_axes('right', size='4%', pad=0.05)
             cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
-            self.cb_interact.append(plt.colorbar(self.scatter, cax=cax, orientation='vertical',
-                                            format=self.vis_params['cb_format']))
-            self.cb_interact[-1].ax.locator_params(nbins=12)
+            self.colorbar_interact.append(plt.colorbar(scatter, cax=cax, orientation='vertical',
+                                                       format=self.vis_params['cb_format']))
+            self.colorbar_interact[-1].ax.locator_params(nbins=12)
             if self.vis_params["perspective"] == 'los':
-                self.cb_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+                self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
             else:
-                self.cb_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
-
-
+                self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
 
     def add_triplot(self, ax, x, y, simplices, trialpha=.8, **kwargs):
         self.vis_params.update(kwargs)
