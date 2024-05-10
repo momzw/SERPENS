@@ -1,16 +1,19 @@
 import matplotlib as mpl
 
 # Constant configurations for Matplotlib
-FONT_CONFIG = {'family': 'serif', 'serif': ['Computer Modern'], 'size': 18}
-TEXT_CONFIG = {'usetex': True}
-TEX_CONFIG = {'preamble': r'\usepackage{amssymb}'}
-DEFAULT_FACECOLOR = 'yellow'
+try:
+    FONT_CONFIG = {'family': 'serif', 'serif': ['Computer Modern'], 'size': 18}
+    TEXT_CONFIG = {'usetex': True}
+    TEX_CONFIG = {'preamble': r'\usepackage{amssymb}'}
+    DEFAULT_FACECOLOR = 'yellow'
 
-# Setting the backend and configurations for Matplotlib
-mpl.use('TkAgg')
-mpl.rc('font', **FONT_CONFIG)
-mpl.rc('text', **TEXT_CONFIG)
-mpl.rc('text.latex', **TEX_CONFIG)
+    # Setting the backend and configurations for Matplotlib
+    mpl.use('TkAgg')
+    mpl.rc('font', **FONT_CONFIG)
+    mpl.rc('text', **TEXT_CONFIG)
+    mpl.rc('text.latex', **TEX_CONFIG)
+except:
+    pass
 
 import numpy as np
 import rebound
@@ -87,12 +90,11 @@ class BaseVisualizer(ArgumentProcessor):
         if not self.vis_params['single_plot'] and ns > 1:
             self.subplot_rows = int(np.ceil(ns / 3))
             self.subplot_columns = params.num_species if ns <= 3 else 3
-            self.single = False
+            self.single_plot = False
         else:
             self.subplot_rows = 1
             self.subplot_columns = 1
-            self.single = True
-            print(UserWarning("! Single plot is not fully implemented yet !"))
+            self.single_plot = True
 
         gs1 = gridspec.GridSpec(self.subplot_rows, self.subplot_columns)
         gs1.update(wspace=0.2, hspace=0.1)
@@ -265,8 +267,6 @@ class BaseVisualizer(ArgumentProcessor):
 
 class Visualize(BaseVisualizer):
 
-    # TODO: Switch to DASH
-
     def __init__(self, rebsim, interactive=True, **kwargs):
         super().__init__(rebsim, **kwargs)
 
@@ -275,6 +275,7 @@ class Visualize(BaseVisualizer):
         self.scatter = None
         self.colorbar_interact = []
         self.slider_axs = []
+        self.colorbar_axs =  []
         self.scatters =  []
         self.scatter_axs = []
         self.interactive = interactive
@@ -296,9 +297,9 @@ class Visualize(BaseVisualizer):
             if self.interactive:
 
                 sliders = []
-                for ax in self.axs:
-                    index = self.axs.index(ax)
-                    slider_ax = self.slider_axs[index]
+                for slider_ax in self.slider_axs:
+                    index = self.slider_axs.index(slider_ax)
+                    #slider_ax = self.slider_axs[index]
                     _slider = RangeSlider(slider_ax, "Threshold", self.scatter_axs[index].norm.vmin, self.scatter_axs[index].norm.vmax,
                                          orientation='vertical', facecolor='crimson')
                     sliders.append(_slider)
@@ -348,22 +349,24 @@ class Visualize(BaseVisualizer):
         # Redraw the figure to ensure it updates
         self.fig.canvas.draw_idle()
 
-    def add_densityscatter(self, ax: int, x, y, density, d=3, **kwargs):
+    def add_densityscatter(self, ax_index: int, x, y, density, d=3, **kwargs):
         self.vis_params.update(kwargs)
 
-        if not self.single:
-            ax_obj: plt.Axes = self.axs[ax]
+        if not self.single_plot:
+            ax_obj: plt.Axes = self.axs[ax_index]
+            self.setup_ax(ax_obj)
         else:
             ax_obj: plt.Axes = self.axs[0]
+            if ax_index == 0:
+                self.setup_ax(ax_obj)
 
-        self.setup_ax(ax_obj)
+        divider = make_axes_locatable(ax_obj)
 
         logdens = np.where(density > 0, np.log10(density), 0)
-
         self.scatters.append((x, y, logdens))
 
         if isinstance(self.vis_params["colormap"], list):
-            cmap = self.vis_params["colormap"][ax]
+            cmap = self.vis_params["colormap"][ax_index]
             cmap.set_bad(color='k', alpha=1.)
         else:
             cmap = self.vis_params["colormap"]
@@ -373,22 +376,7 @@ class Visualize(BaseVisualizer):
                                       vmax=self.vis_params["lvl_max"], s=.2, zorder=self.vis_params["zorder"])
         self.scatter_axs.append(scatter)
 
-        divider = make_axes_locatable(ax_obj)
-
-        if self.single and Parameters.num_species > 1:
-            for i in range(Parameters.num_species):
-                slider_ax = divider.append_axes('right', size='4%')
-                self.slider_axs.append(slider_ax)
-                cax = divider.append_axes('right', size='4%', pad=0.05*i)
-                cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
-                self.colorbar_interact.append(plt.colorbar(scatter, cax=cax, orientation='vertical',
-                                                           format=self.vis_params['cb_format']))
-                self.colorbar_interact[i].ax.locator_params(nbins=12)
-                if self.vis_params["perspective"] == 'los':
-                    self.colorbar_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
-                else:
-                    self.colorbar_interact[i].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
-        else:
+        if not self.single_plot:
             slider_ax = divider.append_axes('right', size='4%')
             self.slider_axs.append(slider_ax)
 
@@ -396,11 +384,24 @@ class Visualize(BaseVisualizer):
             cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
             self.colorbar_interact.append(plt.colorbar(scatter, cax=cax, orientation='vertical',
                                                        format=self.vis_params['cb_format']))
-            self.colorbar_interact[-1].ax.locator_params(nbins=12)
-            if self.vis_params["perspective"] == 'los':
-                self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
-            else:
-                self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+        else:
+            if ax_index == 0:
+                for i in range(Parameters.num_species):
+                    slider_ax = divider.append_axes('right', size='4%')
+                    self.slider_axs.append(slider_ax)
+
+                    cax = divider.append_axes('right', size='4%', pad=0.05 * i)
+                    cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
+                    self.colorbar_axs.append(cax)
+
+            self.colorbar_interact.append(plt.colorbar(scatter, cmap=cmap, cax=self.colorbar_axs[ax_index], orientation='vertical',
+                                                       format=self.vis_params['cb_format']))
+
+        self.colorbar_interact[-1].ax.locator_params(nbins=12)
+        if self.vis_params["perspective"] == 'los':
+            self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
+        else:
+            self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
 
     def add_triplot(self, ax, x, y, simplices, trialpha=.8, **kwargs):
         self.vis_params.update(kwargs)
@@ -410,7 +411,7 @@ class Visualize(BaseVisualizer):
         ax.triplot(x, y, simplices, linewidth=0.1, c='w', zorder=self.vis_params["zorder"], alpha=trialpha)
 
     def empty(self, ax):
-        if not self.single:
+        if not self.single_plot:
             ax_obj = self.axs[ax]
         else:
             ax_obj = self.axs[0]
