@@ -235,7 +235,7 @@ class SerpensSimulation(rebound.Simulation):
             else:
                 self.N_active += 1
 
-    def _add_particles(self):
+    def _add_particles(self) -> None:
         """
         Internal use only.
         Calls particle creation and adds the created particles to the REBOUND simulation instance.
@@ -272,6 +272,9 @@ class SerpensSimulation(rebound.Simulation):
             all_species = [s['species'][f'species{i+1}'] for s in self.source_parameter_sets for i in range(len(s['species']))]
             Parameters.modify_species(*all_species)
 
+        self.rebx.save("rebx.bin")
+        return
+
     def _load_source_parameters(self, source_index):
         parameter_set: dict = self.source_parameter_sets[source_index]
         NewParams(species=list(parameter_set['species'].values()),
@@ -281,21 +284,68 @@ class SerpensSimulation(rebound.Simulation):
                   )()
 
     def advance_integrate(self):
-        weightop = self.rebx.create_operator("weightloss")
-        weightop.operator_type = "recorder"
-        weightop.step_function = weight_operator
-        self.rebx.add_operator(weightop, dtfraction=1., timing="post")
 
         primary = self.particles[rebound.hash(self.particles["source0"].params['source_primary'])]
         orbital_period0 = self.particles["source0"].orbit(primary=primary).P
         adv = orbital_period0 * self.params.int_spec["sim_advance"]
         self.dt = adv / 10
 
-        # TODO: How to increase performance?
-        self.integrate(adv * (self.serpens_iter + 1), exact_finish_time=0)
+        threads_count = multiprocessing.cpu_count()
 
-        # HAVE TO REMOVE BECAUSE OPERATOR CORRUPTS SAVE (not sure why)
-        self.rebx.remove_operator(weightop)
+        particle_indices = list(range(self.N_active, self.N))
+        particle_splits = np.array_split(particle_indices, threads_count)
+
+        proc_indices = [list(range(self.N_active)) + test_split.tolist() for test_split in particle_splits]
+
+        processes = []
+        processes_rebx = []
+        processes_operators = []
+        for i in range(threads_count):
+            copy = self.copy()
+
+            copy.integrator = "whfast"
+            copy.collision = "direct"
+            copy.collision_resolve = "merge"
+            if Parameters.int_spec["fix_source_circular_orbit"]:
+                copy.heartbeat = heartbeat
+            copy_rebx = reboundx.Extras(copy, "rebx.bin")
+
+            weightop = copy_rebx.create_operator("weightloss")
+            weightop.operator_type = "recorder"
+            weightop.step_function = weight_operator
+            copy_rebx.add_operator(weightop, dtfraction=1., timing="post")
+            processes_operators.append(weightop)
+
+            indices_to_keep_set = set(proc_indices[i])
+            for j in reversed(range(copy.N)):
+                if j not in indices_to_keep_set:
+                    copy.remove(index=j)
+
+            processes.append(copy)
+            processes_rebx.append(copy_rebx)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads_count) as executor:
+            future_to_result = {
+                executor.submit(
+                    lambda x: x.integrate(adv * (self.serpens_iter + 1), exact_finish_time=0), p): p for p in processes
+            }
+
+            for future in concurrent.futures.as_completed(future_to_result):
+                future.result()
+
+        n_active = self.N_active
+        del self.particles
+
+        for i in range(n_active):
+            self.add(processes[0].particles[i])
+
+        for simulation, rebx in zip(processes, processes_rebx):
+            for p in simulation.particles[simulation.N_active:]:
+                self.add(p)
+            rebx.detach(simulation)
+
+        self.N_active = n_active
+        self.t = processes[0].t
 
     def advance_single(self):
 
