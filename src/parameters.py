@@ -19,12 +19,7 @@ class DefaultFields:
         return cls._instance
 
     def _get_default_objects(self):
-        #with open('resources/objects.json', 'r') as f:
-        #    systems = json.load(f)
-        #    self.celest = [objects for condition, objects in
-        #                   zip([s['SYSTEM-NAME'] == 'Jupiter (Europa-Source)' for s in systems], systems)
-        #                   if condition][0]
-        #    self.celest.pop("SYSTEM-NAME", None)
+        # Default is currently set to none
         self.celest = {}
 
     def _get_default_parameters(self):

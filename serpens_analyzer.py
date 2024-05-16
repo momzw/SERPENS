@@ -16,6 +16,8 @@ from src import DTFE, DTFE3D
 from src.parameters import Parameters, NewParams
 from src.visualize import Visualize
 
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')
+
 
 def deprecated(func):
     """This is a decorator which can be used to mark functions
@@ -117,7 +119,7 @@ class SerpensAnalyzer:
         if save_output:
             print("Copying and saving...")
             if folder_name is None:
-                self.path = datetime.utcnow().strftime("%d%m%Y--%H-%M-%S")
+                self.path = datetime.now().strftime("%d%m%Y--%H-%M-%S")
             else:
                 self.path = folder_name
 
@@ -289,7 +291,7 @@ class SerpensAnalyzer:
         self.particle_weights = self.particle_weights[overall_mask]
 
     @ensure_data_loaded
-    def delaunay_field_estimation(self, timestep, species, d=2, los=False):
+    def delaunay_field_estimation(self, timestep: int, species, d=2, los=False):
         """
         Main function to get density values by initializing the DTFE estimator at a certain timestep.
         Automatically runs the "pull_data" function through the decorator.
@@ -416,9 +418,6 @@ class SerpensAnalyzer:
 
             vis = Visualize(self.sim, **kwargs)
 
-            #for _ in range(len(self.source_parameter_sets)):
-            #    self._load_source_parameters(source_index)
-
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
                 points = self.particle_positions[np.where(self.particle_species == species.id)]
@@ -439,8 +438,6 @@ class SerpensAnalyzer:
                         vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
 
                 vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
-
-                #Parameters.reset()
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'TD_{ts}_000{self.save_index}')
@@ -479,7 +476,7 @@ class SerpensAnalyzer:
             Passed to Visualizer (see src/visualize.py)
         """
 
-        ts_list = np.atleast_1d(timestep).astype(int)
+        ts_list = np.atleast_1d(timestep).astype(int).tolist()
 
         running_index = 0
         while running_index < len(ts_list):
@@ -519,8 +516,8 @@ class SerpensAnalyzer:
                 list_of_files = glob.glob(f'./output/{self.path}/plots/*')
                 latest_file = max(list_of_files, key=os.path.getctime)
                 if os.path.getsize(latest_file) < 50000:
-                    print(
-                        "\t Detected low filesize (threshold at 50 KB). Possibly encountered a saving bug. Retrying process.")
+                    print("\t Detected low filesize (threshold at 50 KB). "
+                          "Possibly encountered a saving bug. Retrying process.")
                     os.remove(latest_file)
                 else:
                     running_index += 1
@@ -557,14 +554,6 @@ class SerpensAnalyzer:
         z_p = (self.get_primary(self.source_index).r * np.cos(theta) +
                self.get_primary(self.source_index).z)
 
-        if show_star:
-            x_s = (self.sim.particles["star"].r * np.sin(theta) * np.cos(phi) +
-                   self.sim.particles["star"].x)
-            y_s = (self.sim.particles["star"].r * np.sin(theta) * np.sin(phi) +
-                   self.sim.particles["star"].y)
-            z_s = (self.sim.particles["star"].r * np.cos(theta) +
-                   self.sim.particles["star"].z)
-
         np.seterr(divide='ignore')
 
         if log_cutoff is not None:
@@ -583,9 +572,18 @@ class SerpensAnalyzer:
             })
             fig = px.scatter_3d(df, x='x', y='y', z='z', color=np.log10(dens), opacity=.3)
 
-        fig.add_trace(go.Surface(x=x_p, y=y_p, z=z_p, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='matter'))
+        fig.add_trace(go.Surface(x=x_p, y=y_p, z=z_p, surfacecolor=np.zeros(shape=x_p.shape), showscale=False,
+                                 colorscale='matter'))
         if show_star:
-            fig.add_trace(go.Surface(x=x_s, y=y_s, z=z_s, surfacecolor=np.zeros(shape=x_p.shape), showscale=False, colorscale='Hot'))
+            x_s = (self.sim.particles["star"].r * np.sin(theta) * np.cos(phi) +
+                   self.sim.particles["star"].x)
+            y_s = (self.sim.particles["star"].r * np.sin(theta) * np.sin(phi) +
+                   self.sim.particles["star"].y)
+            z_s = (self.sim.particles["star"].r * np.cos(theta) +
+                   self.sim.particles["star"].z)
+            fig.add_trace(go.Surface(x=x_s, y=y_s, z=z_s, surfacecolor=np.zeros(shape=x_p.shape), showscale=False,
+                                     colorscale='Hot'))
+
         fig.update_coloraxes(colorbar_exponentformat='e')
         fig.update_layout(scene_aspectmode='data')
         fig.show()

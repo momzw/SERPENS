@@ -4,7 +4,6 @@ import numpy as np
 import multiprocessing
 import concurrent.futures
 import pickle
-import json
 from src.create_particle import create_particle
 from src.parameters import Parameters, NewParams
 from tqdm import tqdm
@@ -354,19 +353,11 @@ class SerpensSimulation(rebound.Simulation):
         self.advance_integrate()
 
         primary = self.particles[rebound.hash(self.particles["source0"].params['source_primary'])]
-        orbital_period0 = self.particles["source0"].orbit(primary=primary).P
+        #orbital_period0 = self.particles["source0"].orbit(primary=primary).P
         boundary0 = self.params.int_spec["r_max"] * self.particles["source0"].orbit(primary=primary).a
 
         remove = []
-        for particle in self.particles:
-
-            try:
-                source_index = particle.params["source_index"]
-                w = particle.params["serpens_weight"]
-                #self._load_source_parameters(source_index)
-                species_id = particle.params["serpens_species"]
-            except AttributeError:
-                continue
+        for particle in self.particles[self.N_active:]:
 
             #species = self.params.get_species(id=species_id)
             #mass_inject_per_advance = species.mass_per_sec * self.params.int_spec["sim_advance"] * orbital_period0

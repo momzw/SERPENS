@@ -12,7 +12,8 @@ try:
     mpl.rc('font', **FONT_CONFIG)
     mpl.rc('text', **TEXT_CONFIG)
     mpl.rc('text.latex', **TEX_CONFIG)
-except:
+except Exception as exc:
+    print(f"An exception occurred while trying to change matplotlib parameters: {exc}")
     pass
 
 import numpy as np
@@ -278,7 +279,7 @@ class Visualize(BaseVisualizer):
         self.colorbar_axs =  []
         self.scatters =  []
         self.scatter_axs = []
-        self.interactive = interactive
+        self.interactive = interactive      # TODO: Need to fix non-interactive
 
     def __call__(self, save_path=None, show_bool=True, **kwargs):
 
@@ -291,7 +292,7 @@ class Visualize(BaseVisualizer):
                 plt.close('all')
 
         if show_bool:
-            if len(self.scatter_axs) == 1:
+            if len(self.scatter_axs) == 0:
                 self.interactive = False
 
             if self.interactive:
@@ -299,7 +300,6 @@ class Visualize(BaseVisualizer):
                 sliders = []
                 for slider_ax in self.slider_axs:
                     index = self.slider_axs.index(slider_ax)
-                    #slider_ax = self.slider_axs[index]
                     _slider = RangeSlider(slider_ax, "Threshold", self.scatter_axs[index].norm.vmin, self.scatter_axs[index].norm.vmax,
                                          orientation='vertical', facecolor='crimson')
                     sliders.append(_slider)
@@ -328,11 +328,11 @@ class Visualize(BaseVisualizer):
         # The val passed to a callback by the RangeSlider will
         # be a tuple of (min, max)
 
-        if len(self.colorbar_interact) > 1:
+        if len(self.colorbar_interact) > 0:
             self.colorbar_interact[ax_index].norm.vmin = slider.val[0]
             self.colorbar_interact[ax_index].norm.vmax = slider.val[1]
 
-        if len(self.scatter_axs) > 1:
+        if len(self.scatter_axs) > 0:
             scatx = self.scatters[ax_index][0]
             scaty = self.scatters[ax_index][1]
             logdens = self.scatters[ax_index][2]
@@ -352,6 +352,7 @@ class Visualize(BaseVisualizer):
     def add_densityscatter(self, ax_index: int, x, y, density, d=3, **kwargs):
         self.vis_params.update(kwargs)
 
+        # Set up axes
         if not self.single_plot:
             ax_obj: plt.Axes = self.axs[ax_index]
             self.setup_ax(ax_obj)
@@ -359,12 +360,13 @@ class Visualize(BaseVisualizer):
             ax_obj: plt.Axes = self.axs[0]
             if ax_index == 0:
                 self.setup_ax(ax_obj)
-
         divider = make_axes_locatable(ax_obj)
 
+        # Get densities and append data to class list
         logdens = np.where(density > 0, np.log10(density), 0)
         self.scatters.append((x, y, logdens))
 
+        # Set up colormaps
         if isinstance(self.vis_params["colormap"], list):
             cmap = self.vis_params["colormap"][ax_index]
             cmap.set_bad(color='k', alpha=1.)
@@ -372,10 +374,12 @@ class Visualize(BaseVisualizer):
             cmap = self.vis_params["colormap"]
             cmap.set_bad(color='k', alpha=1.)
 
+        # Create axis scatter plot and append to class list
         scatter = ax_obj.scatter(x, y, c=logdens, cmap=cmap, vmin=self.vis_params["lvl_min"],
-                                      vmax=self.vis_params["lvl_max"], s=.2, zorder=self.vis_params["zorder"])
+                                 vmax=self.vis_params["lvl_max"], s=.2, zorder=self.vis_params["zorder"])
         self.scatter_axs.append(scatter)
 
+        # Create colorbar and slider axes based on single/non-single plot
         if not self.single_plot:
             slider_ax = divider.append_axes('right', size='4%')
             self.slider_axs.append(slider_ax)
@@ -397,6 +401,7 @@ class Visualize(BaseVisualizer):
             self.colorbar_interact.append(plt.colorbar(scatter, cmap=cmap, cax=self.colorbar_axs[ax_index], orientation='vertical',
                                                        format=self.vis_params['cb_format']))
 
+        # Set colorbar parameters
         self.colorbar_interact[-1].ax.locator_params(nbins=12)
         if self.vis_params["perspective"] == 'los':
             self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
