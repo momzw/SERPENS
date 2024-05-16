@@ -4,7 +4,8 @@
       "sim_advance": 0.01,
       "num_sim_advances": 60,
       "stop_at_steady_state": false,
-      "gen_max": null, "r_max": 4,
+      "gen_max": null,
+      "r_max": 4,
       "random_walk": false,
       "radiation_pressure_shield": false,
       "fix_source_circular_orbit": true
@@ -27,6 +28,7 @@
       },
       "lifetime": 240,
       "beta": 3.19,
-      "shielded_lifetime": 10800}
+      "shielded_lifetime": 10800
+    }
   }
 ]

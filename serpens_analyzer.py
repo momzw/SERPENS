@@ -455,7 +455,7 @@ class SerpensAnalyzer:
 
             del vis
 
-    def plot_lineofsight(self, timestep, show=False, scatter=True, **kwargs):
+    def plot_lineofsight(self, timestep, show=True, scatter=True, **kwargs):
         """
         Returns a plot of the system from a line of sight perspective.
         Accesses the 'Visualizer' class to construct the plots and forwards keyword arguments.

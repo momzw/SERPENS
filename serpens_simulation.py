@@ -4,11 +4,13 @@ import numpy as np
 import multiprocessing
 import concurrent.futures
 import pickle
+import warnings
 from src.create_particle import create_particle
 from src.parameters import Parameters, NewParams
 from tqdm import tqdm
 import time
 
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')
 
 def weight_operator(sim_pointer, rebx_operator, dt):
     sim = sim_pointer.contents
@@ -378,7 +380,7 @@ class SerpensSimulation(rebound.Simulation):
         self.save_to_file("archive.bin")
         self.rebx.save("rebx.bin")
 
-    def advance(self, num_sim_advances, save_freq=1, verbose=False):
+    def advance(self, num_sim_advances, verbose=False):
         """
         Main function to be called for advancing the SERPENS simulation.
         Uses internal function to add particles, include loss for super-particles, and integrate in time using
