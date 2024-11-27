@@ -12,6 +12,7 @@ import time
 
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')
 
+
 def weight_operator(sim_pointer, rebx_operator, dt):
     sim = sim_pointer.contents
     params = Parameters()

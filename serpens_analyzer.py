@@ -10,8 +10,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import functools
 import warnings
-from datetime import datetime
 
+from datetime import datetime
 from src import DTFE, DTFE3D
 from src.parameters import Parameters, NewParams
 from src.visualize import Visualize
@@ -433,7 +433,7 @@ class SerpensAnalyzer:
 
                 if triplot:
                     if d == 3:
-                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:,:3])
+                        vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices[:, :3])
                     elif d == 2:
                         vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
 

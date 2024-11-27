@@ -408,12 +408,19 @@ class Visualize(BaseVisualizer):
         else:
             self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
 
-    def add_triplot(self, ax, x, y, simplices, trialpha=.8, **kwargs):
+    def add_triplot(self, ax_index, x, y, simplices, trialpha=.8, **kwargs):
         self.vis_params.update(kwargs)
 
-        ax = self.axs[ax]
-        self.setup_ax(ax)
-        ax.triplot(x, y, simplices, linewidth=0.1, c='w', zorder=self.vis_params["zorder"], alpha=trialpha)
+        # Set up axes
+        if not self.single_plot:
+            ax_obj: plt.Axes = self.axs[ax_index]
+            self.setup_ax(ax_obj)
+        else:
+            ax_obj: plt.Axes = self.axs[0]
+            if ax_index == 0:
+                self.setup_ax(ax_obj)
+
+        ax_obj.triplot(x, y, simplices, linewidth=0.1, c='w', zorder=self.vis_params["zorder"], alpha=trialpha)
 
     def empty(self, ax):
         if not self.single_plot:
