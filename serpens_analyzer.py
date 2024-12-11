@@ -111,10 +111,10 @@ class SerpensAnalyzer:
         self.cutoffs = {"z": z_cutoff, "r": r_cutoff, "v": v_cutoff}
         self.reference_system = reference_system
 
-        if self.reference_system is not None and self.reference_system.lower().startswith('source'):
-            self.source_index = int(self.reference_system[6:])  # extract source index from string
-        else:
-            self.source_index = None  # Default case
+        #if self.reference_system is not None and self.reference_system.lower().startswith('source'):
+        #    self.source_index = int(self.reference_system[6:])  # extract source index from string
+        #else:
+        #    self.source_index = None  # Default case
 
         if save_output:
             print("Copying and saving...")
@@ -161,7 +161,7 @@ class SerpensAnalyzer:
         Returns coordinate offsets if the primary is a planet (source is moon).
         Arguments handled by class functions.
         """
-        planet = self.get_primary(self.source_index)
+        planet = self.get_primary(self.reference_system)
         if plane == 'xy':
             return planet.x, planet.y, 0
         elif plane == 'yz':
@@ -174,9 +174,9 @@ class SerpensAnalyzer:
         Internal use only.
         Applies a rotation (coordinate transformation) to all particles if the reference system is geocentric.
         """
-        phase = np.arctan2(self.get_primary(self.source_index).y, self.get_primary(self.source_index).x)
+        phase = np.arctan2(self.get_primary(self.reference_system).y, self.get_primary(self.reference_system).x)
 
-        inc = self.get_primary(self.source_index).orbit().inc
+        inc = self.get_primary(self.reference_system).orbit().inc
 
         reb_rot = rebound.Rotation(angle=phase, axis='z')
         reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
@@ -184,10 +184,10 @@ class SerpensAnalyzer:
             particle.rotate(reb_rot.inverse())
             particle.rotate(reb_rot_inc)
 
-    def get_primary(self, source_index) -> rebound.Particle:
-        if source_index is not None:
+    def get_primary(self, source_hash) -> rebound.Particle:
+        if source_hash is not None:
             return self.sim.particles[
-                rebound.hash(self.sim.particles[f"source{source_index}"].params['source_primary'])]
+                rebound.hash(self.sim.particles[source_hash].params['source_primary'])]
         else:
             return self.sim.particles[0]
 
@@ -218,20 +218,27 @@ class SerpensAnalyzer:
 
         self.particle_species = np.zeros(self.sim.N, dtype="int")
         self.particle_weights = np.zeros(self.sim.N, dtype="float64")
-        self._particle_source_indices = np.zeros(self.sim.N, dtype="int")
+        self._particle_source_hashes = np.zeros(self.sim.N, dtype="uint32")
 
         for k1 in range(self.sim.N):
             try:
-                self.particle_species[k1] = self.sim.particles[
-                    rebound.hash(int(self.particle_hashes[k1]))].params["serpens_species"]
-                self.particle_weights[k1] = self.sim.particles[
-                    rebound.hash(int(self.particle_hashes[k1]))].params["serpens_weight"]
-                self._particle_source_indices[k1] = self.sim.particles[
-                    rebound.hash(int(self.particle_hashes[k1]))].params["source_index"]
+                part = self.sim.particles[rebound.hash(int(self.particle_hashes[k1]))]  # Get particle
+                self.particle_species[k1] = part.params["serpens_species"]
+                self.particle_weights[k1] = part.params["serpens_weight"]
+                self._particle_source_hashes[k1] = part.params["source_hash"]
             except AttributeError:
                 continue
 
-        self.num_sources = len(np.unique(self._particle_source_indices))
+        self.source_hashes = []
+        # Error correction:
+        for h in np.unique(self._particle_source_hashes):
+            try:
+                _ = self.sim.particles[rebound.hash(int(h))]
+                self.source_hashes.append(rebound.hash(int(h)))
+            except rebound.ParticleNotFound:
+                continue
+
+        self.num_sources = len(self.source_hashes)
         self._apply_masks()
 
     def _apply_masks(self):
@@ -242,9 +249,9 @@ class SerpensAnalyzer:
 
         masks_for_each_source = []
 
-        for source_index in range(self.num_sources):
-            source_primary = self.get_primary(source_index)
-            source_particles_mask = self._particle_source_indices == source_index
+        for source_hash in self.source_hashes:
+            source_primary = self.get_primary(source_hash)
+            source_particles_mask = self._particle_source_hashes == source_hash
 
             combined_mask = np.ones(len(self.particle_positions[source_particles_mask]), dtype=bool)
 
@@ -262,7 +269,7 @@ class SerpensAnalyzer:
                         r = np.linalg.norm(self.particle_positions[source_particles_mask] - source_primary.xyz, axis=1)
                         condition = r < cutoff_value * source_primary.r
                     elif cutoff_type == "v":
-                        v = np.linalg.norm(self.particle_velocities[source_particles_mask] - self.sim.particles[f"source{source_index}"].vxyz, axis=1)
+                        v = np.linalg.norm(self.particle_velocities[source_particles_mask] - self.sim.particles[source_hash].vxyz, axis=1)
                         condition = v < cutoff_value
 
                     if condition is not None:
@@ -321,7 +328,7 @@ class SerpensAnalyzer:
         points = self.particle_positions[points_mask]
         velocities = self.particle_velocities[points_mask]
         weights = self.particle_weights[points_mask]
-        source_indices = self._particle_source_indices[points_mask]
+        source_hashes = self._particle_source_hashes[points_mask]
 
         # Physical weight calculation:
         total_injected = timestep * (species.n_sp + species.n_th)
@@ -334,9 +341,9 @@ class SerpensAnalyzer:
 
             if los:
                 masks_for_each_source = []
-                for source_index in range(self.num_sources):
-                    source_primary = self.get_primary(source_index)
-                    source_particles_mask = source_indices == source_index
+                for source_hash in self.source_hashes:
+                    source_primary = self.get_primary(source_hash)
+                    source_particles_mask = source_hashes == source_hash
 
                     los_dist_to_planet = np.sqrt((points[source_particles_mask, 1] - source_primary.y) ** 2 +
                                                  (points[source_particles_mask, 2] - source_primary.z) ** 2)
@@ -416,7 +423,7 @@ class SerpensAnalyzer:
                            range(len(s['species']))]
             Parameters.modify_species(*all_species)
 
-            vis = Visualize(self.sim, **kwargs)
+            vis = Visualize(self.sim, self.reference_system, **kwargs)
 
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
@@ -487,7 +494,7 @@ class SerpensAnalyzer:
                            range(len(s['species']))]
             Parameters.modify_species(*all_species)
 
-            vis = Visualize(self.sim, perspective='los', **kwargs)
+            vis = Visualize(self.sim, self.reference_system, perspective='los', **kwargs)
 
             for k in range(self.params.num_species):
                 species = self.params.get_species(num=k + 1)
@@ -502,11 +509,12 @@ class SerpensAnalyzer:
                         if kwargs.get('lvlmax', None) == 'auto':
                             vis.vis_params.update({"lvlmax": np.log10(np.max(dens[dens > 0])) + .5})
 
-                    los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(self.source_index).y) ** 2 +
-                                                 (points[:, 2] - self.get_primary(self.source_index).z) ** 2)
-                    mask = (los_dist_to_planet > self.get_primary(self.source_index).r) | \
-                           (points[:, 0] - np.abs(self.get_primary(self.source_index).x) > 0)
-                    vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask], d=2)
+                    los_dist_to_planet = np.sqrt((points[:, 1] - self.get_primary(self.reference_system).y) ** 2 +
+                                                 (points[:, 2] - self.get_primary(self.reference_system).z) ** 2)
+                    mask = (los_dist_to_planet > self.get_primary(self.reference_system).r) | \
+                           (points[:, 0] - np.abs(self.get_primary(self.reference_system).x) > 0)
+
+                    vis.add_densityscatter(k, -points[:, 1][mask], points[:, 2][mask], dens[mask], d=2, zorder=10)
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'LOS_{ts}_{self.save_index}')
@@ -526,6 +534,7 @@ class SerpensAnalyzer:
                 running_index += 1
 
             del vis
+
 
     @ensure_data_loaded
     def plot3d(self, timestep, species_num=1, log_cutoff=None, show_star=False):
@@ -547,12 +556,12 @@ class SerpensAnalyzer:
         dens, _ = self.delaunay_field_estimation(timestep, species, d=3)
 
         phi, theta = np.mgrid[0:2 * np.pi:100j, 0:np.pi:100j]
-        x_p = (self.get_primary(self.source_index).r * np.sin(theta) * np.cos(phi) +
-               self.get_primary(self.source_index).x)
-        y_p = (self.get_primary(self.source_index).r * np.sin(theta) * np.sin(phi) +
-               self.get_primary(self.source_index).y)
-        z_p = (self.get_primary(self.source_index).r * np.cos(theta) +
-               self.get_primary(self.source_index).z)
+        x_p = (self.get_primary(self.reference_system).r * np.sin(theta) * np.cos(phi) +
+               self.get_primary(self.reference_system).x)
+        y_p = (self.get_primary(self.reference_system).r * np.sin(theta) * np.sin(phi) +
+               self.get_primary(self.reference_system).y)
+        z_p = (self.get_primary(self.reference_system).r * np.cos(theta) +
+               self.get_primary(self.reference_system).z)
 
         np.seterr(divide='ignore')
 

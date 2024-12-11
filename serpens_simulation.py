@@ -24,6 +24,7 @@ def weight_operator(sim_pointer, rebx_operator, dt):
 
 def heartbeat(sim_pointer):
     """
+    TODO: Fix the hashing
     Not meant for external use.
     REBOUND heartbeat function to fix a source's orbit to be circular.
     """
@@ -134,6 +135,8 @@ class SerpensSimulation(rebound.Simulation):
 
         self.num_sources = 0
         self.serpens_iter = 0
+        self.source_obj_dict = {}
+        self.obj_primary_dict = {}
 
         if init_serpens:
             self.rebound_setup()
@@ -165,7 +168,7 @@ class SerpensSimulation(rebound.Simulation):
         self.rebx.register_param('serpens_species', 'REBX_TYPE_INT')
         self.rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
         self.rebx.register_param('source_primary', 'REBX_TYPE_INT')
-        self.rebx.register_param('source_index', 'REBX_TYPE_INT')
+        self.rebx.register_param('source_hash', 'REBX_TYPE_INT')
 
         for k, v in Parameters.celest.items():
             if not type(v) == dict:
@@ -174,7 +177,7 @@ class SerpensSimulation(rebound.Simulation):
                 v_copy = v.copy()
                 if self.N == 0:
                     self.add(**v_copy, hash=k)
-                    self.particles["star"].params["radiation_source"] = 1
+                    self.particles[0].params["radiation_source"] = 1
                 else:
                     self.add(**v_copy, hash=k)
 
@@ -194,42 +197,20 @@ class SerpensSimulation(rebound.Simulation):
 
         return self
 
-    def add(self, particle=None, source=False, test_particle=False, **kwargs):
-
-        if source:
-            # First check if source has also an associated primary body.
-            assert "primary" in kwargs, "Please provide the primary for a sourcing object."
-
-            # Read whether the species should be modified.
-            if "species" in kwargs:
-                species = kwargs.pop("species")
-                species = [species] if not isinstance(species, list) else species
-                Parameters.modify_species(*species)
-
-            # Add the source to the simulation.
-            kwargs["hash"] = f"source{self.num_sources}"    # overwrites hash (if passed) for later reference.
+    def add(self, particle=None, test_particle=False, **kwargs):
+        if not isinstance(particle, str):
             if particle is None:
                 particle = rebound.Particle(simulation=self, **kwargs)
             super().add(particle)
 
-            # Assign SERPENS parameters to the source particle.
-            if isinstance(kwargs["primary"], rebound.Particle):
-                self.particles[-1].params['source_primary'] = kwargs["primary"].hash.value
-            elif isinstance(kwargs["primary"], str):
-                self.particles[-1].params['source_primary'] = self.particles[kwargs["primary"]].hash.value
-            else:
-                raise TypeError(f"Unsupported type {type(kwargs['primary'])} for primary.")
+            if isinstance(kwargs.get('hash', None), str):
+                primary = kwargs.get('primary', None)
+                self.obj_primary_dict[kwargs['hash']] = primary
 
-            # Save the source parameters.
-            self.source_parameter_sets.append(Parameters().get_current_parameters())
-            with open('source_parameters.pkl', 'wb') as f:
-                pickle.dump(self.source_parameter_sets, f)
-
-            self.num_sources += 1
+        # Preparing HORIZON database implementation
         else:
-            if particle is None:
-                particle = rebound.Particle(simulation=self, **kwargs)
-            super().add(particle)
+            super().add(particle, **kwargs)
+            self.particles[-1].hash = particle
 
         if not test_particle:
             if self.N_active == -1:
@@ -245,7 +226,8 @@ class SerpensSimulation(rebound.Simulation):
         """
 
         for source_index in range(self.num_sources):
-            source = self.particles[f"source{source_index}"]
+            source_str = self.source_obj_dict[f"source{source_index}"]
+            source = self.particles[source_str]
             source_state = np.array([source.xyz, source.vxyz])
             self._load_source_parameters(source_index)
 
@@ -266,7 +248,7 @@ class SerpensSimulation(rebound.Simulation):
                         self.particles[identifier].params["beta"] = species.beta
                         self.particles[identifier].params["serpens_species"] = species.id
                         self.particles[identifier].params["serpens_weight"] = 1.
-                        self.particles[identifier].params["source_index"] = source_index
+                        self.particles[identifier].params["source_hash"] = source.hash.value
 
             Parameters.reset()
 
@@ -277,6 +259,26 @@ class SerpensSimulation(rebound.Simulation):
         self.rebx.save("rebx.bin")
         return
 
+    def object_to_source(self, name, species):
+        self.source_obj_dict[f"source{self.num_sources}"] = name
+        self.num_sources += 1
+
+        # Assign SERPENS parameters to the source particle.
+        primary = self.obj_primary_dict[name]
+        if isinstance(primary, rebound.Particle):
+            self.particles[name].params['source_primary'] = primary.hash.value
+        elif isinstance(primary, str):
+            self.particles[name].params['source_primary'] = self.particles[primary].hash.value
+        else:
+            raise TypeError(f"Unsupported type {type(primary)} for primary.")
+
+        species = [species] if not isinstance(species, list) else species
+        Parameters.modify_species(*species)
+        # Save the source parameters.
+        self.source_parameter_sets.append(Parameters().get_current_parameters())
+        with open('source_parameters.pkl', 'wb') as f:
+            pickle.dump(self.source_parameter_sets, f)
+
     def _load_source_parameters(self, source_index):
         parameter_set: dict = self.source_parameter_sets[source_index]
         NewParams(species=list(parameter_set['species'].values()),
@@ -286,9 +288,9 @@ class SerpensSimulation(rebound.Simulation):
                   )()
 
     def advance_integrate(self):
-
-        primary = self.particles[rebound.hash(self.particles["source0"].params['source_primary'])]
-        orbital_period0 = self.particles["source0"].orbit(primary=primary).P
+        source0_str = self.source_obj_dict["source0"]
+        primary = self.particles[rebound.hash(self.particles[source0_str].params['source_primary'])]
+        orbital_period0 = self.particles[source0_str].orbit(primary=primary).P
         adv = orbital_period0 * self.params.int_spec["sim_advance"]
         self.dt = adv / 10
 
@@ -350,14 +352,14 @@ class SerpensSimulation(rebound.Simulation):
         self.t = processes[0].t
 
     def advance_single(self):
-
         # ADD & REMOVE PARTICLES
         self._add_particles()
         self.advance_integrate()
 
-        primary = self.particles[rebound.hash(self.particles["source0"].params['source_primary'])]
+        source0_str = self.source_obj_dict["source0"]
+        primary = self.particles[rebound.hash(self.particles[source0_str].params['source_primary'])]
         #orbital_period0 = self.particles["source0"].orbit(primary=primary).P
-        boundary0 = self.params.int_spec["r_max"] * self.particles["source0"].orbit(primary=primary).a
+        boundary0 = self.params.int_spec["r_max"] * self.particles[source0_str].orbit(primary=primary).a
 
         remove = []
         for particle in self.particles[self.N_active:]:

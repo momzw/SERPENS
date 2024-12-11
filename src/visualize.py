@@ -66,18 +66,19 @@ class ArgumentProcessor:
 
 class BaseVisualizer(ArgumentProcessor):
 
-    def __init__(self, rebsim, **kwargs):
+    def __init__(self, rebsim, reference_system, **kwargs):
         super().__init__(**kwargs)
         Parameters()
         self.sim = rebsim
         self.particles = rebsim.particles
         self.face_colors = self._init_celestial_colors()
+        self.reference_system = reference_system
 
         self._init_figure()
 
-    def _get_primary(self, source_index) -> rebound.Particle:
+    def _get_primary(self) -> rebound.Particle:
         return self.sim.particles[
-            rebound.hash(self.sim.particles[f"source{source_index}"].params['source_primary'])]
+            rebound.hash(self.sim.particles[self.reference_system].params['source_primary'])]
 
     def _init_figure(self):
         params = Parameters()
@@ -119,7 +120,7 @@ class BaseVisualizer(ArgumentProcessor):
 
     def setup_ax(self, ax: plt.Axes) -> None:
         ax.set_aspect("equal")
-        lim = self.vis_params['lim'] * self._get_primary(0).r
+        lim = self.vis_params['lim'] * self._get_primary().r
 
         if self.vis_params["perspective"] == "topdown":
             ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15, color='w')
@@ -130,7 +131,7 @@ class BaseVisualizer(ArgumentProcessor):
         else:
             raise ValueError("Invalid perspective in plotting.")
 
-        primary_coord1, primary_coord2 = self._get_coordinates_primary(source_index=0)
+        primary_coord1, primary_coord2 = self._get_coordinates_primary()
 
         ax.set_xlim([-lim + primary_coord1, lim + primary_coord1])
         ax.set_ylim([-lim + primary_coord2, lim + primary_coord2])
@@ -138,8 +139,8 @@ class BaseVisualizer(ArgumentProcessor):
         loc_num = self.vis_params['lim'] + 1
         xlocs = np.linspace(-lim + primary_coord1, lim + primary_coord1, loc_num)
         ylocs = np.linspace(-lim + primary_coord2, lim + primary_coord2, loc_num)
-        xlabels = np.around((np.array(xlocs) - primary_coord1) / self._get_primary(0).r, 1)
-        ylabels = np.around((np.array(ylocs) - primary_coord2) / self._get_primary(0).r, 1)
+        xlabels = np.around((np.array(xlocs) - primary_coord1) / self._get_primary().r, 1)
+        ylabels = np.around((np.array(ylocs) - primary_coord2) / self._get_primary().r, 1)
 
         ax.set_xticks(xlocs[1:-1])
         ax.set_xticklabels([str(x) for x in xlabels][1:-1])
@@ -170,25 +171,24 @@ class BaseVisualizer(ArgumentProcessor):
                 self._add_planetstar_connection(ax)
 
             line_color = self.face_colors[2]
-            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=["source0"], color=line_color,
-                                   primary=self._get_primary(0))
+            op = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=[self.reference_system], color=line_color,
+                                   primary=self._get_primary())
             op.particles.set_color(line_color)
             op.particles.set_sizes([0])
 
         self._add_patches(ax)
         self._add_additional_celestials(ax)
 
-    def _get_coordinates_source(self, source_index):
-        obj_str = f"source{source_index}"
+    def _get_coordinates_source(self):
         if self.vis_params["perspective"] == "topdown":
-            return self.particles[obj_str].x, self.particles[obj_str].y
+            return self.particles[self.reference_system].x, self.particles[self.reference_system].y
         elif self.vis_params["perspective"] == "los":
-            return -self.particles[obj_str].y, self.particles[obj_str].z
+            return -self.particles[self.reference_system].y, self.particles[self.reference_system].z
         else:
             pass
 
-    def _get_coordinates_primary(self, source_index):
-        primary = self._get_primary(source_index)
+    def _get_coordinates_primary(self):
+        primary = self._get_primary()
         if self.vis_params["perspective"] == "topdown":
             return primary.x, primary.y
         elif self.vis_params["perspective"] == "los":
@@ -199,16 +199,16 @@ class BaseVisualizer(ArgumentProcessor):
     def _add_patches(self, ax):
 
         if self.vis_params['show_primary']:
-            fc_index = self.particles[rebound.hash(self.particles["source0"].params["source_primary"])].index
+            fc_index = self.particles[rebound.hash(self.particles[self.reference_system].params["source_primary"])].index
             fc = self.face_colors[fc_index]
-            coord1, coord2 = self._get_coordinates_primary(source_index=0)
-            primary_patch = plt.Circle((coord1, coord2), self._get_primary(0).r, fc=fc, zorder=10, label="primary")
+            coord1, coord2 = self._get_coordinates_primary()
+            primary_patch = plt.Circle((coord1, coord2), self._get_primary().r, fc=fc, zorder=10, label="primary")
             ax.add_patch(primary_patch)
 
         if self.vis_params['show_source']:
-            fc = self.face_colors[self.particles["source0"].index]
-            coord1, coord2 = self._get_coordinates_source(source_index=0)
-            source_patch = plt.Circle((coord1, coord2), self.particles["source0"].r, fc=fc, ec='k',
+            fc = self.face_colors[self.particles[self.reference_system].index]
+            coord1, coord2 = self._get_coordinates_source()
+            source_patch = plt.Circle((coord1, coord2), self.particles[self.reference_system].r, fc=fc, ec='k',
                                       label="source", zorder=10, fill=True, alpha=0.7)
             ax.add_patch(source_patch)
 
@@ -237,7 +237,7 @@ class BaseVisualizer(ArgumentProcessor):
 
     def _add_additional_celestials(self, ax):
         # Additional celestial objects
-        source_is_moon = self.particles[rebound.hash(self.particles["source0"].params["source_primary"])].index > 0
+        source_is_moon = self.particles[rebound.hash(self.particles[self.reference_system].params["source_primary"])].index > 0
         number_additional_celest = self.sim.N_active - 3 if source_is_moon else self.sim.N_active - 2
         if number_additional_celest > 0:
             moons_indices = [i for i in range(self.sim.N_active - number_additional_celest, self.sim.N_active)]
@@ -268,8 +268,8 @@ class BaseVisualizer(ArgumentProcessor):
 
 class Visualize(BaseVisualizer):
 
-    def __init__(self, rebsim, interactive=True, **kwargs):
-        super().__init__(rebsim, **kwargs)
+    def __init__(self, rebsim, reference_system, interactive=True, **kwargs):
+        super().__init__(rebsim, reference_system, **kwargs)
 
         self.cf = None
         self.c = None

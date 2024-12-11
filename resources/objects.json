@@ -1,8 +1,8 @@
 [
   {
     "SYSTEM-NAME": "Jupiter",
-    "star": {"m": 1.988e+30, "r": 696340000},
-    "planet": {"m": 1.898e+27, "a": 778500000000.0, "e": 0.0489, "inc": 0.0227, "r": 69911000, "primary": "star"}
+    "Sun": {"m": 1.988e+30, "r": 696340000},
+    "Jupiter": {"m": 1.898e+27, "a": 778500000000.0, "e": 0.0489, "inc": 0.0227, "r": 69911000, "primary": "Sun"}
   },
   {
     "SYSTEM-NAME": "Jupiter (Europa-Source)",
