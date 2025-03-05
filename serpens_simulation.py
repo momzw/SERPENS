@@ -5,7 +5,7 @@ import multiprocessing
 import concurrent.futures
 import pickle
 import warnings
-from src.create_particle import create_particle
+from src.spawner import generate_particles
 from src.parameters import Parameters, NewParams
 from tqdm import tqdm
 import time
@@ -80,8 +80,9 @@ def create(source_state, source_r, phys_process, species):
 
     def add_with_multiprocessing():
         per_create = int(n / num_processes)
-        part_state = create_particle(species.id, process=phys_process, source=source_state, source_r=source_r,
-                                     num=per_create)
+        part_state = generate_particles(species.id, process=phys_process, source=source_state, source_r=source_r,
+                                        n_samples=per_create)
+        part_state += source_state.flatten()
         return part_state
 
     # Create a ThreadPoolExecutor with the desired number of threads/processes
