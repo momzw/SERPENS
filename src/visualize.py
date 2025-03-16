@@ -109,7 +109,7 @@ class BaseVisualizer(ArgumentProcessor):
             else:
                 species_name = params.get_species(num=ax_num + 1).description
                 self.axs[ax_num].set_facecolor('k')
-                self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
+                #self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
 
     def _init_celestial_colors(self):
         assert isinstance(self.vis_params['celest_colors'], list), "Please pass 'celest_colors' as a Python list."
@@ -123,11 +123,11 @@ class BaseVisualizer(ArgumentProcessor):
         lim = self.vis_params['lim'] * self._get_primary().r
 
         if self.vis_params["perspective"] == "topdown":
-            ax.set_xlabel("x-distance in planetary radii", fontsize=20, labelpad=15, color='w')
-            ax.set_ylabel("y-distance in planetary radii", fontsize=20, labelpad=15, color='w')
+            ax.set_xlabel("x-distance in primary radii", fontsize=20, labelpad=15, color='w')
+            ax.set_ylabel("y-distance in primary radii", fontsize=20, labelpad=15, color='w')
         elif self.vis_params["perspective"] == "los":
-            ax.set_xlabel("y-distance in planetary radii", fontsize=20, labelpad=8, color='w')
-            ax.set_ylabel("z-distance in planetary radii", fontsize=20, labelpad=15, color='w')
+            ax.set_xlabel("y-distance in primary radii", fontsize=20, labelpad=8, color='w')
+            ax.set_ylabel("z-distance in primary radii", fontsize=20, labelpad=15, color='w')
         else:
             raise ValueError("Invalid perspective in plotting.")
 
@@ -381,8 +381,9 @@ class Visualize(BaseVisualizer):
 
         # Create colorbar and slider axes based on single/non-single plot
         if not self.single_plot:
-            slider_ax = divider.append_axes('right', size='4%')
-            self.slider_axs.append(slider_ax)
+            if self.interactive:
+                slider_ax = divider.append_axes('right', size='4%')
+                self.slider_axs.append(slider_ax)
 
             cax = divider.append_axes('right', size='4%', pad=0.05)
             cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
@@ -391,8 +392,9 @@ class Visualize(BaseVisualizer):
         else:
             if ax_index == 0:
                 for i in range(Parameters.num_species):
-                    slider_ax = divider.append_axes('right', size='4%')
-                    self.slider_axs.append(slider_ax)
+                    if self.interactive:
+                        slider_ax = divider.append_axes('right', size='4%')
+                        self.slider_axs.append(slider_ax)
 
                     cax = divider.append_axes('right', size='4%', pad=0.05 * i)
                     cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')

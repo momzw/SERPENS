@@ -176,7 +176,10 @@ class SerpensAnalyzer:
         """
         phase = np.arctan2(self.get_primary(self.reference_system).y, self.get_primary(self.reference_system).x)
 
-        inc = self.get_primary(self.reference_system).orbit().inc
+        try:
+            inc = self.get_primary(self.reference_system).orbit().inc
+        except ValueError:
+            inc = 0
 
         reb_rot = rebound.Rotation(angle=phase, axis='z')
         reb_rot_inc = rebound.Rotation(angle=inc, axis='y')
@@ -223,8 +226,9 @@ class SerpensAnalyzer:
         for k1 in range(self.sim.N):
             try:
                 part = self.sim.particles[rebound.hash(int(self.particle_hashes[k1]))]  # Get particle
-                self.particle_species[k1] = part.params["serpens_species"]
-                self.particle_weights[k1] = part.params["serpens_weight"]
+                species_id = part.params['serpens_species']
+                self.particle_species[k1] = species_id
+                self.particle_weights[k1] = np.exp(-self.sim.t / self.params.get_species(id=part.params['serpens_species']).network)
                 self._particle_source_hashes[k1] = part.params["source_hash"]
             except AttributeError:
                 continue
@@ -444,7 +448,7 @@ class SerpensAnalyzer:
                     elif d == 2:
                         vis.add_triplot(k, points[:, 0], points[:, 1], delaunay.simplices)
 
-                vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$ around Planetary Body", size=25, color='w')
+                vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$", size=25, color='w')
 
             if self.save:
                 vis(show_bool=show, save_path=self.path, filename=f'TD_{ts}_000{self.save_index}')

@@ -114,7 +114,6 @@ class Parameters:
 
         elif name is not None:
             for i in range(self.num_species):
-
                 if self.species[f"species{i + 1}"].name == name:
                     return self.species[f"species{i + 1}"]
             return None

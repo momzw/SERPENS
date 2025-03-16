@@ -1,7 +1,7 @@
 import os as os
 import shutil
 import dill
-from serpens_simulation import SerpensSimulation
+from _serpens_simulation import Serpens
 from src.parameters import Parameters, NewParams
 from src.species import Species
 
@@ -91,7 +91,7 @@ class SerpensScheduler:
             with open("Parameters.pickle", 'wb') as f:
                 dill.dump(v, f, protocol=dill.HIGHEST_PROTOCOL)
             #sim = SerpensSimulation(filename, snapshot)
-            sim = SerpensSimulation()
+            sim = Serpens()
             sim.advance(num_advances, save_freq=save_freq)
 
             path = f"schedule_archive/simulation-{k}"

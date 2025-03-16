@@ -13,15 +13,6 @@ import time
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')
 
 
-def weight_operator(sim_pointer, rebx_operator, dt):
-    sim = sim_pointer.contents
-    params = Parameters()
-    id_weight_multiplicator = {s.id: np.exp(-sim.dt/s.network) for _, s in params.species.items()}
-
-    for particle in sim.particles[sim.N_active:]:
-        particle.params['serpens_weight'] *= id_weight_multiplicator[particle.params["serpens_species"]]
-
-
 def heartbeat(sim_pointer):
     """
     TODO: Fix the hashing
@@ -80,9 +71,11 @@ def create(source_state, source_r, phys_process, species):
 
     def add_with_multiprocessing():
         per_create = int(n / num_processes)
-        part_state = generate_particles(species.id, process=phys_process, source=source_state, source_r=source_r,
-                                        n_samples=per_create)
-        part_state += source_state.flatten()
+        part_state = generate_particles(
+            species.id, process=phys_process, source=source_state, source_r=source_r,
+            n_samples=per_create
+        )
+
         return part_state
 
     # Create a ThreadPoolExecutor with the desired number of threads/processes
@@ -98,6 +91,7 @@ def create(source_state, source_r, phys_process, species):
 
     # Results as ndarray and reshape before returning
     results = np.asarray(results).reshape(np.shape(results)[0] * np.shape(results)[1], 6)
+    results += source_state.reshape(6)
 
     return results
 
@@ -167,7 +161,6 @@ class SerpensSimulation(rebound.Simulation):
         self.rebx.add_force(rf)
         rf.params["c"] = 3.e8
         self.rebx.register_param('serpens_species', 'REBX_TYPE_INT')
-        self.rebx.register_param('serpens_weight', 'REBX_TYPE_DOUBLE')
         self.rebx.register_param('source_primary', 'REBX_TYPE_INT')
         self.rebx.register_param('source_hash', 'REBX_TYPE_INT')
 
@@ -205,13 +198,17 @@ class SerpensSimulation(rebound.Simulation):
             super().add(particle)
 
             if isinstance(kwargs.get('hash', None), str):
+                object_hash = kwargs['hash']
                 primary = kwargs.get('primary', None)
-                self.obj_primary_dict[kwargs['hash']] = primary
+                self.obj_primary_dict[object_hash] = primary
+                self.particles[-1].hash = object_hash
 
         # Preparing HORIZON database implementation
         else:
+            primary = kwargs.get('primary', None)
             super().add(particle, **kwargs)
-            self.particles[-1].hash = particle
+            self.obj_primary_dict[particle] = primary
+            #self.particles[-1].hash = particle
 
         if not test_particle:
             if self.N_active == -1:
@@ -248,7 +245,6 @@ class SerpensSimulation(rebound.Simulation):
 
                         self.particles[identifier].params["beta"] = species.beta
                         self.particles[identifier].params["serpens_species"] = species.id
-                        self.particles[identifier].params["serpens_weight"] = 1.
                         self.particles[identifier].params["source_hash"] = source.hash.value
 
             Parameters.reset()
@@ -288,13 +284,7 @@ class SerpensSimulation(rebound.Simulation):
                   celestial_name=parameter_set['celest']['SYSTEM-NAME']
                   )()
 
-    def advance_integrate(self):
-        source0_str = self.source_obj_dict["source0"]
-        primary = self.particles[rebound.hash(self.particles[source0_str].params['source_primary'])]
-        orbital_period0 = self.particles[source0_str].orbit(primary=primary).P
-        adv = orbital_period0 * self.params.int_spec["sim_advance"]
-        self.dt = adv / 10
-
+    def advance_integrate(self, time):
         threads_count = multiprocessing.cpu_count()
 
         particle_indices = list(range(self.N_active, self.N))
@@ -304,7 +294,6 @@ class SerpensSimulation(rebound.Simulation):
 
         processes = []
         processes_rebx = []
-        processes_operators = []
         for i in range(threads_count):
             copy = self.copy()
 
@@ -314,12 +303,6 @@ class SerpensSimulation(rebound.Simulation):
             if Parameters.int_spec["fix_source_circular_orbit"]:
                 copy.heartbeat = heartbeat
             copy_rebx = reboundx.Extras(copy, "rebx.bin")
-
-            weightop = copy_rebx.create_operator("weightloss")
-            weightop.operator_type = "recorder"
-            weightop.step_function = weight_operator
-            copy_rebx.add_operator(weightop, dtfraction=1., timing="post")
-            processes_operators.append(weightop)
 
             indices_to_keep_set = set(proc_indices[i])
             for j in reversed(range(copy.N)):
@@ -332,7 +315,7 @@ class SerpensSimulation(rebound.Simulation):
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads_count) as executor:
             future_to_result = {
                 executor.submit(
-                    lambda x: x.integrate(adv * (self.serpens_iter + 1), exact_finish_time=0), p): p for p in processes
+                    lambda x: x.integrate(time * (self.serpens_iter + 1), exact_finish_time=0), p): p for p in processes
             }
 
             for future in concurrent.futures.as_completed(future_to_result):
@@ -352,15 +335,13 @@ class SerpensSimulation(rebound.Simulation):
         self.N_active = n_active
         self.t = processes[0].t
 
-    def advance_single(self):
+    def advance_single(self, time=None, orbit_object=None):
         # ADD & REMOVE PARTICLES
         self._add_particles()
-        self.advance_integrate()
+        self.advance_integrate(time=time)
 
-        source0_str = self.source_obj_dict["source0"]
-        primary = self.particles[rebound.hash(self.particles[source0_str].params['source_primary'])]
-        #orbital_period0 = self.particles["source0"].orbit(primary=primary).P
-        boundary0 = self.params.int_spec["r_max"] * self.particles[source0_str].orbit(primary=primary).a
+        primary = self.particles[rebound.hash(self.particles[orbit_object].params['source_primary'])]
+        boundary0 = self.params.int_spec["r_max"] * self.particles[orbit_object].orbit(primary=primary).a
 
         remove = []
         for particle in self.particles[self.N_active:]:
@@ -384,56 +365,50 @@ class SerpensSimulation(rebound.Simulation):
         self.save_to_file("archive.bin")
         self.rebx.save("rebx.bin")
 
-    def advance(self, num_sim_advances, verbose=False):
+    def advance(self, hours=None, days=None, orbits=None, orbits_reference=None, spawns=None, verbose=False):
         """
         Main function to be called for advancing the SERPENS simulation.
         Uses internal function to add particles, include loss for super-particles, and integrate in time using
         multiprocessing. Saves resulting REBOUND simulation state to disk.
-
-        Arguments
-        ---------
-        num_sim_advances : int
-            Number of advances to simulate.
-        save_freq : int     (default: 1)
-            Number of advances after which SERPENS saves the simulation instance.
-        verbose : bool      (default: False)
-            Enable printing of logs.
         """
+        if orbits_reference is None:
+            orbit_reference_object = self.source_obj_dict["source0"]
+        else:
+            orbit_reference_object = orbits_reference
+        primary = self.particles[rebound.hash(self.particles[orbit_reference_object].params['source_primary'])]
+        orbital_period = self.particles[orbit_reference_object].orbit(primary=primary).P
+
+        total_time = 0
+        if days is not None:
+            total_time += days * 3600 * 24
+        if hours is not None:
+            total_time += hours * 3600
+        if orbits is not None:
+            total_time += orbits * orbital_period
+
+        if spawns is not None:
+            iteration_length = total_time / spawns
+            iterations = spawns
+        else:
+            iteration_length = total_time
+            iterations = 1
+        self.dt = iteration_length / 12     # Fixed value.
+
         start_time = time.time()
-        steady_state_counter = 0
-        steady_state_breaker = None
-
-        for _ in tqdm(range(num_sim_advances), disable=verbose):
+        for _ in tqdm(range(iterations), disable=verbose):
             if verbose:
-                print(f"Starting SERPENS advance {self.serpens_iter} ... ")
+                print(f"Starting SERPENS integration step {self.serpens_iter} ... ")
 
-            n_before = self.N
-            self.advance_single()
+            self.advance_single(iteration_length, orbit_reference_object)
 
             if verbose:
                 t = self.t
-                print(f"Advance done! \n"
-                      f"Simulation time [h]: {np.around(t / 3600, 2)} \n"
-                      f"Simulation runtime [s]: {np.around(time.time() - start_time, 2)} \n"
-                      f"Number of particles: {self.N}")
-
-            # Handle steady state (1/2)
-            if np.abs(self.N - n_before) < 50:
-                steady_state_counter += 1
-                if steady_state_counter == 10 and self.params.int_spec["stop_at_steady_state"] is True:
-                    print("Steady state reached!")
-                    print("Stopping after another successful revolution...")
-                    steady_state_breaker = 1
-            else:
-                steady_state_counter = 0
-
-            # Handle steady state (2/2)
-            if steady_state_breaker is not None:
-                print(f"Advances left: {1 / self.params.int_spec['sim_advance'] - steady_state_breaker}")
-                if steady_state_breaker == 1 / self.params.int_spec["sim_advance"]:
-                    break
-                else:
-                    steady_state_breaker += 1
+                print(
+                    f"Step done! \n"
+                    f"Simulation time [h]: {np.around(t / 3600, 2)} \n"
+                    f"Simulation runtime [s]: {np.around(time.time() - start_time, 2)} \n"
+                    f"Number of particles: {self.N} \n"
+                )
 
             # End iteration
             self.serpens_iter += 1

@@ -94,9 +94,12 @@ def calculate_params(celestial_system, stellar_temperature=None, lineofsight_obs
     gc = 6.6743e-11
     tau_sync = 100e6 * 3.156e7
 
-    with open('../resources/objects.txt') as f:
-        data = f.read().splitlines(True)
-        celest = json.loads(data[[f"{celestial_system}" in s for s in data].index(True)])
+    with open('../resources/objects.json') as f:
+        systems = json.load(f)
+        celest = [objects for condition, objects in
+                  zip([s['SYSTEM-NAME'] == f"{celestial_system}" for s in systems], systems) if condition][0]
+        #data = f.read().splitlines(True)
+        #celest = json.loads(data[[f"{celestial_system}" in s for s in data].index(True)])
 
     star_mass = celest["star"]["m"]
     star_radius = celest["star"]["r"]
