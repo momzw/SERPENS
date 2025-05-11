@@ -1,11 +1,20 @@
 import matplotlib as mpl
+import h5py
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.widgets import RangeSlider
+import matplotlib.gridspec as gridspec
+import rebound
+from src.parameters import GLOBAL_PARAMETERS
+import matplotlib.colors as colors
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # Constant configurations for Matplotlib
+DEFAULT_FACECOLOR = 'yellow'
 try:
     FONT_CONFIG = {'family': 'serif', 'serif': ['Computer Modern'], 'size': 18}
     TEXT_CONFIG = {'usetex': True}
     TEX_CONFIG = {'preamble': r'\usepackage{amssymb}'}
-    DEFAULT_FACECOLOR = 'yellow'
 
     # Setting the backend and configurations for Matplotlib
     mpl.use('TkAgg')
@@ -16,14 +25,7 @@ except Exception as exc:
     print(f"An exception occurred while trying to change matplotlib parameters: {exc}")
     pass
 
-import numpy as np
-import rebound
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-import matplotlib.colors as colors
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from src.parameters import Parameters
-from matplotlib.widgets import Slider, RangeSlider
+
 
 
 class ArgumentProcessor:
@@ -44,21 +46,17 @@ class ArgumentProcessor:
             "single_plot": False,
             "show_source": True,
             "show_primary": True,
-            "show_hill": False,
             "celest_colors": ['yellow', 'sandybrown', 'yellow'],
             "cb_format": '%.2f',
-            "cfilter_coeff": 1,
             "lvl_min": None,
             "lvl_max": None,
+            "trialpha": 0.8,
             "zorder": 1,
-            "perspective": 'topdown',
+            "perspective": 'planar',
             "figsize": 15,
             "dpi": 100,
             "shadow_polygon": True,
             "planetstar_connection": True,
-            "mesh_smoothing": 1,
-            "mesh_fill_contour": True,
-            "mesh_contour": True
         }
 
         self.apply_defaults(default_values)
@@ -68,30 +66,79 @@ class BaseVisualizer(ArgumentProcessor):
 
     def __init__(self, rebsim, reference_system, **kwargs):
         super().__init__(**kwargs)
-        Parameters()
         self.sim = rebsim
         self.particles = rebsim.particles
         self.face_colors = self._init_celestial_colors()
-        self.reference_system = reference_system
+        self.reference_system = reference_system if reference_system is not None else 0
 
-        self._init_figure()
+        self.num_species = len(GLOBAL_PARAMETERS.get('all_species', []))
+        if self.num_species > 0:
+            self._init_figure()
+        else:
+            print("WARNING! No SERPENS species found. Falling back to REBOUND orbit plot.")
+            reb_kwargs = kwargs.get('rebound_orbit_kwargs', {})
+            if self.vis_params["perspective"] == "los":
+                reb_kwargs.update({'projection': 'xz'})
+            rebound.OrbitPlot(self.sim, **reb_kwargs)
+
+    def get_particle_param(self, particle_hash, param_name, h5_filename="simdata/particle_params.h5"):
+        """
+        Get a parameter value for a particle from the h5 file.
+        Falls back to REBOUNDx if not found in h5.
+
+        Arguments
+        ---------
+        particle_hash : str or int
+            Hash of the particle
+        param_name : str
+            Name of the parameter to get
+        h5_filename : str
+            Name of the h5 file
+
+        Returns
+        -------
+        The parameter value or None if not found
+        """
+        hash_str = str(particle_hash)
+        try:
+            with h5py.File(h5_filename, 'r') as f:
+                if hash_str in f[param_name]:
+                    return f[param_name][hash_str][()]
+        except (IOError, KeyError):
+            pass
+
+        # Fall back to REBOUNDx if not found in h5
+        try:
+            return self.sim.particles[particle_hash].params[param_name]
+        except (AttributeError, KeyError):
+            return None
 
     def _get_primary(self) -> rebound.Particle:
-        return self.sim.particles[
-            rebound.hash(self.sim.particles[self.reference_system].params['source_primary'])]
+        # Get the hash value of the reference particle
+        reference_hash = self.sim.particles[self.reference_system].hash.value
+
+        # Get source_primary from h5 file with fallback to REBOUNDx
+        source_primary_hash = self.get_particle_param(reference_hash, 'source_primary')
+
+        if source_primary_hash is None:
+            # If not found in either storage, try the old way as a last resort
+            try:
+                source_primary_hash = self.sim.particles[self.reference_system].params['source_primary']
+            except (AttributeError, KeyError):
+                # If all else fails, return the first particle
+                return self.sim.particles[0]
+
+        return self.sim.particles[rebound.hash(int(source_primary_hash))]
 
     def _init_figure(self):
-        params = Parameters()
-        ns = params.num_species
-
         # colorbar: dpi: 800, facecolor w, colors at colorbar k
-        self.fig = plt.figure(figsize=(self.vis_params['figsize']*Parameters.num_species, self.vis_params['figsize']),
+        self.fig = plt.figure(figsize=(self.vis_params['figsize']*self.num_species, self.vis_params['figsize']),
                               dpi=self.vis_params['dpi'])
         self.fig.patch.set_facecolor('k')
 
-        if not self.vis_params['single_plot'] and ns > 1:
-            self.subplot_rows = int(np.ceil(ns / 3))
-            self.subplot_columns = params.num_species if ns <= 3 else 3
+        if not self.vis_params['single_plot'] and self.num_species > 1:
+            self.subplot_rows = int(np.ceil(self.num_species / 3))
+            self.subplot_columns = self.num_species if self.num_species <= 3 else 3
             self.single_plot = False
         else:
             self.subplot_rows = 1
@@ -103,11 +150,12 @@ class BaseVisualizer(ArgumentProcessor):
 
         self.axs = [plt.subplot(gs1[f]) for f in range(self.subplot_rows * self.subplot_columns)]
         for ax_num in range(len(self.axs)):
-            if ax_num >= params.num_species:
+            if ax_num >= self.num_species:
                 self.axs[ax_num].remove()
                 self.axs[ax_num].grid(False)
             else:
-                species_name = params.get_species(num=ax_num + 1).description
+                #species_name = params.get_species(num=ax_num + 1).description
+                #species_name = GLOBAL_PARAMETERS.get('all_species', [])[ax_num].description
                 self.axs[ax_num].set_facecolor('k')
                 #self.axs[ax_num].set_title(f"{species_name}", c='w', size=12, pad=15)
 
@@ -122,7 +170,7 @@ class BaseVisualizer(ArgumentProcessor):
         ax.set_aspect("equal")
         lim = self.vis_params['lim'] * self._get_primary().r
 
-        if self.vis_params["perspective"] == "topdown":
+        if self.vis_params["perspective"] == "planar":
             ax.set_xlabel("x-distance in primary radii", fontsize=20, labelpad=15, color='w')
             ax.set_ylabel("y-distance in primary radii", fontsize=20, labelpad=15, color='w')
         elif self.vis_params["perspective"] == "los":
@@ -164,7 +212,7 @@ class BaseVisualizer(ArgumentProcessor):
         if self.vis_params["perspective"] == 'los':
             ax.invert_xaxis()
 
-        if self.vis_params["perspective"] == "topdown":
+        if self.vis_params["perspective"] == "planar":
             if self.vis_params['shadow_polygon']:
                 self._add_shadow_polygon(ax)
             if self.vis_params['planetstar_connection']:
@@ -180,7 +228,7 @@ class BaseVisualizer(ArgumentProcessor):
         self._add_additional_celestials(ax)
 
     def _get_coordinates_source(self):
-        if self.vis_params["perspective"] == "topdown":
+        if self.vis_params["perspective"] == "planar":
             return self.particles[self.reference_system].x, self.particles[self.reference_system].y
         elif self.vis_params["perspective"] == "los":
             return -self.particles[self.reference_system].y, self.particles[self.reference_system].z
@@ -189,7 +237,7 @@ class BaseVisualizer(ArgumentProcessor):
 
     def _get_coordinates_primary(self):
         primary = self._get_primary()
-        if self.vis_params["perspective"] == "topdown":
+        if self.vis_params["perspective"] == "planar":
             return primary.x, primary.y
         elif self.vis_params["perspective"] == "los":
             return -primary.y, primary.z
@@ -199,10 +247,12 @@ class BaseVisualizer(ArgumentProcessor):
     def _add_patches(self, ax):
 
         if self.vis_params['show_primary']:
-            fc_index = self.particles[rebound.hash(self.particles[self.reference_system].params["source_primary"])].index
+            # Get the primary using the _get_primary method which now uses h5 storage
+            primary = self._get_primary()
+            fc_index = primary.index
             fc = self.face_colors[fc_index]
             coord1, coord2 = self._get_coordinates_primary()
-            primary_patch = plt.Circle((coord1, coord2), self._get_primary().r, fc=fc, zorder=10, label="primary")
+            primary_patch = plt.Circle((coord1, coord2), primary.r, fc=fc, zorder=10, label="primary")
             ax.add_patch(primary_patch)
 
         if self.vis_params['show_source']:
@@ -212,13 +262,8 @@ class BaseVisualizer(ArgumentProcessor):
                                       label="source", zorder=10, fill=True, alpha=0.7)
             ax.add_patch(source_patch)
 
-        # if self.source_is_moon and self.vis_params['show_hill']:
-        #    coord1, coord2 = self._get_coordinates("source_primary0")
-        #    hill_patch = plt.Circle((coord1, coord2), self.ps["source_primary0"].rhill, fc='green', fill=False)
-        #    ax.add_patch(hill_patch)
-
     def _add_shadow_polygon(self, ax):
-        assert self.vis_params["perspective"] == "topdown"
+        assert self.vis_params["perspective"] == "planar"
         apex = np.asarray(self.particles[1].xyz) * (
                 1 + self.particles[1].r / (self.particles[0].r - self.particles[1].r))
 
@@ -231,17 +276,19 @@ class BaseVisualizer(ArgumentProcessor):
         ax.add_patch(t1)
 
     def _add_planetstar_connection(self, ax):
-        assert self.vis_params["perspective"] == "topdown"
+        assert self.vis_params["perspective"] == "planar"
         ax.plot([self.particles[0].x, self.particles[1].x], [self.particles[0].y, self.particles[1].y], color='bisque',
                 linestyle=':', linewidth=1, zorder=10)
 
     def _add_additional_celestials(self, ax):
         # Additional celestial objects
-        source_is_moon = self.particles[rebound.hash(self.particles[self.reference_system].params["source_primary"])].index > 0
+        # Get the primary using the _get_primary method which now uses h5 storage
+        primary = self._get_primary()
+        source_is_moon = primary.index > 0
         number_additional_celest = self.sim.N_active - 3 if source_is_moon else self.sim.N_active - 2
         if number_additional_celest > 0:
             moons_indices = [i for i in range(self.sim.N_active - number_additional_celest, self.sim.N_active)]
-            if self.vis_params["perspective"] == 'topdown':
+            if self.vis_params["perspective"] == 'planar':
                 op_add = rebound.OrbitPlot(self.sim, fig=self.fig, ax=ax, particles=moons_indices,
                                            color=self.face_colors[moons_indices[0]:], primary=self.particles[1],
                                            orbit_style="trail", lw=.5)
@@ -252,7 +299,7 @@ class BaseVisualizer(ArgumentProcessor):
 
             for i in range(number_additional_celest):
                 ind = moons_indices[i]
-                if self.vis_params["perspective"] == "topdown":
+                if self.vis_params["perspective"] == "planar":
                     op_add.orbits[i].set_alpha(.5)
                     major_obj = plt.Circle((self.particles[ind].x, self.particles[ind].y), self.particles[ind].r,
                                            alpha=0.7,
@@ -296,7 +343,6 @@ class Visualize(BaseVisualizer):
                 self.interactive = False
 
             if self.interactive:
-
                 sliders = []
                 for slider_ax in self.slider_axs:
                     index = self.slider_axs.index(slider_ax)
@@ -363,7 +409,7 @@ class Visualize(BaseVisualizer):
         divider = make_axes_locatable(ax_obj)
 
         # Get densities and append data to class list
-        logdens = np.where(density > 0, np.log10(density), 0)
+        logdens = np.log10(density + 1e-5)
         self.scatters.append((x, y, logdens))
 
         # Set up colormaps
@@ -391,7 +437,7 @@ class Visualize(BaseVisualizer):
                                                        format=self.vis_params['cb_format']))
         else:
             if ax_index == 0:
-                for i in range(Parameters.num_species):
+                for i in range(self.num_species):
                     if self.interactive:
                         slider_ax = divider.append_axes('right', size='4%')
                         self.slider_axs.append(slider_ax)
@@ -410,7 +456,7 @@ class Visualize(BaseVisualizer):
         else:
             self.colorbar_interact[-1].ax.set_title(fr'[cm$^{{{-d}}}$]', fontsize=22, loc='left', pad=20, color='w')
 
-    def add_triplot(self, ax_index, x, y, simplices, trialpha=.8, **kwargs):
+    def add_triplot(self, ax_index, x, y, simplices, **kwargs):
         self.vis_params.update(kwargs)
 
         # Set up axes
@@ -422,7 +468,7 @@ class Visualize(BaseVisualizer):
             if ax_index == 0:
                 self.setup_ax(ax_obj)
 
-        ax_obj.triplot(x, y, simplices, linewidth=0.1, c='w', zorder=self.vis_params["zorder"], alpha=trialpha)
+        ax_obj.triplot(x, y, simplices, linewidth=0.1, c='w', zorder=self.vis_params["zorder"], alpha=self.vis_params["trialpha"])
 
     def empty(self, ax):
         if not self.single_plot:

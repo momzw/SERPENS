@@ -4,9 +4,9 @@ This script allows interfacing basic features of SERPENS by guiding the user.
 
 import sys
 import json
-from scheduler import SerpensScheduler
-from serpens_analyzer import SerpensAnalyzer
-from src.parameters import Parameters, NewParams
+from src.scheduler import SerpensScheduler
+from src.serpens_analyzer import SerpensAnalyzer
+from legacy._parameters import Parameters, NewParams
 from src.species import Species
 
 print("                .                    .                        .             ")

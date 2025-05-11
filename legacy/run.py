@@ -3,7 +3,7 @@ import shutil
 import os
 import gc
 import pandas as pd
-from serpens_analyzer import SerpensAnalyzer, PhaseCurve
+from src.serpens_analyzer import SerpensAnalyzer, PhaseCurve
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')

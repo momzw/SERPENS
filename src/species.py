@@ -68,7 +68,7 @@ class Species(SpeciesSpecifics):
         self.electron_density = kwargs.get("n_e", None)
 
         if self.electron_density is not None:
-            self.network = Network(self.species_id, e_scaling=self.electron_density).network
+            self.network = Network(self.id, e_scaling=self.electron_density).network
 
         if self.tau is not None:
             self.network = self.tau

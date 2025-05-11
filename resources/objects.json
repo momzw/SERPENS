@@ -1,86 +1,77 @@
 [
   {
-    "SYSTEM-NAME": "Jupiter",
+    "SYSTEM-NAME": "Jupiter (no moons)",
     "Sun": {"m": 1.988e+30, "r": 696340000},
     "Jupiter": {"m": 1.898e+27, "a": 778500000000.0, "e": 0.0489, "inc": 0.0227, "r": 69911000, "primary": "Sun"}
   },
   {
-    "SYSTEM-NAME": "Jupiter (Europa-Source)",
+    "SYSTEM-NAME": "Jupiter",
     "star": {"m": 1.988e+30, "r": 696340000},
-    "planet": {"m": 1.898e+27, "a": 778500000000.0, "e": 0.0489, "inc": 0.0227, "r": 69911000, "primary": "star"},
-    "Io": {"m": 8.8e+22, "a": 421700000.0, "e": 0.0041, "r": 1821600, "primary": "planet"},
-    "Europa": {"m": 4.799e+22, "a": 670900000.0, "e": 0.009, "inc": 0.0082, "r": 1560800, "primary": "planet", "source": true},
-    "Ganymede": {"m": 1.4819e+23, "a": 1070400000, "e": 0.0013, "inc": 0.00349, "r": 2410300, "primary": "planet"},
-    "Callisto": {"m": 1.0759e+22, "a": 1882700000, "e": 0.0074, "inc": 0.00335, "primary": "planet"}
-  },
-  {
-    "SYSTEM-NAME": "Jupiter (Io-Source)",
-    "star": {"m": 1.988e+30, "r": 696340000},
-    "planet": {"m": 1.898e+27, "a": 778500000000.0, "e": 0.0489, "inc": 0.0227, "r": 69911000, "primary": "star"},
-    "Io": {"m": 8.8e+22, "a": 421700000.0, "e": 0.0041, "r": 1821600.0, "primary": "planet", "source": true},
-    "Europa": {"m": 4.799e+22, "a": 670900000.0, "e": 0.009, "inc": 0.0082, "r": 1560800, "primary": "planet"},
-    "Ganymede": {"m": 1.4819e+23, "a": 1070400000, "e": 0.0013, "inc": 0.00349, "r": 2410300, "primary": "planet"},
-    "Callisto": {"m": 1.0759e+22, "a": 1882700000, "e": 0.0074, "inc": 0.00335, "primary": "planet"}
+    "Jupiter": {"m": 1.898e+27, "a": 778500000000.0, "e": 0.0489, "inc": 0.0227, "r": 69911000, "primary": "star"},
+    "Io": {"m": 8.8e+22, "a": 421700000.0, "e": 0.0041, "r": 1821600, "primary": "Jupiter"},
+    "Europa": {"m": 4.799e+22, "a": 670900000.0, "e": 0.009, "inc": 0.0082, "r": 1560800, "primary": "Jupiter"},
+    "Ganymede": {"m": 1.4819e+23, "a": 1070400000, "e": 0.0013, "inc": 0.00349, "r": 2410300, "primary": "Jupiter"},
+    "Callisto": {"m": 1.0759e+22, "a": 1882700000, "e": 0.0074, "inc": 0.00335, "primary": "Jupiter"}
   },
   {
     "SYSTEM-NAME": "WASP-49",
     "star": {"m": 1.43136e+30, "r": 722800920.0},
     "planet": {"m": 7.17444e+26, "r": 77950765.0, "a": 5654799512.46, "inc": 0.089, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 135634331.1, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 135634331.1, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "HD-189733",
     "star": {"m": 1.5904e+30, "r": 560553700.0},
     "planet": {"m": 2.1599239999999997e+27, "r": 79558718.0, "a": 4637533991.7, "inc": 0.078, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 167868894.98, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 167868894.98, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "HD-209458",
     "star": {"m": 2.282224e+30, "r": 837697020.0},
     "planet": {"m": 1.30962e+27, "r": 96477179.99999999, "a": 7105898858.25, "inc": 0.0595, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 186200957.39999998, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 186200957.39999998, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "HAT-P-1",
     "star": {"m": 2.288188e+30, "r": 817503160.0},
     "planet": {"m": 9.9645e+26, "a": 8317641610.919999, "r": 92212609.0, "inc": 0.076, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 210244748.51999998, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 210244748.51999998, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "WASP-39",
     "star": {"m": 1.8488400000000002e+30, "r": 623224300.0},
     "planet": {"m": 5.3144e+26, "r": 90794840, "a": 7270456516.0199995, "inc": 0.038, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 162522763.6, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 162522763.6, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "WASP-17",
     "star": {"m": 2.3856e+30, "r": 937688278.6},
     "planet": {"m": 9.6798e+26, "r": 139122890.0, "a": 7520259994.372, "inc": 0.055, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 178077299.20000002, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 178077299.20000002, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "WASP-69",
     "star": {"m": 1.6500399999999998e+30, "r": 554310336.8000001},
     "planet": {"m": 4.9348e+26, "r": 74105660.0, "a": 6635094731.496002, "inc": 0.057, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 143764980.4, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 143764980.4, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "WASP-96",
     "star": {"m": 2.10728e+30, "r": 713931132.0},
     "planet": {"m": 9.1104e+26, "r": 83893200.0, "a": 6625280904.959999, "inc": 0.077, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 176175720.0, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 176175720.0, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "XO-2 N",
     "star": {"m": 1.94824e+30, "r": 653723778.8},
     "planet": {"m": 1.17676e+27, "r": 67813670.0, "a": 5380146699.524, "inc": 0.023, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 140374296.89999998, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 140374296.89999998, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "WASP-52",
     "star": {"m": 1.72956e+30, "r": 538049038.1999999},
     "planet": {"m": 1.17676e+27, "r": 88786970.0, "a": 3981562882.6800003, "primary": "star"},
-    "moon": {"m": 8.8e+22, "a": 103880754.9, "r": 1820000.0, "primary": "planet", "source": true}
+    "moon": {"m": 8.8e+22, "a": 103880754.9, "r": 1820000.0, "primary": "planet"}
   },
   {
     "SYSTEM-NAME": "55-Cnc-e",

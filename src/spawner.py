@@ -1,5 +1,5 @@
 import numpy as np
-from src.parameters import Parameters
+from src.parameters import GLOBAL_PARAMETERS
 
 from scipy.optimize import fmin
 from scipy.stats import truncnorm, maxwell, norm, rv_continuous
@@ -78,8 +78,7 @@ def random_temperature(source, temp_min, temp_max, latitude, longitude):
         Longitude at which to calculate temperature
     """
     longitude_wrt_sun = longitude - np.arctan2(source[0][1], source[0][0])
-    Params = Parameters()
-    if not Params.therm_spec["spherical_symm_ejection"]:
+    if not GLOBAL_PARAMETERS["spherical_symm_ejection"]:
         # Coordinate system relevant. If x-axis away from star a longitude -np.pi / 2 < longitude_wrt_sun < np.pi / 2 points away from the star!
         # (refer Wurz, P., 2002, "Monte-Carlo simulation of Mercury's exosphere"; -np.pi / 2 < longitude_wrt_sun < np.pi / 2)
         if np.pi / 2 < longitude_wrt_sun < 3 * np.pi / 2:
@@ -102,8 +101,9 @@ def random_thermal_velocity(species_id, temp):
     temp : float
         Local temperature.
     """
-    Params = Parameters()
-    species = Params.get_species(id=species_id)
+    #Params = Parameters()
+    #species = Params.get_species(id=species_id)
+    species = [s for s in GLOBAL_PARAMETERS.get('species') if s.id == species_id][0]
 
     k_B = 1.380649e-23
     vel = np.zeros((len(temp), 3))
@@ -118,8 +118,9 @@ def random_thermal_velocity(species_id, temp):
 
 
 def random_sputter_velocity(species_id, n_samples=1):
-    Params = Parameters()
-    species = Params.get_species(id=species_id)
+    #Params = Parameters()
+    #species = Params.get_species(id=species_id)
+    species = [s for s in GLOBAL_PARAMETERS.get('species') if s.id == species_id][0]
 
     v_b = species.sput_spec["model_smyth_v_b"]
     v_M = species.sput_spec["model_smyth_v_M"]
@@ -201,9 +202,8 @@ def generate_particles(species_id, process, source, source_r, n_samples=1, **kwa
     valid_process = {"thermal": 0, "sputter": 1}
     assert process in valid_process, "Invalid escaping mechanism encountered in particle creation"
 
-    Params = Parameters()
-    temp_min = kwargs.get("temp_min", Params.therm_spec['source_temp_min'])
-    temp_max = kwargs.get("temp_max", Params.therm_spec['source_temp_max'])
+    temp_min = kwargs.get("temp_min", GLOBAL_PARAMETERS.get('source_temp_min', 0))
+    temp_max = kwargs.get("temp_max", GLOBAL_PARAMETERS.get('source_temp_max', 0))
 
     if valid_process[process] == 0: # thermal
         positions, latitudes, longitudes = random_pos(source_r, lat_dist="uniform", long_dist="uniform", a_long=0,
