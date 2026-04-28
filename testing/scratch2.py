@@ -1,8 +1,6 @@
 from src.serpens_analyzer import SerpensAnalyzer
 from src.serpens_simulation import SerpensSimulation
 from src.species import Species
-import matplotlib
-
 
 if __name__ == "__main__":
 

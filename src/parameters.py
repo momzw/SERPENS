@@ -1,5 +1,6 @@
-from src.species import Species
 import json
+
+from src.species import Species
 
 
 def initialize_global_defaults(parameters):

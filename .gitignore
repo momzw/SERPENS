@@ -4,6 +4,16 @@
 /schedule_archive/
 /proc/
 /venv/
+/.jbeval/
+/.idea/
+/.ipynb_checkpoints/
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+__pycache__/
+*.py[cod]
+**.so
+.DS_Store
 *.gif
 *.pickle
 *.mp4

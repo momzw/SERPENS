@@ -1,7 +1,8 @@
 import os as os
 import shutil
-from src.serpens_simulation import SerpensSimulation
+
 from src.parameters import GLOBAL_PARAMETERS, initialize_global_defaults
+from src.serpens_simulation import SerpensSimulation
 from src.species import Species
 
 
@@ -59,8 +60,8 @@ class SerpensScheduler:
             ssch = SerpensScheduler()
             ssch.schedule("ExoEarth-Na-Simulation",
                           species=[Species('Na', description='Exo-Earth Na', n_th=0, n_sp=800,
-                                           mass_per_sec=10**4.8, model_smyth_v_b=0.95*1000,
-                                           model_smyth_v_M=15.24*1000, lifetime=4*60, beta=0)],
+                                           mass_per_sec=10**4.8, v_b=0.95*1000,
+                                           v_M=15.24*1000, lifetime=4*60, beta=0)],
                           int_spec={"radiation_pressure_shield": False, "r_max": 8},
                           objects={'moon': {'m': 3.8e24, 'r': 6370000}},
                           celestial_name="WASP-49",
@@ -71,8 +72,8 @@ class SerpensScheduler:
             ssch = SerpensScheduler()
             ssch.schedule("ExoEnceladus-Na-Simulation",
                           species=[Species('Na', description='Exo-Enceladus Na', n_th=0, n_sp=800,
-                                           mass_per_sec=10**4.8, model_smyth_v_b=0.95*1000,
-                                           model_smyth_v_M=15.24*1000, lifetime=4*60, beta=3.19,
+                                           mass_per_sec=10**4.8, v_b=0.95*1000,
+                                           v_M=15.24*1000, lifetime=4*60, beta=3.19,
                                            shielded_lifetime=3*3600)],
                           int_spec={"radiation_pressure_shield": True, "r_max": 10},
                           objects={'moon': {'m': 2.3e20, 'r': 250000}},
@@ -230,8 +231,8 @@ if __name__ == "__main__":
                 n_th=0,                         # Number of thermal particles (0 = disabled)
                 n_sp=300,                       # Number of sputtered particles per spawn
                 mass_per_sec=6.69,              # Mass production rate (kg/s)
-                model_smyth_v_b=1200,           # Bulk velocity parameter (m/s)
-                model_smyth_v_M=6*1000          # Maximum velocity parameter (m/s)
+                v_b=1200,           # Bulk velocity parameter (m/s)
+                v_M=6*1000          # Maximum velocity parameter (m/s)
             )
         ],
         # Set integration parameters
@@ -253,8 +254,8 @@ if __name__ == "__main__":
                 n_th=0,
                 n_sp=300,
                 mass_per_sec=6.69,
-                model_smyth_v_b=1200,
-                model_smyth_v_M=6*1000
+                v_b=1200,
+                v_M=6*1000
             )
         ],
         int_spec={"r_max": 16}

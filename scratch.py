@@ -1,8 +1,8 @@
+import matplotlib
+
 from src.serpens_analyzer import SerpensAnalyzer
 from src.serpens_simulation import SerpensSimulation
 from src.species import Species
-import matplotlib
-
 
 if __name__ == "__main__":
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     )
 
     # Run the simulation for a short duration
-    ssim.advance(orbits=2, spawns=20, orbits_reference="Io", verbose=True)
+    ssim.advance(orbits=15, spawns=20, orbits_reference="Io", verbose=True)
 
     # Create the SerpensAnalyzer object
     sa = SerpensAnalyzer(reference_system="Io")

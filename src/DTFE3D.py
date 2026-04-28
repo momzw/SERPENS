@@ -1,9 +1,10 @@
 # Load the numpy and scipy libraries
-import numpy as np
-from scipy.spatial import Delaunay
-import numba
-from numba import float32, float64, int64
 from typing import Union
+
+import numba
+import numpy as np
+from numba import float64, int64
+from scipy.spatial import Delaunay
 
 
 @numba.jit(nopython=True, nogil=True)

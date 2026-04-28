@@ -1,20 +1,22 @@
+import concurrent.futures
+import copy
+import multiprocessing
 import os
+import pickle
+import time
+import warnings
 
+import h5py
+import numpy as np
 import rebound
 import reboundx
-import numpy as np
-import multiprocessing
-import concurrent.futures
-import pickle
-import warnings
-import copy
-import h5py
-from src.spawner import generate_particles
-from src.parameters import GLOBAL_PARAMETERS
 from tqdm import tqdm
-import time
+
+from src.parameters import GLOBAL_PARAMETERS
+from src.spawner import generate_particles
 
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')
+
 
 # Global h5 file access functions for use in callbacks
 def get_particle_param_h5(particle_hash, param_name, h5_filename="simdata/particle_params.h5"):
@@ -43,44 +45,6 @@ def get_particle_param_h5(particle_hash, param_name, h5_filename="simdata/partic
     except (IOError, KeyError):
         pass
     return None
-
-
-def heartbeat(sim_pointer):
-    """
-    Not meant for external use.
-    REBOUND heartbeat function to fix a source's orbit to be circular.
-    """
-    sim = sim_pointer.contents
-
-    i = 0
-    while True:
-        try:
-            # Get source_primary from h5 file instead of params
-            source_hash = f"source{i}"
-            source_primary_hash = get_particle_param_h5(source_hash, 'source_primary')
-
-            if source_primary_hash is None:
-                # Fall back to REBOUNDx if not found in h5
-                source_primary_hash = sim.particles[source_hash].params.get('source_primary')
-
-            if source_primary_hash is None:
-                # Skip if not found in either storage
-                i += 1
-                continue
-
-            primary = sim.particles[rebound.hash(source_primary_hash)]
-            source = sim.particles[source_hash]
-            o = source.orbit(primary=primary)
-            newP = rebound.Particle(simulation=sim, primary=primary, m=source.m, a=o.a, e=0, inc=o.inc,
-                                    omega=o.omega, Omega=o.Omega, f=o.f)
-
-            sim.particles[source_hash].xyz = newP.xyz
-            sim.particles[source_hash].vxyz = newP.vxyz
-
-            i += 1
-
-        except rebound.ParticleNotFound:
-            break
 
 
 def create(source_state, source_r, phys_process, species):
@@ -138,6 +102,20 @@ def create(source_state, source_r, phys_process, species):
     results += source_state.reshape(6)
 
     return results
+
+
+def get_species_by_name(name):
+    for species in GLOBAL_PARAMETERS.get("all_species"):
+        if species.name == name:
+            return species
+    return None
+
+
+def get_species_by_id(id):
+    for species in GLOBAL_PARAMETERS.get("all_species"):
+        if species.id == id:
+            return species
+    return None
 
 
 class SerpensSimulation(rebound.Simulation):
@@ -213,6 +191,8 @@ class SerpensSimulation(rebound.Simulation):
             f.create_group("source_hash")
             f.create_group("source_primary")
             f.create_group("serpens_creation_time")
+            f.create_group("serpens_reaction_time")
+            f.create_group("serpens_reaction_target")
 
     def get_particle_param(self, particle_hash, param_name):
         """
@@ -263,11 +243,10 @@ class SerpensSimulation(rebound.Simulation):
         """
         print("Initializing new simulation instance...")
 
-        self.integrator = "whfast"  # Fast and unbiased symplectic Wisdom-Holman integrator.
+        self.integrator = "ias15"   # Integrator with Adaptive Step-size control, 15th order
+        self.ri_ias15.min_dt = 1e-4
         self.collision = "direct"  # Brute force collision search and scales as O(N^2).
         self.collision_resolve = "merge"
-        if GLOBAL_PARAMETERS.get('fix_source_circular_orbit', False):
-            self.heartbeat = heartbeat
 
         # SI units:
         self.units = ('m', 's', 'kg')
@@ -278,8 +257,9 @@ class SerpensSimulation(rebound.Simulation):
         rf = self.rebx.load_force("radiation_forces")
         self.rebx.add_force(rf)
         rf.params["c"] = 3.e8
-        # Note: We no longer register these parameters with REBOUNDx
-        # as they are now stored in the h5 file
+
+        # For CERPENS or catching errors in SERPENS
+        self.rebx.register_param("q_over_m", "REBX_TYPE_DOUBLE")
 
         for k, v in GLOBAL_PARAMETERS.get('celest', {}).items():
             if not type(v) == dict:
@@ -298,9 +278,6 @@ class SerpensSimulation(rebound.Simulation):
         os.makedirs('simdata', exist_ok=True)
         self.save_to_file("simdata/archive.bin", delete_file=True)
         self.rebx.save("simdata/rebx.bin")
-
-        #with open(f"Parameters.txt", "w") as f:
-        #    f.write(f"{self.params.__str__()}")
 
         with open("simdata/parameters.pkl", 'wb') as f:
             pickle.dump(GLOBAL_PARAMETERS.params, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -341,7 +318,7 @@ class SerpensSimulation(rebound.Simulation):
             super().add(particle)
 
             if isinstance(kwargs.get('hash', None), str):
-                object_hash = kwargs['hash']
+                object_hash = str(kwargs.get('hash'))
                 primary = kwargs.get('primary', None)
                 self.obj_primary_dict[object_hash] = primary
                 self.particles[-1].hash = object_hash
@@ -397,14 +374,40 @@ class SerpensSimulation(rebound.Simulation):
                             # Get the rebound hash of the added particle
                             particle_hash = self.particles[-1].hash.value
 
+                            # Determine reaction at birth
+                            reaction_time = self.t + np.random.exponential(scale=species.tau)   # Default: species lifetime
+                            target_species_id = species.id  # Default: stays the same
+
+                            if species.reactions:
+                                # Sample exponential decay times for all possible reactions
+                                pos = [coord[0], coord[1], coord[2]]
+                                # TODO: Implement logic and not hardcode!
+                                if any([react.lifetime_kwargs for react in species.reactions]):
+                                    [react.lifetime_kwargs for react in species.reactions][0].update({'xyz_J': self.particles[1].xyz})
+
+                                sampled_times = [np.random.exponential(r.get_lifetime(pos)) for r in species.reactions]
+                                idx = np.argmin(sampled_times)
+
+                                reaction_time = self.t + sampled_times[idx]
+                                chosen_reaction = species.reactions[idx]
+
+                                if chosen_reaction.target_species_name is None:
+                                    target_species_id = -1  # Sentinel for removal
+                                else:
+                                    target_species_id = get_species_by_name(chosen_reaction.target_species_name).id
+
                             # Set particle-specific parameters in h5 file using the rebound hash
                             self.set_particle_param(particle_hash, "beta", species.beta)
                             self.set_particle_param(particle_hash, "serpens_species", species.id)
                             self.set_particle_param(particle_hash, "source_hash", source.hash.value)
                             self.set_particle_param(particle_hash, "serpens_creation_time", self.t)
+                            self.set_particle_param(particle_hash, "serpens_reaction_time", reaction_time)
+                            self.set_particle_param(particle_hash, "serpens_reaction_target", target_species_id)
 
                             # Set parameter for REBOUNDx
                             self.particles[identifier].params["beta"] = species.beta
+                            self.particles[identifier].params["q_over_m"] = (
+                                        species.q / species.m) if species.m != 0 else 0.0
 
         return
 
@@ -445,13 +448,45 @@ class SerpensSimulation(rebound.Simulation):
         # Assign SERPENS parameters to the source particle using h5 storage.
         primary = self.obj_primary_dict[name]
         if isinstance(primary, rebound.Particle):
-            self.set_particle_param(particle_hash, 'source_primary', primary.hash.value)
+            primary_hash = primary.hash.value
         elif isinstance(primary, str):
-            self.set_particle_param(particle_hash, 'source_primary', self.particles[primary].hash.value)
+            primary_hash = self.particles[primary].hash.value
         else:
             raise TypeError(f"Unsupported type {type(primary)} for primary.")
 
+        self.set_particle_param(particle_hash, 'source_primary', primary_hash)
+
         species: list = [species] if not isinstance(species, list) else species
+        # Ensure all Species variants are uniquely identifiable *within this source*.
+        # If multiple instances of the same chemical species are provided without an explicit
+        # `duplicate=...`, they would otherwise share the same `id` and get merged in analysis.
+        used_ids: set[int] = {s.id for s in GLOBAL_PARAMETERS.get('all_species', [])}
+        for s in species:
+            # Backwards compatibility for older pickled Species objects.
+            if not hasattr(s, "type_id"):
+                s.type_id = s.id
+            if not hasattr(s, "duplicate"):
+                s.duplicate = None
+
+            # Normalize variant id for auto-dup logic.
+            if s.duplicate is None:
+                s.id = s.type_id
+
+            if s.id in used_ids:
+                if s.duplicate is not None:
+                    raise ValueError(
+                        "Duplicate Species instance id collision detected. "
+                        "At least two Species variants in the same `species=[...]` list evaluate to the same `id`, "
+                        "but one of them already has an explicit `duplicate` value."
+                    )
+                dup_idx = 1
+                while (s.type_id * 10 + dup_idx) in used_ids:
+                    dup_idx += 1
+                s.duplicate = dup_idx
+                s.id = s.type_id * 10 + dup_idx
+
+            used_ids.add(s.id)
+
         species_registered = [s.id in [rs.id for rs in GLOBAL_PARAMETERS.get('all_species', [])] for s in species]
         for i, s in enumerate(species_registered):
             if not s:
@@ -472,55 +507,82 @@ class SerpensSimulation(rebound.Simulation):
                 pickle.dump(self.source_parameter_sets, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def advance_integrate(self, time):
-        threads_count = multiprocessing.cpu_count()
 
+        if GLOBAL_PARAMETERS.get("lorentz_enabled", True):
+            raise Exception(
+                "Lorentz force is only supported in CERPENS (C-version). \n" +
+                'Please set GLOBAL_PARAMETERS.set("lorentz_enabled", False)'
+            )
+
+        threads_count = multiprocessing.cpu_count()
+    
         particle_indices = list(range(self.N_active, self.N))
         particle_splits = np.array_split(particle_indices, threads_count)
-
+    
         proc_indices = [list(range(self.N_active)) + test_split.tolist() for test_split in particle_splits]
-
+    
         processes = []
         processes_rebx = []
         for i in range(threads_count):
             copy = self.copy()
-
-            copy.integrator = "whfast"
+    
+            copy.integrator = "ias15"
+            copy.ri_ias15.min_dt = 1e-4
             copy.collision = "direct"
             copy.collision_resolve = "merge"
-            if GLOBAL_PARAMETERS.get("fix_source_circular_orbit", False):
-                copy.heartbeat = heartbeat
             copy_rebx = reboundx.Extras(copy, "simdata/rebx.bin")
 
             indices_to_keep_set = set(proc_indices[i])
             for j in reversed(range(copy.N)):
                 if j not in indices_to_keep_set:
                     copy.remove(index=j)
-
+    
             processes.append(copy)
             processes_rebx.append(copy_rebx)
-
+    
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads_count) as executor:
             future_to_result = {
                 executor.submit(
                     lambda x: x.integrate(time * (self.serpens_iter + 1), exact_finish_time=0), p): p for p in processes
             }
-
+    
             for future in concurrent.futures.as_completed(future_to_result):
                 future.result()
-
+    
         n_active = self.N_active
         del self.particles
-
+    
         for i in range(n_active):
             self.add(processes[0].particles[i])
-
+    
         for simulation, rebx in zip(processes, processes_rebx):
             for p in simulation.particles[simulation.N_active:]:
                 self.add(p)
             rebx.detach(simulation)
-
+    
         self.N_active = n_active
         self.t = processes[0].t
+
+    def _fix_source_orbits_circular(self):
+        """Fix all source orbits to be circular (e=0).
+
+        Called once per SERPENS step — negligible cost compared to integration,
+        and avoids the issues that arise from modifying positions mid-integration
+        (heartbeat or REBOUNDx operator) which can trigger spurious collisions.
+        """
+        for src_idx in range(self.num_sources):
+            src_name = self.source_obj_dict[f"source{src_idx}"]
+            source = self.particles[src_name]
+            primary_hash = self.get_particle_param(source.hash.value, 'source_primary')
+            if primary_hash is None:
+                continue
+            primary = self.particles[rebound.hash(int(primary_hash))]
+            o = source.orbit(primary=primary)
+            newP = rebound.Particle(simulation=self, primary=primary, m=source.m,
+                                    a=o.a, e=0, inc=o.inc, omega=o.omega,
+                                    Omega=o.Omega, f=o.f)
+            source.xyz = newP.xyz
+            source.vxyz = newP.vxyz
 
     def advance_single(self, time=None, orbit_object=None):
         """
@@ -546,7 +608,12 @@ class SerpensSimulation(rebound.Simulation):
         """
         # ADD & REMOVE PARTICLES
         self._add_particles()
+        self.rebx.save("simdata/rebx.bin")
         self.advance_integrate(time=time)
+
+        # Fix source orbits to circular after integration (before boundary checks)
+        if GLOBAL_PARAMETERS.get('fix_source_circular_orbit', True):
+            self._fix_source_orbits_circular()
 
         # Get the rebound hash value of the orbit_object
         orbit_object_hash = self.particles[orbit_object].hash.value
@@ -569,6 +636,7 @@ class SerpensSimulation(rebound.Simulation):
         boundary0 = GLOBAL_PARAMETERS.get("r_max", 10) * self.particles[orbit_object].orbit(primary=primary).a
 
         remove = []
+        reacting = 0
         for particle in self.particles[self.N_active:]:
             particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(primary.xyz))
 
@@ -580,7 +648,26 @@ class SerpensSimulation(rebound.Simulation):
                     pass
                 finally:
                     continue
+            # Reaction logic
+            rx_time = self.get_particle_param(particle.hash.value, "serpens_reaction_time")
+            if rx_time <= self.t:
+                target_id = self.get_particle_param(particle.hash.value, "serpens_reaction_target")
 
+                if target_id == -1 or target_id is None:
+                    remove.append(particle.hash)
+                else:
+                    # Perform the conversion
+                    new_species = get_species_by_id(target_id)
+                    new_reaction_time = self.t + np.random.exponential(scale=new_species.tau)
+                    self.set_particle_param(particle.hash.value, "serpens_species", target_id)
+                    self.set_particle_param(particle.hash.value, "serpens_reaction_time", new_reaction_time)
+                    self.set_particle_param(particle.hash.value, "serpens_creation_time", self.t)
+                    particle.params["q_over_m"] = new_species.q / new_species.m
+                    reacting += 1
+
+                    # TODO: Need to set other parameters from birth (new reaction targets etc.)
+
+        print(f"Reacting particles: {reacting}")
         print(f"Removing {len(remove)} particles.")
         for particle_hash in remove:
             self.remove(hash=particle_hash)
@@ -589,7 +676,7 @@ class SerpensSimulation(rebound.Simulation):
         self.rebx.save("simdata/rebx.bin")
         # No need to explicitly save the h5 file as it's saved on each parameter update
 
-    def advance(self, hours=None, days=None, orbits=None, orbits_reference=None, spawns=None, verbose=False):
+    def advance(self, hours=None, days=None, orbits=None, orbits_reference=None, spawns=None, verbose=False, dt_scale_factor=1):
         """
         Main function to be called for advancing the SERPENS simulation.
 
@@ -666,7 +753,6 @@ class SerpensSimulation(rebound.Simulation):
         else:
             iteration_length = total_time
             iterations = 1
-        self.dt = iteration_length / 12     # Fixed value.
 
         start_time = time.time()
         for _ in tqdm(range(iterations), disable=verbose):

@@ -1,8 +1,8 @@
 import numpy as np
-from src.parameters import GLOBAL_PARAMETERS
-
 from scipy.optimize import fmin
-from scipy.stats import truncnorm, maxwell, norm, rv_continuous
+from scipy.stats import truncnorm, maxwell, norm
+
+from src.parameters import GLOBAL_PARAMETERS
 
 
 def random_pos(radius, lat_dist='uniform', long_dist='uniform', n_samples=1, **kwargs):
@@ -122,9 +122,9 @@ def random_sputter_velocity(species_id, n_samples=1):
     #species = Params.get_species(id=species_id)
     species = [s for s in GLOBAL_PARAMETERS.get('species') if s.id == species_id][0]
 
-    v_b = species.sput_spec["model_smyth_v_b"]
-    v_M = species.sput_spec["model_smyth_v_M"]
-    a = species.sput_spec["model_smyth_a"]
+    v_b = species.sput_spec["v_b"]
+    v_M = species.sput_spec["v_M"]
+    a = species.sput_spec["a"]
 
     def phi(x):
         f_v = 1 / v_b * (x / v_b) ** 3 * (v_b ** 2 / (v_b ** 2 + x ** 2)) ** a * (
@@ -205,13 +205,20 @@ def generate_particles(species_id, process, source, source_r, n_samples=1, **kwa
     temp_min = kwargs.get("temp_min", GLOBAL_PARAMETERS.get('source_temp_min', 0))
     temp_max = kwargs.get("temp_max", GLOBAL_PARAMETERS.get('source_temp_max', 0))
 
-    if valid_process[process] == 0: # thermal
-        positions, latitudes, longitudes = random_pos(source_r, lat_dist="uniform", long_dist="uniform", a_long=0,
-                                                      b_long=2 * np.pi, n_samples=n_samples)
+    # Thermal
+    if valid_process[process] == 0:
+        positions, latitudes, longitudes = random_pos(
+            1.1 * source_r, lat_dist="uniform", long_dist="uniform", a_long=0,
+            b_long=2 * np.pi, n_samples=n_samples
+        )
         ran_temp = random_temperature(source, temp_min, temp_max, latitudes, longitudes)
         velocities_not_rotated = random_thermal_velocity(species_id, ran_temp)
-    else:   # sputter
-        positions, latitudes, longitudes = random_pos(source_r, lat_dist="uniform", long_dist="uniform", n_samples=n_samples)
+    # Sputter
+    else:
+        positions, latitudes, longitudes = random_pos(
+            1.1 * source_r, lat_dist="uniform", long_dist="uniform",
+            n_samples=n_samples
+        )
         velocities_not_rotated = random_sputter_velocity(species_id, n_samples=n_samples)
 
     cos_latitudes = np.cos(latitudes)

@@ -1,28 +1,27 @@
-import numpy as np
-import os as os
 import glob
-import shutil
-import rebound
-import reboundx
+import os as os
 import pickle
+import shutil
+from ctypes import c_uint
+from datetime import datetime
+
+import h5py
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import rebound
+import reboundx
 from plotly.subplots import make_subplots
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import h5py
-
 from scipy.interpolate import make_interp_spline
 from scipy.ndimage import gaussian_filter1d
 from tqdm import tqdm
-from ctypes import c_uint
 
-from datetime import datetime
 from src import DTFE, DTFE3D
 from src.parameters import GLOBAL_PARAMETERS
 from src.visualize import Visualize
-
 
 mpl.rc('text', usetex=True)
 mpl.rc('text.latex', preamble=r'\usepackage{amssymb} \usepackage{wasysym}')
@@ -251,7 +250,12 @@ class SerpensAnalyzer:
             else:
                 source_hash_value = source_hash.value
             source_primary_hash = self.get_particle_param(source_hash_value, 'source_primary')
-            return self.sim.particles[rebound.hash(int(source_primary_hash))]
+
+            if source_primary_hash is None:
+                print("Assuming first object (star) as system primary.")
+                return self.sim.particles[0]
+            else:
+                return self.sim.particles[rebound.hash(int(source_primary_hash))]
         else:
             return self.sim.particles[0]
 
@@ -312,7 +316,7 @@ class SerpensAnalyzer:
                 species = [s for s in GLOBAL_PARAMETERS.get('all_species') if s.id == species_id][0]
                 self.particle_species[k1] = species_id
                 self.particle_weights[k1] = np.exp(
-                    -(self.sim.t - part_creation_time) / species.network
+                    -(self.sim.t - part_creation_time) / species.tau #species.network
                 )
                 self._particle_source_hashes[k1] = source_hash
             except (AttributeError, IndexError):
@@ -695,7 +699,7 @@ class SerpensAnalyzer:
 
         # Set title for planar view
         if perspective == 'planar' and num_species > 0:
-            vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$", size=25, color='w')
+            vis.set_title(fr"Particle Densities $log_{{10}} (N/\mathrm{{cm}}^{{{-d}}})$", size=25, color='white')
 
     def _add_los_scatter(self, vis, points, dens, species_index, **kwargs):
         """Add line of sight scatter plot with planet masking."""

@@ -1,4 +1,4 @@
-from src.network import Network
+#from src.network import Network
 
 
 class SpeciesSpecifics:
@@ -11,7 +11,8 @@ class SpeciesSpecifics:
         self.mass_num = mass_number
         self.m = mass_number * amu
         self.id = id
-        self.network = Network(self.id).network
+        # Deprecated.
+        #self.network = Network(self.id).network
 
 
 class Species(SpeciesSpecifics):
@@ -30,19 +31,16 @@ class Species(SpeciesSpecifics):
         "SO2": (64, 8),
         "O+": (16, 9),
         "CO2": (44, 10),
-        "K": (39, 11)
+        "K": (39, 11),
+        "Na+": (24, 1)
     }
 
     default_sput_spec = {
         "sput_model": 'smyth',
         "model_maxwell_max": 3000,
-        "model_wurz_inc_part_speed": 5000,
-        "model_wurz_binding_en": 2.89 * 1.602e-19,
-        "model_wurz_inc_mass_in_amu": 23,
-        "model_wurz_ejected_mass_in_amu": 23,
-        "model_smyth_v_b": 4000,
-        "model_smyth_v_M": 60000,
-        "model_smyth_a": 7 / 3
+        "v_b": 4000,
+        "v_M": 60000,
+        "a": 7 / 3
     }
 
     def __init__(self, name=None, n_th=0, n_sp=0, mass_per_sec=None, duplicate=None, **kwargs):
@@ -52,8 +50,13 @@ class Species(SpeciesSpecifics):
         else:
             raise ValueError(f"The species '{name}' has not been implemented.")
 
+        # `type_id` identifies the chemical species (used for reaction networks).
+        # `id` is the per-variant identifier (used for particle tagging & analysis).
+        self.type_id = self.id
+
         if duplicate is not None:
-            self.id = self.id * 10 + duplicate
+            # Keep the legacy scheme (base_id * 10 + duplicate) but only apply it to the variant id.
+            self.id = self.type_id * 10 + duplicate
         self.duplicate = duplicate
 
         self.n_th = n_th
@@ -63,15 +66,31 @@ class Species(SpeciesSpecifics):
 
         # Handle keyword arguments
         self.beta = kwargs.get("beta", 0)
-        self.tau = kwargs.get("lifetime", None)
-        self.tau_shielded = kwargs.get("shielded_lifetime", None)
+        self.tau = kwargs.get("lifetime", 60 * 60) # 1 hour default
+        self.tau_shielded = kwargs.get("shielded_lifetime", self.tau)
         self.electron_density = kwargs.get("n_e", None)
 
-        if self.electron_density is not None:
-            self.network = Network(self.id, e_scaling=self.electron_density).network
+        # Particle charge [C] -> Lorentz force
+        e = 1.602176634e-19
+        charge_in_e = kwargs.get("charge_e", None)  # e.g. +1 for singly-ionized
+        charge_c = kwargs.get("charge", None)  # directly in Coulombs
+        if charge_c is not None:
+            self.q = float(charge_c)
+        elif charge_in_e is not None:
+            self.q = float(charge_in_e) * e
+        else:
+            # sensible default: neutral unless the name hints at charge
+            self.q = e if str(self.name).endswith("+") else 0.0
 
-        if self.tau is not None:
-            self.network = self.tau
+        # Recompute electron-dependent network using the chemical type id.
+        # Deprecated: use `tau` instead.
+        if self.electron_density is not None:
+            #self.network = Network(self.type_id, e_scaling=self.electron_density).network
+            pass
+
+        # Deprecated: use `tau` instead.
+        #if self.tau is not None:
+        #    self.network = self.tau
 
         self.description = kwargs.get("description", self.name)
 
@@ -79,17 +98,21 @@ class Species(SpeciesSpecifics):
         self.sput_spec = {**self.default_sput_spec, **kwargs.get("sput_spec", {})}
         self.validate_sput_spec()
 
+        # Add reaction information
+        self._reactions = kwargs.get("reactions", [])
+        if isinstance(self._reactions, Reaction):
+            self._reactions = [self._reactions]
+
     def __str__(self):
-        return f"Species {self.name}: \n\tMdot [kg/s] = {self.mass_per_sec}, \n\tlifetime [s] / network = {self.network}," \
+        return f"Species {self.name}: \n\tMdot [kg/s] = {self.mass_per_sec}, \n\tlifetime [s] = {self.tau}," \
                f"\n\tNumber of thermal superparticles = {self.n_th}," \
                f"\n\tNumber of sputtered superparticles = {self.n_sp}"
 
     def copy(self):
         new_species = Species()
 
-
     def validate_sput_spec(self):
-        valid_models = ["smyth", "maxwell", "wurz"]
+        valid_models = ["smyth", "maxwell"]
 
         sput_model = self.sput_spec["sput_model"]
         if sput_model not in valid_models:
@@ -97,37 +120,21 @@ class Species(SpeciesSpecifics):
 
         # Validate and set other sputtering specifications
         if sput_model == "smyth":
-            v_b = self.sput_spec.get("model_smyth_v_b", 0)
-            v_M = self.sput_spec.get("model_smyth_v_M", 0)
-            a = self.sput_spec.get("model_smyth_a", 0)
+            v_b = self.sput_spec.get("v_b", 0)
+            v_M = self.sput_spec.get("v_M", 0)
+            a = self.sput_spec.get("a", 0)
 
             if not (isinstance(v_b, (int, float)) and v_b >= 0):
-                raise ValueError("Invalid value for model_smyth_v_b")
+                raise ValueError("Invalid value for v_b")
             if not (isinstance(v_M, (int, float)) and v_M >= v_b):
-                raise ValueError("Invalid value for model_smyth_v_M")
+                raise ValueError("Invalid value for v_M")
             if not (isinstance(a, (int, float)) and a > 0):
-                raise ValueError("Invalid value for model_smyth_a")
-
-        elif sput_model == "wurz":
-            inc_part_speed = self.sput_spec.get("model_wurz_inc_part_speed", 0)
-            binding_en = self.sput_spec.get("model_wurz_binding_en", 0)
-            inc_mass_in_amu = self.sput_spec.get("model_wurz_inc_mass_in_amu", 0)
-            ejected_mass_in_amu = self.sput_spec.get("model_wurz_ejected_mass_in_amu", 0)
-
-            if not (isinstance(inc_part_speed, (int, float)) and inc_part_speed >= 0):
-                raise ValueError("Invalid value for model_wurz_inc_part_speed")
-            if not (isinstance(binding_en, (int, float)) and binding_en >= 0):
-                raise ValueError("Invalid value for model_wurz_binding_en")
-            if not (isinstance(inc_mass_in_amu, (int, float)) and inc_mass_in_amu > 0):
-                raise ValueError("Invalid value for model_wurz_inc_mass_in_amu")
-            if not (isinstance(ejected_mass_in_amu, (int, float)) and ejected_mass_in_amu > 0):
-                raise ValueError("Invalid value for model_wurz_ejected_mass_in_amu")
+                raise ValueError("Invalid value for a")
 
         elif sput_model == "maxwell":
             # Validate Maxwell model specifications
+            print("Maxwell model not yet implemented.")
             pass
-
-        # ... Add validation for other models
 
     def particles_per_superparticle(self, mass):
         num = mass / self.m
@@ -136,4 +143,31 @@ class Species(SpeciesSpecifics):
         else:
             num_per_sup = num
         return num_per_sup
+
+    @property
+    def reactions(self):
+        return self._reactions
+
+    @reactions.setter
+    def reactions(self, reaction):
+        if isinstance(reaction, Reaction):
+            self._reactions.append(reaction)
+        elif isinstance(reaction, list):
+            assert all([isinstance(r, Reaction) for r in reaction])
+            self._reactions.extend(reaction)
+        else:
+            print("Could not set/expand reaction network.")
+
+
+
+class Reaction:
+    def __init__(self, target_species_name, lifetime, **lifetime_kwargs):
+        self.target_species_name = target_species_name
+        self.lifetime = lifetime
+        self.lifetime_kwargs = lifetime_kwargs
+
+    def get_lifetime(self, pos):
+        if callable(self.lifetime):
+            return self.lifetime(*pos, **self.lifetime_kwargs)
+        return self.lifetime
 

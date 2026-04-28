@@ -1,13 +1,16 @@
-import matplotlib as mpl
 import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import RangeSlider
-import matplotlib.gridspec as gridspec
-import rebound
-from src.parameters import GLOBAL_PARAMETERS
+import matplotlib as mpl
 import matplotlib.colors as colors
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import numpy as np
+import plotly.graph_objects as go
+import rebound
+from matplotlib.widgets import RangeSlider
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from plotly.subplots import make_subplots
+
+from src.parameters import GLOBAL_PARAMETERS
 
 # Constant configurations for Matplotlib
 DEFAULT_FACECOLOR = 'yellow'
@@ -476,3 +479,247 @@ class Visualize(BaseVisualizer):
         else:
             ax_obj = self.axs[0]
         self.setup_ax(ax_obj)
+
+
+# TODO: WIP
+class PlotlyVisualize(BaseVisualizer):
+
+    def __init__(self, rebsim, reference_system, **kwargs):
+        super().__init__(rebsim, reference_system, **kwargs)
+        self._axis_prepared = set()
+
+    def _init_figure(self):
+        if not self.vis_params['single_plot'] and self.num_species > 1:
+            self.subplot_rows = int(np.ceil(self.num_species / 3))
+            self.subplot_columns = self.num_species if self.num_species <= 3 else 3
+            self.single_plot = False
+        else:
+            self.subplot_rows = 1
+            self.subplot_columns = 1
+            self.single_plot = True
+
+        self.fig = make_subplots(rows=self.subplot_rows,
+                                 cols=self.subplot_columns,
+                                 horizontal_spacing=0.08,
+                                 vertical_spacing=0.08)
+        self.fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='black',
+            plot_bgcolor='black',
+            showlegend=False,
+            width=int(self.vis_params['figsize'] * self.subplot_columns * 260),
+            height=int(self.vis_params['figsize'] * self.subplot_rows * 260),
+        )
+
+    def _subplot_position(self, ax_index):
+        if self.single_plot:
+            return 1, 1
+        return ax_index // self.subplot_columns + 1, ax_index % self.subplot_columns + 1
+
+    def _axis_suffix(self, row, col):
+        axis_num = (row - 1) * self.subplot_columns + col
+        if axis_num == 1:
+            return '', ''
+        return str(axis_num), str(axis_num)
+
+    def _mpl_cmap_to_plotly(self, cmap):
+        if isinstance(cmap, list):
+            cmap = cmap[0]
+        steps = np.linspace(0, 1, 12)
+        colorscale = []
+        for step in steps:
+            rgba = cmap(step)
+            rgb = (int(255 * rgba[0]), int(255 * rgba[1]), int(255 * rgba[2]))
+            colorscale.append([float(step), f'rgb{rgb}'])
+        return colorscale
+
+    def _get_axis_bounds_and_labels(self):
+        lim = self.vis_params['lim'] * self._get_primary().r
+        primary_coord1, primary_coord2 = self._get_coordinates_primary()
+
+        xlocs = np.linspace(-lim + primary_coord1, lim + primary_coord1, self.vis_params['lim'] + 1)
+        ylocs = np.linspace(-lim + primary_coord2, lim + primary_coord2, self.vis_params['lim'] + 1)
+        xlabels = np.around((np.array(xlocs) - primary_coord1) / self._get_primary().r, 1)
+        ylabels = np.around((np.array(ylocs) - primary_coord2) / self._get_primary().r, 1)
+        return lim, primary_coord1, primary_coord2, xlocs, ylocs, xlabels, ylabels
+
+    def setup_ax(self, ax_index: int) -> None:
+        row, col = self._subplot_position(ax_index)
+        if (row, col) in self._axis_prepared:
+            return
+
+        lim, primary_coord1, primary_coord2, xlocs, ylocs, xlabels, ylabels = self._get_axis_bounds_and_labels()
+
+        xaxis_title = "x-distance in primary radii"
+        yaxis_title = "y-distance in primary radii"
+        if self.vis_params["perspective"] == 'los':
+            xaxis_title = "y-distance in primary radii"
+            yaxis_title = "z-distance in primary radii"
+
+        self.fig.update_xaxes(
+            row=row,
+            col=col,
+            title_text=xaxis_title,
+            range=[-lim + primary_coord1, lim + primary_coord1],
+            tickmode='array',
+            tickvals=xlocs[1:-1],
+            ticktext=[str(x) for x in xlabels][1:-1],
+            showgrid=False,
+            zeroline=False,
+            color='white',
+        )
+        self.fig.update_yaxes(
+            row=row,
+            col=col,
+            title_text=yaxis_title,
+            range=[-lim + primary_coord2, lim + primary_coord2],
+            tickmode='array',
+            tickvals=ylocs[1:-1],
+            ticktext=[str(y) for y in ylabels][1:-1],
+            showgrid=False,
+            zeroline=False,
+            scaleanchor=f'x{(row - 1) * self.subplot_columns + col if (row, col) != (1, 1) else ""}',
+            scaleratio=1,
+            color='white',
+            autorange='reversed' if self.vis_params["perspective"] == 'los' else True,
+        )
+
+        self._add_shapes(row, col)
+        self._axis_prepared.add((row, col))
+
+    def _add_circle(self, x_center, y_center, radius, color, row, col, alpha=0.7, line_color=None):
+        xs = x_center + radius * np.cos(np.linspace(0, 2 * np.pi, 100))
+        ys = y_center + radius * np.sin(np.linspace(0, 2 * np.pi, 100))
+        self.fig.add_trace(
+            go.Scatter(
+                x=xs,
+                y=ys,
+                mode='lines',
+                fill='toself',
+                fillcolor=color,
+                opacity=alpha,
+                line=dict(color=line_color if line_color else color, width=1),
+                hoverinfo='skip',
+                showlegend=False,
+            ),
+            row=row,
+            col=col,
+        )
+
+    def _add_shapes(self, row, col):
+        if self.vis_params['show_primary']:
+            primary = self._get_primary()
+            fc = self.face_colors[primary.index]
+            coord1, coord2 = self._get_coordinates_primary()
+            self._add_circle(coord1, coord2, primary.r, fc, row, col, alpha=1.0)
+
+        if self.vis_params['show_source']:
+            source = self.particles[self.reference_system]
+            fc = self.face_colors[source.index]
+            coord1, coord2 = self._get_coordinates_source()
+            self._add_circle(coord1, coord2, source.r, fc, row, col, alpha=0.7, line_color='black')
+
+        if self.vis_params["perspective"] == "planar" and self.vis_params['planetstar_connection']:
+            self.fig.add_trace(
+                go.Scatter(
+                    x=[self.particles[0].x, self.particles[1].x],
+                    y=[self.particles[0].y, self.particles[1].y],
+                    mode='lines',
+                    line=dict(color='bisque', width=1, dash='dot'),
+                    hoverinfo='skip',
+                    showlegend=False,
+                ),
+                row=row,
+                col=col,
+            )
+
+        self._add_additional_celestials_plotly(row, col)
+
+    def _add_additional_celestials_plotly(self, row, col):
+        primary = self._get_primary()
+        source_is_moon = primary.index > 0
+        number_additional_celest = self.sim.N_active - 3 if source_is_moon else self.sim.N_active - 2
+        if number_additional_celest <= 0:
+            return
+
+        moons_indices = [i for i in range(self.sim.N_active - number_additional_celest, self.sim.N_active)]
+        for ind in moons_indices:
+            if self.vis_params["perspective"] == "planar":
+                x, y = self.particles[ind].x, self.particles[ind].y
+            else:
+                x, y = -self.particles[ind].y, self.particles[ind].z
+            self._add_circle(x, y, self.particles[ind].r, self.face_colors[ind], row, col, alpha=0.7)
+
+    def __call__(self, save_path=None, show_bool=True, **kwargs):
+        if save_path is not None:
+            fn = kwargs.get("filename", -1)
+            frame_identifier = f"SERPENS_{fn}"
+            try:
+                self.fig.write_image(f'output/{save_path}/plots/{frame_identifier}.png')
+            except Exception as exc:
+                print(f"Could not export static Plotly image: {exc}")
+            print(f"\t plotted {fn}")
+
+        if show_bool:
+            self.fig.show()
+
+    def set_title(self, title_string, size='xx-large', color='black'):
+        size_map = {'xx-large': 28, 'x-large': 24, 'large': 20}
+        font_size = size_map.get(size, 22)
+        self.fig.update_layout(title=dict(text=title_string, font=dict(size=font_size, color=color)))
+
+    def add_densityscatter(self, ax_index: int, x, y, density, d=3, **kwargs):
+        self.vis_params.update(kwargs)
+        target_index = 0 if self.single_plot else ax_index
+        row, col = self._subplot_position(target_index)
+        self.setup_ax(target_index)
+
+        logdens = np.log10(density + 1e-5)
+        colorscale = self._mpl_cmap_to_plotly(self.vis_params["colormap"]) if not isinstance(self.vis_params["colormap"], list) else self._mpl_cmap_to_plotly(self.vis_params["colormap"][ax_index])
+
+        self.fig.add_trace(
+            go.Scattergl(
+                x=x,
+                y=y,
+                mode='markers',
+                marker=dict(
+                    size=2,
+                    color=logdens,
+                    colorscale=colorscale,
+                    cmin=self.vis_params["lvl_min"],
+                    cmax=self.vis_params["lvl_max"],
+                    colorbar=dict(title=f'[cm^{{-{d}}}]'),
+                    showscale=True,
+                ),
+                showlegend=False,
+            ),
+            row=row,
+            col=col,
+        )
+
+    def add_triplot(self, ax_index, x, y, simplices, **kwargs):
+        self.vis_params.update(kwargs)
+        target_index = 0 if self.single_plot else ax_index
+        row, col = self._subplot_position(target_index)
+        self.setup_ax(target_index)
+
+        for tri in simplices:
+            tri_x = [x[tri[0]], x[tri[1]], x[tri[2]], x[tri[0]]]
+            tri_y = [y[tri[0]], y[tri[1]], y[tri[2]], y[tri[0]]]
+            self.fig.add_trace(
+                go.Scatter(
+                    x=tri_x,
+                    y=tri_y,
+                    mode='lines',
+                    line=dict(color='white', width=0.5),
+                    opacity=self.vis_params["trialpha"],
+                    hoverinfo='skip',
+                    showlegend=False,
+                ),
+                row=row,
+                col=col,
+            )
+
+    def empty(self, ax):
+        target_index = 0 if self.single_plot else ax
+        self.setup_ax(target_index)
