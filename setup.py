@@ -1,34 +1,7 @@
-import subprocess
-import sys
-
 from setuptools import setup, find_packages
-from setuptools.command.build_py import build_py
 from pathlib import Path
 
 long_description = Path("README.md").read_text(encoding="utf-8")
-
-
-class BuildWithMake(build_py):
-    """Run the root Makefile to compile the C hotloop before packaging."""
-
-    def run(self):
-        try:
-            subprocess.check_call(
-                ["make", "-C", str(Path(__file__).parent.resolve())],
-            )
-        except subprocess.CalledProcessError as exc:
-            print(
-                "WARNING: C hotloop compilation failed (exit code "
-                f"{exc.returncode}). The pure-Python fallback will be used.",
-                file=sys.stderr,
-            )
-        except FileNotFoundError:
-            print(
-                "WARNING: 'make' not found. Skipping C hotloop compilation. "
-                "The pure-Python fallback will be used.",
-                file=sys.stderr,
-            )
-        super().run()
 
 
 setup(
@@ -44,10 +17,8 @@ setup(
     url="https://github.com/momzw/SERPENS",
     license="GPL-3.0",
     packages=find_packages(exclude=["legacy", "legacy.*", "testing", "testing.*"]),
-    cmdclass={"build_py": BuildWithMake},
     package_data={
-        "src.cerpens": ["serpens_hotloop.c", "serpens_hotloop.so",
-                        "serpens_hotloop.dll", "Makefile"],
+        "src.cerpens": ["serpens_hotloop.c", "Makefile"],
         "resources": ["*"],
     },
     include_package_data=True,
@@ -63,6 +34,9 @@ setup(
         "plotly>=5.22",
         "tqdm>=4.66",
         "h5py>=3.13",
+        "jupyter>=1.1",
+        "notebook>=7.5",
+        "ipykernel>=7.2"
     ],
     classifiers=[
         "Development Status :: 4 - Beta",

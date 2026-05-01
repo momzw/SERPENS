@@ -8,13 +8,15 @@ _Simulating Ring Particles Emergent from Natural Satellites_ <br>
 This project was developed as a 3D weighted test-particle Monte-Carlo simulation of evaporating exomoons and their signatures in exoplanetary spectra. 
 
 ## Installation
-1. Clone or download this repository.
-2. Create and activate a Python environment.
-3. Install dependencies from `requirements.txt`.
-
-```bash
-pip install -r requirements.txt
-```
+1. Clone this directory to your system using `git clone https://github.com/momzw/SERPENS.git` .<br>
+   It's recommended that you first create a directory into which you wish to install SERPENS and navigate into it.
+3. Create and activate a Python environment. If `venv` is available, you can run 
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+   Otherwise, use your preferred method to create and activate a Python environment.
+4. Navigate to the SERPENS project root and run `pip install -e .` . This will install all necessary dependencies.
 
 ## Repository Layout
 

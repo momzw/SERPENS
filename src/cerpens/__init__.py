@@ -1,3 +1,7 @@
-from .cerpens_simulation import CerpensSimulation
+try:
+    from .cerpens_simulation import CerpensSimulation
 
-__all__ = ["CerpensSimulation"]
+    __all__ = ["CerpensSimulation"]
+
+except (OSError, ImportError):
+    pass

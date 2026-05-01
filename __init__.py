@@ -1,4 +1,8 @@
-from .src.cerpens import CerpensSimulation
+try:
+    from .src.cerpens import CerpensSimulation
+except (OSError, ImportError):
+    pass
+
 from .src.parameters import GLOBAL_PARAMETERS, Parameters, initialize_global_defaults
 from .src.scheduler import SerpensScheduler
 from .src.serpens_analyzer import SerpensAnalyzer

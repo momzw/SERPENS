@@ -184,6 +184,9 @@ class SerpensSimulation(rebound.Simulation):
         This replaces the REBOUNDx parameter storage for specific parameters.
         """
         self.h5_filename = "simdata/particle_params.h5"
+        if not os.path.isdir("simdata"):
+            os.makedirs("simdata", exist_ok=True)
+
         with h5py.File(self.h5_filename, 'w') as f:
             # Create groups for each parameter
             f.create_group("beta")

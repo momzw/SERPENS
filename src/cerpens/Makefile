@@ -33,17 +33,10 @@ else
 endif
 TARGET := $(TARGET_BASENAME)$(TARGET_EXT)
 
-REBOUND_DIR := $(shell $(PYTHON) -c "import os,rebound; print(os.path.dirname(rebound.__file__))" 2>/dev/null)
-REBOUNDX_DIR := $(shell $(PYTHON) -c "import os,reboundx; print(os.path.dirname(reboundx.__file__))" 2>/dev/null)
+REBOUND_DIR := ../../../rebound/src
+REBOUNDX_DIR := ../../../reboundx/src
 
-ifeq ($(strip $(REBOUND_DIR)),)
-    $(error Could not locate the Python package 'rebound'. Install it or set PYTHON=/path/to/python)
-endif
-ifeq ($(strip $(REBOUNDX_DIR)),)
-    $(error Could not locate the Python package 'reboundx'. Install it or set PYTHON=/path/to/python)
-endif
-
-CPPFLAGS += -I"$(REBOUND_DIR)" -I"$(REBOUNDX_DIR)" -I"$(REBOUNDX_DIR)/reboundx"
+CPPFLAGS += -I"$(REBOUND_DIR)" -I"$(REBOUNDX_DIR)" -I"$(REBOUNDX_DIR)"
 
 ifeq ($(PLATFORM),Darwin)
     CFLAGS += -fPIC -D_GNU_SOURCE
