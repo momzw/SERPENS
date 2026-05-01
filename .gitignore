@@ -5,14 +5,17 @@
 /proc/
 /venv/
 /.jbeval/
+/.claude/
 /.idea/
 /.ipynb_checkpoints/
 /.pytest_cache/
 /.mypy_cache/
 /.ruff_cache/
 __pycache__/
+/legacy/
 *.py[cod]
 **.so
+**.dll
 .DS_Store
 *.gif
 *.pickle
