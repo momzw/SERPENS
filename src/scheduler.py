@@ -179,7 +179,7 @@ class SerpensScheduler:
 
             if os.path.exists(path):
                 shutil.rmtree(path)
-            os.makedirs(path)
+            os.makedirs(path, exist_ok=True)
 
             # Copy the simulation files to the archive
             shutil.copy2(f"{os.getcwd()}/archive.bin", f"{os.getcwd()}/{path}")

@@ -1,3 +1,4 @@
+import os
 import h5py
 import matplotlib as mpl
 import matplotlib.colors as colors
@@ -332,7 +333,12 @@ class Visualize(BaseVisualizer):
         if save_path is not None:
             fn = kwargs.get("filename", -1)
             frame_identifier = f"SERPENS_{fn}"
-            plt.savefig(f'output/{save_path}/plots/{frame_identifier}.png', bbox_inches='tight')
+
+            base_path = f'output/{save_path}/plots'
+            if not os.path.exists(base_path):
+                os.makedirs(f'output/{save_path}/plots', exist_ok=True)
+
+            plt.savefig(os.path.join(base_path, f'{frame_identifier}.png'), bbox_inches='tight')
             print(f"\t plotted {fn}")
             if not show_bool:
                 plt.close('all')
@@ -650,8 +656,13 @@ class PlotlyVisualize(BaseVisualizer):
         if save_path is not None:
             fn = kwargs.get("filename", -1)
             frame_identifier = f"SERPENS_{fn}"
+
+            base_path = f'output/{save_path}/plots'
+            if not os.path.exists(base_path):
+                os.makedirs(base_path, exist_ok=True)
+
             try:
-                self.fig.write_image(f'output/{save_path}/plots/{frame_identifier}.png')
+                self.fig.write_image(os.path.join(base_path, f'{frame_identifier}.png'))
             except Exception as exc:
                 print(f"Could not export static Plotly image: {exc}")
             print(f"\t plotted {fn}")
