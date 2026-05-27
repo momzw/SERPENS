@@ -10,25 +10,21 @@ from matplotlib.widgets import RangeSlider
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from plotly.subplots import make_subplots
 
+import shutil
+
 from src.parameters import GLOBAL_PARAMETERS
 
 # Constant configurations for Matplotlib
 DEFAULT_FACECOLOR = 'yellow'
 try:
-    FONT_CONFIG = {'family': 'serif', 'serif': ['Computer Modern'], 'size': 18}
-    TEXT_CONFIG = {'usetex': True}
-    TEX_CONFIG = {'preamble': r'\usepackage{amssymb}'}
-
-    # Setting the backend and configurations for Matplotlib
     mpl.use('TkAgg')
-    mpl.rc('font', **FONT_CONFIG)
-    mpl.rc('text', **TEXT_CONFIG)
-    mpl.rc('text.latex', **TEX_CONFIG)
+    mpl.rc('font', family='serif', serif=['Computer Modern'], size=18)
+
+    if shutil.which('latex'):
+        mpl.rc('text', usetex=True)
+        mpl.rc('text.latex', preamble=r'\usepackage{amssymb}')
 except Exception as exc:
     print(f"An exception occurred while trying to change matplotlib parameters: {exc}")
-    pass
-
-
 
 
 class ArgumentProcessor:
