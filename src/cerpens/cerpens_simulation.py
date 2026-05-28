@@ -1,8 +1,8 @@
 import multiprocessing
 import warnings
 
-from src.parameters import GLOBAL_PARAMETERS
-from src.serpens_simulation import SerpensSimulation
+from ..parameters import GLOBAL_PARAMETERS
+from ..serpens_simulation import SerpensSimulation
 from .hotloop_bridge import advance_integrate_c
 
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')

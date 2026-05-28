@@ -1,0 +1,10 @@
+node_modules
+.claude
+.jbeval
+.gitignore
+schedule_archive
+pyproject.toml
+**/.DS_Store
+**/*.csv
+**/*.so
+**/*.dll

@@ -328,18 +328,18 @@ void serpens_advance_integrate(
         /* Active particles: set radiation_source flag and source_primary */
         for (int i = 0; i < n_active; i++) {
             if (rad_source_flags[i]) {
-                rebx_set_param_int(rebx, &sim->particles[i].ap, "radiation_source", 1);
+                rebx_set_param_int(rebx, (struct rebx_node**)&sim->particles[i].ap, "radiation_source", 1);
             }
             /* beta and q/m for active particles (usually 0) */
             if (beta_values[i] != 0.0) {
-                rebx_set_param_double(rebx, &sim->particles[i].ap, "beta", beta_values[i]);
+                rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[i].ap, "beta", beta_values[i]);
             }
             if (qm_values[i] != 0.0) {
-                rebx_set_param_double(rebx, &sim->particles[i].ap, "q_over_m", qm_values[i]);
+                rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[i].ap, "q_over_m", qm_values[i]);
             }
             /* source_primary hash for heartbeat circular orbit fixing */
             if (source_primary_hashes[i] != 0) {
-                rebx_set_param_uint32(rebx, &sim->particles[i].ap, "source_primary", source_primary_hashes[i]);
+                rebx_set_param_uint32(rebx, (struct rebx_node**)&sim->particles[i].ap, "source_primary", source_primary_hashes[i]);
             }
         }
 
@@ -347,8 +347,8 @@ void serpens_advance_integrate(
         for (int j = 0; j < my_test_count; j++) {
             int gi = n_active + test_offset + j;
             int li = n_active + j;  /* local index in this sim */
-            rebx_set_param_double(rebx, &sim->particles[li].ap, "beta", beta_values[gi]);
-            rebx_set_param_double(rebx, &sim->particles[li].ap, "q_over_m", qm_values[gi]);
+            rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[li].ap, "beta", beta_values[gi]);
+            rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[li].ap, "q_over_m", qm_values[gi]);
         }
 
         workers[t].sim          = sim;

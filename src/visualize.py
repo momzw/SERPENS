@@ -18,7 +18,7 @@ from src.parameters import GLOBAL_PARAMETERS
 # Constant configurations for Matplotlib
 DEFAULT_FACECOLOR = 'yellow'
 try:
-    mpl.use('TkAgg')
+    mpl.use('Agg')
     mpl.rc('font', family='serif', serif=['Computer Modern'], size=18)
 
     if shutil.which('latex'):
