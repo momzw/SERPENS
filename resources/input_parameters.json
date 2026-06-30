@@ -8,7 +8,14 @@
       "r_max": 4,
       "random_walk": false,
       "radiation_pressure_shield": false,
-      "fix_source_circular_orbit": true
+      "fix_source_circular_orbit": true,
+      "lorentz_enabled": false,
+      "lorentz_central_index": "1",
+      "lorentz_moment_Am2": [0.0, 0.0, 1.5e24],
+      "magnetic_rotation": [0.0, 0.0, 1.758e-4],
+      "magnetic_tilt_degrees": 60,
+      "lorentz_softening_m": 70000e3
+
     },
     "THERMAL_EVAP_PARAMETERS": {
       "source_temp_max": 2703,

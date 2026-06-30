@@ -441,7 +441,7 @@ class Visualize(BaseVisualizer):
             self.colorbar_interact.append(plt.colorbar(scatter, cax=cax, orientation='vertical',
                                                        format=self.vis_params['cb_format']))
         else:
-            if ax_index == 0:
+            if len(self.colorbar_axs) == 0:
                 for i in range(self.num_species):
                     if self.interactive:
                         slider_ax = divider.append_axes('right', size='4%')
@@ -451,8 +451,10 @@ class Visualize(BaseVisualizer):
                     cax.tick_params(axis='both', which='major', labelsize=20, color='w', colors='w')
                     self.colorbar_axs.append(cax)
 
-            self.colorbar_interact.append(plt.colorbar(scatter, cmap=cmap, cax=self.colorbar_axs[ax_index], orientation='vertical',
-                                                       format=self.vis_params['cb_format']))
+            self.colorbar_interact.append(
+                plt.colorbar(scatter, cmap=cmap, cax=self.colorbar_axs[ax_index], orientation='vertical',
+                             format=self.vis_params['cb_format'])
+            )
 
         # Set colorbar parameters
         self.colorbar_interact[-1].ax.locator_params(nbins=12)

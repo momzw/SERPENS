@@ -13,6 +13,7 @@
 /.ruff_cache/
 __pycache__/
 /legacy/
+**/.ipynb_checkpoints
 *.py[cod]
 **.so
 **.dll
