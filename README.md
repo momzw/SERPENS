@@ -50,9 +50,12 @@ To build the Docker image, navigate to the SERPENS directory and execute `docker
 To run the Docker container, execute `docker run -it serpens bash`. 
 
 If we aim to run Jupyter notebooks, we can use the Docker container as a Jupyter server. 
-To do so, execute `docker run -it -p 8888:8888 serpens bash` and navigate to `localhost:8888` in a web browser (or click the link
+To do so, execute `docker run -it -p 8888:8888 serpens bash` and start the server inside the container with 
+`jupyter notebook --ip 0.0.0.0 --port 8888 --no-browser --allow-root` . Then navigate to `localhost:8888` in a web browser (or click the link
 in the console that was created after the server startup). Instead of 8888, you can also use other port numbers.
-This is especially important if you already have other notebooks or other things running on port 8888. 
+This is especially important if you already have other notebooks or other things running on port 8888. If asked for a token, 
+you can find it in the link provided by the server in the console. Alternatively, pass token-related flags when 
+starting up the Jupyter server. 
 
 
 ## Repository Layout

@@ -1,6 +1,7 @@
 node_modules
 .claude
 .jbeval
+.junie
 .gitignore
 schedule_archive
 pyproject.toml

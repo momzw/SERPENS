@@ -7,6 +7,7 @@
 /.jbeval/
 /.claude/
 /.idea/
+/.junie/
 /.ipynb_checkpoints/
 /.pytest_cache/
 /.mypy_cache/
@@ -15,9 +16,10 @@ __pycache__/
 /legacy/
 **/.ipynb_checkpoints
 *.py[cod]
-**.so
-**.dll
-.DS_Store
+**/*.csv
+**/*.so
+**/*.dll
+**/.DS_Store
 *.gif
 *.pickle
 *.mp4
@@ -28,4 +30,3 @@ __pycache__/
 *.html
 *.pkl
 *.h5
-*.csv
