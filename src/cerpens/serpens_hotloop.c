@@ -135,23 +135,38 @@ static inline void dipole_moment_at(double t, double m_out[3])
  *  Dipole B-field in SI
  * ======================================================================== */
 
-static inline void dipole_B(const double m_vec[3], const double r_vec[3], double B_out[3])
+/* Softened dipole. Substituting r -> s = (r^8 + a^8)^(1/8) in both the radial falloff and
+ * the radial unit vector keeps B finite and smooth through r = 0, instead of cutting the
+ * force off at a hard radius.
+ *
+ * The high exponent matters: a Plummer-style sqrt(r^2 + a^2) would suppress |B| by a
+ * factor ~2 out at 1.2a, which is inside the region a torus actually occupies and would
+ * artificially widen the loss cone. This form is within 1.5% of the exact dipole by 1.5a
+ * and 0.2% by 2a, while still being C-infinity at the origin (r^8 is a polynomial in the
+ * components). */
+static void dipole_B(const double m_vec[3], const double r_vec[3], double B_out[3])
 {
-    double r2 = r_vec[0]*r_vec[0] + r_vec[1]*r_vec[1] + r_vec[2]*r_vec[2];
-    if (r2 == 0.0) { B_out[0] = B_out[1] = B_out[2] = 0.0; return; }
+    const double a = g_lorentz.softening;
+    const double r2 = v3_dot(r_vec, r_vec);
+    const double r8 = r2*r2*r2*r2;
+    const double a2 = a*a;
+    const double a8 = a2*a2*a2*a2;
+    const double s8 = r8 + a8;
+    if (s8 <= 0.0) { B_out[0] = B_out[1] = B_out[2] = 0.0; return; }
 
-    double r     = sqrt(r2);
-    double inv_r = 1.0 / r;
-    double rhat[3] = { r_vec[0]*inv_r, r_vec[1]*inv_r, r_vec[2]*inv_r };
+    const double s     = pow(s8, 0.125);
+    const double s2    = s * s;
+    const double inv_s = 1.0 / s;
+    const double n[3]  = { r_vec[0]*inv_s, r_vec[1]*inv_s, r_vec[2]*inv_s };
 
-    double mu0_4pi = 1e-7;
-    double factor  = mu0_4pi / (r * r2);   /* mu0/(4pi * r^3) */
+    const double mu0_4pi = 1e-7;
+    const double factor  = mu0_4pi / (s * s2);   /* mu0/(4pi * s^3) */
 
-    double m_dot_rhat = m_vec[0]*rhat[0] + m_vec[1]*rhat[1] + m_vec[2]*rhat[2];
+    const double m_dot_n = v3_dot(m_vec, n);
 
-    B_out[0] = factor * (3.0 * rhat[0] * m_dot_rhat - m_vec[0]);
-    B_out[1] = factor * (3.0 * rhat[1] * m_dot_rhat - m_vec[1]);
-    B_out[2] = factor * (3.0 * rhat[2] * m_dot_rhat - m_vec[2]);
+    B_out[0] = factor * (3.0 * n[0] * m_dot_n - m_vec[0]);
+    B_out[1] = factor * (3.0 * n[1] * m_dot_n - m_vec[1]);
+    B_out[2] = factor * (3.0 * n[2] * m_dot_n - m_vec[2]);
 }
 
 /* ========================================================================
@@ -171,8 +186,6 @@ static void lorentz_force(struct reb_simulation* sim)
     double m_vec[3];
     dipole_moment_at(sim->t, m_vec);
 
-    double soft2 = g_lorentz.softening * g_lorentz.softening;
-
     struct rebx_extras* rebx = sim->extras;  /* rebx attached to this sim */
 
     for (uint32_t i = sim->N_active; i < sim->N; i++) {
@@ -189,11 +202,6 @@ static void lorentz_force(struct reb_simulation* sim)
             p->y - central->y,
             p->z - central->z
         };
-
-        if (soft2 > 0.0) {
-            double rr = r_rel[0]*r_rel[0] + r_rel[1]*r_rel[1] + r_rel[2]*r_rel[2];
-            if (rr < soft2) continue;
-        }
 
         double v_rel[3] = {
             p->vx - central->vx,
