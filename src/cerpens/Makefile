@@ -33,8 +33,12 @@ else
 endif
 TARGET := $(TARGET_BASENAME)$(TARGET_EXT)
 
-REBOUND_DIR := ../../../rebound/src
-REBOUNDX_DIR := ../../../reboundx/src
+# Prefer sibling source checkouts; otherwise fall back to the headers shipped with the
+# installed rebound/reboundx wheels, which is where they live in a plain venv install.
+REBOUND_DIR ?= $(strip $(if $(wildcard ../../../rebound/src/rebound.h),../../../rebound/src,\
+    $(shell $(PYTHON) -c "import os,rebound;print(os.path.dirname(rebound.__file__))" 2>/dev/null)))
+REBOUNDX_DIR ?= $(strip $(if $(wildcard ../../../reboundx/src/reboundx.h),../../../reboundx/src,\
+    $(shell $(PYTHON) -c "import os,reboundx;print(os.path.dirname(reboundx.__file__))" 2>/dev/null)))
 
 CPPFLAGS += -I"$(REBOUND_DIR)" -I"$(REBOUNDX_DIR)" -I"$(REBOUNDX_DIR)"
 
