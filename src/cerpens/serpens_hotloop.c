@@ -16,20 +16,76 @@
 #include "reboundx.h"
 
 /* ========================================================================
+ *  Small vector helpers
+ * ======================================================================== */
+
+static inline double v3_dot(const double a[3], const double b[3])
+{
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
+static inline void v3_cross(const double a[3], const double b[3], double out[3])
+{
+    out[0] = a[1]*b[2] - a[2]*b[1];
+    out[1] = a[2]*b[0] - a[0]*b[2];
+    out[2] = a[0]*b[1] - a[1]*b[0];
+}
+
+static inline double v3_norm(const double a[3])
+{
+    return sqrt(v3_dot(a, a));
+}
+
+/* Rotate v by `angle` about the unit axis khat (Rodrigues' rotation formula). */
+static void v3_rotate(const double khat[3], double angle, const double v[3], double out[3])
+{
+    const double c = cos(angle);
+    const double s = sin(angle);
+    const double kdotv = v3_dot(khat, v);
+    double kcrossv[3];
+    v3_cross(khat, v, kcrossv);
+
+    for (int i = 0; i < 3; i++) {
+        out[i] = v[i]*c + kcrossv[i]*s + khat[i]*kdotv*(1.0 - c);
+    }
+}
+
+/* ========================================================================
  *  Lorentz force configuration  (set from Python before calling integrate)
  * ======================================================================== */
 
 typedef struct {
     int    enabled;
     int    central_index;       /* index of the central body in sim->particles */
-    double moment[3];           /* magnetic dipole moment [A m^2] */
-    double mag_tilt_rad;        /* tilt in radians */
-    double mag_rotation[3];     /* rotation axis vector */
-    double mag_rotation_norm;   /* |mag_rotation|, precomputed */
+    double moment_tilted[3];    /* dipole moment with the tilt applied [A m^2] */
+    double spin_hat[3];         /* unit rotation axis of the magnetosphere */
+    double spin_rate;           /* |mag_rotation| [rad/s] */
+    double rotation[3];         /* full rotation vector Omega [rad/s] */
     double softening;           /* ignore r < softening [m] */
 } lorentz_config_t;
 
 static lorentz_config_t g_lorentz = {0};
+
+/* Unit vector perpendicular to n. Which perpendicular direction we pick only sets the
+ * zero point of the rotation phase, so we take the one that is numerically best
+ * conditioned (cross with the least-aligned coordinate axis). */
+static void v3_perpendicular(const double n[3], double out[3])
+{
+    double axis[3] = {0.0, 0.0, 0.0};
+    int least = 0;
+    double smallest = fabs(n[0]);
+    if (fabs(n[1]) < smallest) { least = 1; smallest = fabs(n[1]); }
+    if (fabs(n[2]) < smallest) { least = 2; }
+    axis[least] = 1.0;
+
+    v3_cross(n, axis, out);
+    double norm = v3_norm(out);
+    if (norm == 0.0) {
+        out[0] = 1.0; out[1] = 0.0; out[2] = 0.0;
+        return;
+    }
+    out[0] /= norm; out[1] /= norm; out[2] /= norm;
+}
 
 /* Exported: Python sets these before each integrate call */
 void serpens_set_lorentz_config(
@@ -40,17 +96,39 @@ void serpens_set_lorentz_config(
     double rotx, double roty, double rotz,
     double softening)
 {
+    memset(&g_lorentz, 0, sizeof(g_lorentz));
+
     g_lorentz.enabled        = enabled;
     g_lorentz.central_index  = central_index;
-    g_lorentz.moment[0]      = mx;
-    g_lorentz.moment[1]      = my;
-    g_lorentz.moment[2]      = mz;
-    g_lorentz.mag_tilt_rad   = mag_tilt_rad;
-    g_lorentz.mag_rotation[0]= rotx;
-    g_lorentz.mag_rotation[1]= roty;
-    g_lorentz.mag_rotation[2]= rotz;
-    g_lorentz.mag_rotation_norm = sqrt(rotx*rotx + roty*roty + rotz*rotz);
     g_lorentz.softening      = softening;
+    g_lorentz.rotation[0]    = rotx;
+    g_lorentz.rotation[1]    = roty;
+    g_lorentz.rotation[2]    = rotz;
+    g_lorentz.spin_rate      = sqrt(rotx*rotx + roty*roty + rotz*rotz);
+
+    if (g_lorentz.spin_rate > 0.0) {
+        g_lorentz.spin_hat[0] = rotx / g_lorentz.spin_rate;
+        g_lorentz.spin_hat[1] = roty / g_lorentz.spin_rate;
+        g_lorentz.spin_hat[2] = rotz / g_lorentz.spin_rate;
+    } else {
+        g_lorentz.spin_hat[0] = 0.0;
+        g_lorentz.spin_hat[1] = 0.0;
+        g_lorentz.spin_hat[2] = 1.0;
+    }
+
+    /* The tilt is a genuine rotation of the moment vector away from the spin axis, not a
+     * componentwise rescaling: a moment already aligned with the spin axis has to end up
+     * at `mag_tilt_rad` from it, which requires rotating about a perpendicular axis. */
+    const double moment[3] = {mx, my, mz};
+    double tilt_axis[3];
+    v3_perpendicular(g_lorentz.spin_hat, tilt_axis);
+    v3_rotate(tilt_axis, mag_tilt_rad, moment, g_lorentz.moment_tilted);
+}
+
+/* Dipole moment at time t: the tilted moment carried around by the rotating planet. */
+static inline void dipole_moment_at(double t, double m_out[3])
+{
+    v3_rotate(g_lorentz.spin_hat, g_lorentz.spin_rate * t, g_lorentz.moment_tilted, m_out);
 }
 
 /* ========================================================================
@@ -90,13 +168,8 @@ static void lorentz_force(struct reb_simulation* sim)
     struct reb_particle* central = &sim->particles[ci];
 
     /* Time-dependent dipole orientation */
-    double tilt = g_lorentz.mag_tilt_rad;
-    double omega_t = g_lorentz.mag_rotation_norm * sim->t;
-
     double m_vec[3];
-    m_vec[0] = g_lorentz.moment[0] * sin(tilt) * cos(omega_t);
-    m_vec[1] = g_lorentz.moment[1] * sin(tilt) * sin(omega_t);
-    m_vec[2] = g_lorentz.moment[2] * cos(tilt);
+    dipole_moment_at(sim->t, m_vec);
 
     double soft2 = g_lorentz.softening * g_lorentz.softening;
 
@@ -133,7 +206,7 @@ static void lorentz_force(struct reb_simulation* sim)
 
 
         /* v_eff = v_rel - (omega x r_rel)   (corotation correction) */
-        double* rot = g_lorentz.mag_rotation;
+        double* rot = g_lorentz.rotation;
         double omega_cross_r[3] = {
             rot[1]*r_rel[2] - rot[2]*r_rel[1],
             rot[2]*r_rel[0] - rot[0]*r_rel[2],
