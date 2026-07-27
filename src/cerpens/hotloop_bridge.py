@@ -106,6 +106,9 @@ _lib.serpens_advance_integrate.argtypes = [
     ctypes.POINTER(ctypes.c_double),                # sim_time_out
 ]
 
+# Matches the value the pure-Python SerpensSimulation path uses.
+DEFAULT_IAS15_MIN_DT = 1e-4
+
 def configure_lorentz(params):
     """Push Lorentz config from GLOBAL_PARAMETERS into the C library."""
     enabled = int(params.get("lorentz_enabled", False))
@@ -209,6 +212,8 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
     n_out = ctypes.c_int(0)
     sim_time_out = ctypes.c_double(0.0)
 
+    min_dt = float(params.get("ias15_min_dt", DEFAULT_IAS15_MIN_DT))
+
     # --- Call C function ---
     _lib.serpens_advance_integrate(
         ctypes.c_int(n_active),
@@ -221,7 +226,7 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
         source_primary_hashes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
         ctypes.c_double(target_time),
         ctypes.c_double(sim.G),
-        ctypes.c_double(1e-3),
+        ctypes.c_double(min_dt),
         ctypes.c_double(sim.t),
         ctypes.c_int(n_threads),
         ctypes.c_int(int(fix_circular)),

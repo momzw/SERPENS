@@ -247,7 +247,7 @@ class SerpensSimulation(rebound.Simulation):
         print("Initializing new simulation instance...")
 
         self.integrator = "ias15"   # Integrator with Adaptive Step-size control, 15th order
-        self.ri_ias15.min_dt = 1e-4
+        self.ri_ias15.min_dt = GLOBAL_PARAMETERS.get("ias15_min_dt", 1e-4)
         self.collision = "direct"  # Brute force collision search and scales as O(N^2).
         self.collision_resolve = "merge"
 
@@ -530,7 +530,7 @@ class SerpensSimulation(rebound.Simulation):
             copy = self.copy()
     
             copy.integrator = "ias15"
-            copy.ri_ias15.min_dt = 1e-4
+            copy.ri_ias15.min_dt = GLOBAL_PARAMETERS.get("ias15_min_dt", 1e-4)
             copy.collision = "direct"
             copy.collision_resolve = "merge"
             copy_rebx = reboundx.Extras(copy, "simdata/rebx.bin")
