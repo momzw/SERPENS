@@ -64,6 +64,21 @@ _ext = ".dll" if platform.system() == "Windows" else ".so"
 _lib_path = os.path.join(_dir, f"serpens_hotloop{_ext}")
 _lib = ctypes.CDLL(_lib_path)
 
+# --- Check the shared library matches this module ---
+# serpens_hotloop.so is not checked in, so a stale build left over from before an argument
+# list changed would be handed the wrong arguments and silently read garbage.
+_REQUIRED_ABI = 2
+try:
+    _lib.serpens_hotloop_abi_version.restype = ctypes.c_int
+    _found_abi = _lib.serpens_hotloop_abi_version()
+except AttributeError:
+    _found_abi = 0
+if _found_abi != _REQUIRED_ABI:
+    raise ImportError(
+        f"{_lib_path} is out of date (ABI {_found_abi}, expected {_REQUIRED_ABI}). "
+        "Rebuild it with `make` in src/cerpens/."
+    )
+
 # --- Declare function signatures ---
 
 # void serpens_set_lorentz_config(int, int, double, ..., double)
@@ -81,9 +96,6 @@ _lib.serpens_set_lorentz_config.argtypes = [
     ctypes.c_double,    # softening
 ]
 
-# void serpens_advance_integrate(int, int, double*, uint32*, double*, double*,
-#                                int*, uint32*, double, double, double, double,
-#                                int, int, double*, uint32*, int*, double*)
 _lib.serpens_advance_integrate.restype = None
 _lib.serpens_advance_integrate.argtypes = [
     ctypes.c_int,                                   # n_active
@@ -92,22 +104,38 @@ _lib.serpens_advance_integrate.argtypes = [
     ctypes.POINTER(ctypes.c_uint32),                # hashes_in
     ctypes.POINTER(ctypes.c_double),                # beta_values
     ctypes.POINTER(ctypes.c_double),                # qm_values
+    ctypes.POINTER(ctypes.c_double),                # mu_values
+    ctypes.POINTER(ctypes.c_double),                # radii
     ctypes.POINTER(ctypes.c_int),                   # rad_source_flags
     ctypes.POINTER(ctypes.c_uint32),                # source_primary_hashes
     ctypes.c_double,                                # target_time
     ctypes.c_double,                                # G_value
     ctypes.c_double,                                # min_dt
+    ctypes.c_double,                                # gc_rtol
+    ctypes.c_double,                                # gc_eps_max
     ctypes.c_double,                                # sim_t0
     ctypes.c_int,                                   # n_threads
     ctypes.c_int,                                   # fix_circular
     ctypes.POINTER(ctypes.c_double),                # state_out
     ctypes.POINTER(ctypes.c_uint32),                # hashes_out
+    ctypes.POINTER(ctypes.c_double),                # qm_out
+    ctypes.POINTER(ctypes.c_double),                # mu_out
     ctypes.POINTER(ctypes.c_int),                   # n_out
     ctypes.POINTER(ctypes.c_double),                # sim_time_out
 ]
 
-# Matches the value the pure-Python SerpensSimulation path uses.
+# Uninitialised magnetic moment: the C side derives mu/m from the particle's velocity the
+# first time it sees a charged particle, then carries it as an adiabatic invariant.
+MU_UNSET = -1.0
+
+# Defaults for the integration controls that used to be hardcoded here.
 DEFAULT_IAS15_MIN_DT = 1e-4
+DEFAULT_GC_RTOL = 1e-6
+
+# Validity threshold of the guiding-centre expansion, eps = r_gyro / (B/|grad B|). Above
+# it a particle is no longer well magnetised and is integrated ballistically instead. This
+# is a conventional cutoff on the expansion parameter, not a measured quantity.
+DEFAULT_GC_EPS_MAX = 0.1
 
 def configure_lorentz(params):
     """Push Lorentz config from GLOBAL_PARAMETERS into the C library."""
@@ -153,14 +181,18 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
     n_active = sim.N_active if sim.N_active >= 0 else sim.N
     n_total = sim.N
 
-    # Snapshot radii for active particles — not part of the 7-element state vector
+    # Snapshot radii for active particles — not part of the 7-element state vector. They
+    # are also passed into C, where they act as the absorbing surface for guiding centres.
     active_radii = [sim.particles[i].r for i in range(n_active)]
+    radii = np.zeros(n_total, dtype=np.float64)
+    radii[:n_active] = active_radii
 
     # --- Pack simulation state into flat arrays ---
     state_in = np.zeros(n_total * 7, dtype=np.float64)
     hashes_in = np.zeros(n_total, dtype=np.uint32)
     beta_values = np.zeros(n_total, dtype=np.float64)
     qm_values = np.zeros(n_total, dtype=np.float64)
+    mu_values = np.full(n_total, MU_UNSET, dtype=np.float64)
     rad_source_flags = np.zeros(n_total, dtype=np.int32)
     source_primary_hashes = np.zeros(n_total, dtype=np.uint32)
 
@@ -191,6 +223,13 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
             pass
 
         try:
+            mu_val = p.params.get("mu_over_m")
+            if mu_val is not None:
+                mu_values[i] = float(mu_val)
+        except AttributeError:
+            pass
+
+        try:
             rs_val = p.params.get("radiation_source")
             if rs_val is not None:
                 rad_source_flags[i] = int(rs_val)
@@ -209,10 +248,14 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
     # --- Prepare output buffers ---
     state_out = np.zeros(n_total * 7, dtype=np.float64)
     hashes_out = np.zeros(n_total, dtype=np.uint32)
+    qm_out = np.zeros(n_total, dtype=np.float64)
+    mu_out = np.full(n_total, MU_UNSET, dtype=np.float64)
     n_out = ctypes.c_int(0)
     sim_time_out = ctypes.c_double(0.0)
 
     min_dt = float(params.get("ias15_min_dt", DEFAULT_IAS15_MIN_DT))
+    gc_rtol = float(params.get("guiding_centre_rtol", DEFAULT_GC_RTOL))
+    gc_eps_max = float(params.get("guiding_centre_eps_max", DEFAULT_GC_EPS_MAX))
 
     # --- Call C function ---
     _lib.serpens_advance_integrate(
@@ -222,16 +265,22 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
         hashes_in.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
         beta_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         qm_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+        mu_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+        radii.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         rad_source_flags.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
         source_primary_hashes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
         ctypes.c_double(target_time),
         ctypes.c_double(sim.G),
         ctypes.c_double(min_dt),
+        ctypes.c_double(gc_rtol),
+        ctypes.c_double(gc_eps_max),
         ctypes.c_double(sim.t),
         ctypes.c_int(n_threads),
         ctypes.c_int(int(fix_circular)),
         state_out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         hashes_out.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        qm_out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+        mu_out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         ctypes.byref(n_out),
         ctypes.byref(sim_time_out),
     )
@@ -279,9 +328,11 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
         if i < len(active_radii):
             sim.particles[i].r = active_radii[i]
 
-    # Restore per-particle params
+    # Restore per-particle params. These come back from C in the *output* ordering, so a
+    # merge or collision cannot shift them onto the wrong particle.
     for i in range(actual_n_active, actual_n):
         # Restore REBOUNDx params
         #sim.particles[-1].params["beta"] = beta_values[i] if i < len(beta_values) else 0.0
-        sim.particles[i].params["q_over_m"] = float(qm_values[i]) if i < len(qm_values) else 0.0
+        sim.particles[i].params["q_over_m"] = float(qm_out[i])
+        sim.particles[i].params["mu_over_m"] = float(mu_out[i])
 

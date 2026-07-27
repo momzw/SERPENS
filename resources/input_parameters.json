@@ -10,6 +10,8 @@
       "radiation_pressure_shield": false,
       "fix_source_circular_orbit": true,
       "ias15_min_dt": 1e-4,
+      "guiding_centre_rtol": 1e-6,
+      "guiding_centre_eps_max": 0.1,
       "lorentz_enabled": false,
       "lorentz_central_index": "1",
       "lorentz_moment_Am2": [0.0, 0.0, 1.5e24],

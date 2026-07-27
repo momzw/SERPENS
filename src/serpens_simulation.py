@@ -263,6 +263,11 @@ class SerpensSimulation(rebound.Simulation):
 
         # For CERPENS or catching errors in SERPENS
         self.rebx.register_param("q_over_m", "REBX_TYPE_DOUBLE")
+        # Magnetic moment per unit mass, mu/m = v_perp^2 / (2B), carried as an adiabatic
+        # invariant by the guiding-centre pusher. A negative value means "not yet derived":
+        # the gyration speed is only recoverable from the full velocity at ionisation,
+        # since the guiding-centre state no longer represents it.
+        self.rebx.register_param("mu_over_m", "REBX_TYPE_DOUBLE")
 
         for k, v in GLOBAL_PARAMETERS.get('celest', {}).items():
             if not type(v) == dict:
@@ -411,6 +416,7 @@ class SerpensSimulation(rebound.Simulation):
                             self.particles[identifier].params["beta"] = species.beta
                             self.particles[identifier].params["q_over_m"] = (
                                         species.q / species.m) if species.m != 0 else 0.0
+                            self.particles[identifier].params["mu_over_m"] = -1.0
 
         return
 
@@ -666,6 +672,9 @@ class SerpensSimulation(rebound.Simulation):
                     self.set_particle_param(particle.hash.value, "serpens_reaction_time", new_reaction_time)
                     self.set_particle_param(particle.hash.value, "serpens_creation_time", self.t)
                     particle.params["q_over_m"] = new_species.q / new_species.m
+                    # The reaction changes the charge state, so the pickup energy has to
+                    # be re-derived from the velocity the particle has right now.
+                    particle.params["mu_over_m"] = -1.0
                     reacting += 1
 
                     # TODO: Need to set other parameters from birth (new reaction targets etc.)
