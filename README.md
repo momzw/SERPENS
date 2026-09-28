@@ -69,6 +69,50 @@ starting up the Jupyter server.
 - `simdata/`: generated simulation outputs (runtime artifacts).
 
 
+## Grain Test Particles
+
+See the [grain baseline guide](docs/grains.md) for SI population configuration,
+the parameter-study example, physical budgets and plotting, and the model's
+validity limits and omitted physics.
+The [interactive grain notebook](notebooks/grains.ipynb) walks through configuration,
+simulation, archive analysis, and a tracer-count comparison.
+
+
+## Interactive Visualization
+
+The optional local web dashboard uses Dash's native Jupyter support on Python >=3.9.
+From the repository, install the web extra:
+
+```bash
+python -m pip install -e '.[web]'
+```
+
+Then, from a **trusted dataset directory containing its existing `simdata/`**,
+launch the dashboard (do not copy simulation outputs into the repository):
+
+```bash
+python -m src.visualizing.webapp --reference-system planet --port 8050
+```
+
+Open `http://127.0.0.1:8050`. In a notebook with an existing `analyzer`, prefer:
+
+```python
+from src.visualizing.webapp import launch_notebook
+
+app = launch_notebook(analyzer, port=8050)
+```
+
+The helper defaults to `jupyter_mode='external'`; `jupyter_mode='inline'` is also
+supported. It caches the app on the analyzer and reuses the same port on repeated
+invocations; requesting another port is rejected to prevent duplicate servers.
+Dash remains a lazy, optional dependency: legacy visualization APIs and the shared
+Plotly provider/builders do not require the web extra.
+
+See the [visualization guide](docs/visualization.md) for all views, thresholds,
+downloads, scientific units, cache refresh, and the one-dataset-per-process limit.
+The [workbook](notebooks/workbook.ipynb) includes unexecuted examples at the end.
+
+
 ## Notes on Generated Files
 
 - Runtime output files are produced during simulations (for example in `simdata/` and `schedule_archive/`).

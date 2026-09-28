@@ -5,9 +5,9 @@
       "num_sim_advances": 60,
       "stop_at_steady_state": false,
       "gen_max": null,
-      "r_max": 4,
+      "r_max": 8,
       "random_walk": false,
-      "radiation_pressure_shield": false,
+      "radiation_pressure_shield": true,
       "fix_source_circular_orbit": true,
       "lorentz_enabled": false,
       "lorentz_central_index": "1",
@@ -15,11 +15,10 @@
       "magnetic_rotation": [0.0, 0.0, 1.758e-4],
       "magnetic_tilt_degrees": 60,
       "lorentz_softening_m": 70000e3
-
     },
     "THERMAL_EVAP_PARAMETERS": {
-      "source_temp_max": 2703,
-      "source_temp_min": 1609,
+      "source_temp_max": 2700,
+      "source_temp_min": 1376,
       "spherical_symm_ejection": true
     }
   },

@@ -81,10 +81,7 @@ _lib.serpens_set_lorentz_config.argtypes = [
     ctypes.c_double,    # softening
 ]
 
-# void serpens_advance_integrate(int, int, double*, uint32*, double*, double*,
-#                                int*, uint32*, double, double, double, double,
-#                                int, int, double*, uint32*, int*, double*)
-_lib.serpens_advance_integrate.restype = None
+_lib.serpens_advance_integrate.restype = ctypes.c_int
 _lib.serpens_advance_integrate.argtypes = [
     ctypes.c_int,                                   # n_active
     ctypes.c_int,                                   # n_total
@@ -94,15 +91,23 @@ _lib.serpens_advance_integrate.argtypes = [
     ctypes.POINTER(ctypes.c_double),                # qm_values
     ctypes.POINTER(ctypes.c_int),                   # rad_source_flags
     ctypes.POINTER(ctypes.c_uint32),                # source_primary_hashes
+    ctypes.POINTER(ctypes.c_double),                # radii_in
+    ctypes.POINTER(ctypes.c_int),                   # particle_kinds
     ctypes.c_double,                                # target_time
     ctypes.c_double,                                # G_value
     ctypes.c_double,                                # min_dt
+    ctypes.c_double,                                # epsilon
     ctypes.c_double,                                # sim_t0
+    ctypes.c_double,                                # initial_dt
+    ctypes.c_double,                                # max_dt (0 disables)
+    ctypes.c_double,                                # radiation_c
     ctypes.c_int,                                   # n_threads
-    ctypes.c_int,                                   # fix_circular
+    ctypes.c_int,                                   # force_is_velocity_dependent
     ctypes.POINTER(ctypes.c_double),                # state_out
     ctypes.POINTER(ctypes.c_uint32),                # hashes_out
+    ctypes.POINTER(ctypes.c_double),                # radii_out
     ctypes.POINTER(ctypes.c_int),                   # n_out
+    ctypes.POINTER(ctypes.c_int),                   # n_active_out
     ctypes.POINTER(ctypes.c_double),                # sim_time_out
 ]
 
@@ -142,16 +147,21 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
     n_threads : int
         Number of threads for parallel integration.
     fix_circular : bool
-        Whether to fix source orbits to circular.
+        Legacy argument, ignored. The parent applies orbit fixing once per step.
     params : Parameters
-        GLOBAL_PARAMETERS instance for Lorentz config.
+        GLOBAL_PARAMETERS instance for Lorentz config and optional positive
+        integration_max_dt (seconds), limiting collision-search intervals.
     """
 
     n_active = sim.N_active if sim.N_active >= 0 else sim.N
     n_total = sim.N
-
-    # Snapshot radii for active particles — not part of the 7-element state vector
-    active_radii = [sim.particles[i].r for i in range(n_active)]
+    max_dt = params.get('integration_max_dt')
+    if max_dt is not None and (not np.isfinite(max_dt) or max_dt <= 0):
+        raise ValueError('integration_max_dt must be finite and positive')
+    if not np.isfinite(target_time) or target_time < sim.t:
+        raise ValueError('Integration target must be finite and not earlier than sim.t')
+    if target_time == sim.t:
+        return
 
     # --- Pack simulation state into flat arrays ---
     state_in = np.zeros(n_total * 7, dtype=np.float64)
@@ -160,6 +170,9 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
     qm_values = np.zeros(n_total, dtype=np.float64)
     rad_source_flags = np.zeros(n_total, dtype=np.int32)
     source_primary_hashes = np.zeros(n_total, dtype=np.uint32)
+    radii_in = np.zeros(n_total, dtype=np.float64)
+    particle_kinds = np.zeros(n_total, dtype=np.int32)
+    metadata_by_hash = {}
 
     for i in range(n_total):
         p = sim.particles[i]
@@ -171,34 +184,23 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
         state_in[i*7 + 5] = p.vy
         state_in[i*7 + 6] = p.vz
         hashes_in[i] = p.hash.value
-
-        # REBOUNDx parameters
-        try:
-            beta_val = p.params.get("beta")
-            if beta_val is not None:
-                beta_values[i] = float(beta_val)
-        except AttributeError:
-            pass
-
-        try:
-            qm_val = p.params.get("q_over_m")
-            if qm_val is not None:
-                qm_values[i] = float(qm_val)
-        except AttributeError:
-            pass
-
-        try:
-            rs_val = p.params.get("radiation_source")
-            if rs_val is not None:
-                rad_source_flags[i] = int(rs_val)
-        except AttributeError:
-            pass
-
-        # source_primary from h5 (for active particles used by heartbeat_c)
-        if i < n_active:
-            sp = sim.get_particle_param(p.hash.value, "source_primary")
-            if sp is not None:
-                source_primary_hashes[i] = int(sp)
+        radii_in[i] = p.r
+        if p.hash.value in metadata_by_hash:
+            raise ValueError('C backend requires unique particle hashes')
+        metadata = {}
+        for field in ('beta', 'q_over_m', 'radiation_source', 'source_primary', 'source_hash', 'particle_kind'):
+            try:
+                metadata[field] = p.params[field]
+            except AttributeError:
+                pass
+        if not metadata.get('radiation_source'):
+            metadata.pop('radiation_source', None)
+        metadata_by_hash[p.hash.value] = metadata
+        beta_values[i] = metadata.get('beta', 0.)
+        qm_values[i] = metadata.get('q_over_m', 0.)
+        rad_source_flags[i] = metadata.get('radiation_source', 0)
+        source_primary_hashes[i] = sim.get_particle_param(p.hash.value, 'source_primary') or 0
+        particle_kinds[i] = sim.get_particle_param(p.hash.value, 'particle_kind') or metadata.get('particle_kind', 0)
 
     # --- Configure Lorentz force in C ---
     configure_lorentz(params)
@@ -206,11 +208,13 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
     # --- Prepare output buffers ---
     state_out = np.zeros(n_total * 7, dtype=np.float64)
     hashes_out = np.zeros(n_total, dtype=np.uint32)
+    radii_out = np.zeros(n_total, dtype=np.float64)
     n_out = ctypes.c_int(0)
+    n_active_out = ctypes.c_int(0)
     sim_time_out = ctypes.c_double(0.0)
 
     # --- Call C function ---
-    _lib.serpens_advance_integrate(
+    status = _lib.serpens_advance_integrate(
         ctypes.c_int(n_active),
         ctypes.c_int(n_total),
         state_in.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
@@ -219,29 +223,37 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
         qm_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         rad_source_flags.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
         source_primary_hashes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        radii_in.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+        particle_kinds.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
         ctypes.c_double(target_time),
         ctypes.c_double(sim.G),
-        ctypes.c_double(1e-3),
+        ctypes.c_double(sim.ri_ias15.min_dt),
+        ctypes.c_double(sim.ri_ias15.epsilon),
         ctypes.c_double(sim.t),
+        ctypes.c_double(sim.dt),
+        ctypes.c_double(max_dt or 0.),
+        ctypes.c_double(sim.rebx.get_force('radiation_forces').params['c']),
         ctypes.c_int(n_threads),
-        ctypes.c_int(int(fix_circular)),
+        ctypes.c_int(sim.force_is_velocity_dependent),
         state_out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         hashes_out.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        radii_out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         ctypes.byref(n_out),
+        ctypes.byref(n_active_out),
         ctypes.byref(sim_time_out),
     )
+    if status:
+        raise RuntimeError(f'C backend integration failed with REBOUND status {status}')
 
     # --- Unpack results back into the simulation ---
     actual_n = n_out.value
-    actual_n_active = min(n_active, actual_n)
+    actual_n_active = n_active_out.value
 
     # Clear existing particles
-    while sim.N > 0:
-        sim.remove(index=sim.N - 1)
+    del sim.particles
 
-    # Re-add active particles
-    import rebound
-    for i in range(actual_n_active):
+    # Re-add particles and restore live parameters by identity, never index.
+    for i in range(actual_n):
         p = rebound.Particle()
         p.m  = state_out[i*7 + 0]
         p.x  = state_out[i*7 + 1]
@@ -250,33 +262,12 @@ def advance_integrate_c(sim, target_time, n_threads, fix_circular, params):
         p.vx = state_out[i*7 + 4]
         p.vy = state_out[i*7 + 5]
         p.vz = state_out[i*7 + 6]
+        p.r = radii_out[i]
         p.hash = rebound.hash(int(hashes_out[i]))
         rebound.Simulation.add(sim, p)
-
-    # Re-add test particles
-    for i in range(actual_n_active, actual_n):
-        p = rebound.Particle()
-        p.m  = state_out[i*7 + 0]
-        p.x  = state_out[i*7 + 1]
-        p.y  = state_out[i*7 + 2]
-        p.z  = state_out[i*7 + 3]
-        p.vx = state_out[i*7 + 4]
-        p.vy = state_out[i*7 + 5]
-        p.vz = state_out[i*7 + 6]
-        p.hash = rebound.hash(int(hashes_out[i]))
-        rebound.Simulation.add(sim, p)
+        for field, value in metadata_by_hash[int(hashes_out[i])].items():
+            sim.particles[-1].params[field] = value
 
     sim.N_active = actual_n_active
     sim.t = sim_time_out.value
-
-    # Restore particle radii for active particles (not in state vector)
-    for i in range(actual_n_active):
-        if i < len(active_radii):
-            sim.particles[i].r = active_radii[i]
-
-    # Restore per-particle params
-    for i in range(actual_n_active, actual_n):
-        # Restore REBOUNDx params
-        #sim.particles[-1].params["beta"] = beta_values[i] if i < len(beta_values) else 0.0
-        sim.particles[i].params["q_over_m"] = float(qm_values[i]) if i < len(qm_values) else 0.0
 

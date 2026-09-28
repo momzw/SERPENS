@@ -1,5 +1,6 @@
 import concurrent.futures
 import copy
+import json
 import multiprocessing
 import os
 import pickle
@@ -13,7 +14,8 @@ import reboundx
 from tqdm import tqdm
 
 from src.parameters import GLOBAL_PARAMETERS
-from src.spawner import generate_particles
+from src.grains import GrainPopulation, GRAIN_METADATA_FIELDS, validate_grain_record
+from src.spawner import generate_particles, generate_grains
 
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='rebound')
 
@@ -171,6 +173,10 @@ class SerpensSimulation(rebound.Simulation):
         self.serpens_iter = 0
         self.source_obj_dict = {}
         self.obj_primary_dict = {}
+        self.grain_populations = {}
+        self.grain_radiation_source = None
+        self.grain_rng = np.random.default_rng(GLOBAL_PARAMETERS.get('grain_seed'))
+        self.grain_batch = 0
 
         # Initialize h5 file for particle parameters
         self.init_h5_storage()
@@ -188,12 +194,16 @@ class SerpensSimulation(rebound.Simulation):
             os.makedirs("simdata", exist_ok=True)
 
         with h5py.File(self.h5_filename, 'w') as f:
+            f.attrs['metadata_version'] = 1
+            f.create_group('grain_populations')
+            for field in GRAIN_METADATA_FIELDS:
+                f.require_group(field)
             # Create groups for each parameter
-            f.create_group("beta")
+            f.require_group("beta")
             f.create_group("serpens_species")
-            f.create_group("source_hash")
+            f.require_group("source_hash")
             f.create_group("source_primary")
-            f.create_group("serpens_creation_time")
+            f.require_group("serpens_creation_time")
             f.create_group("serpens_reaction_time")
             f.create_group("serpens_reaction_target")
 
@@ -214,7 +224,7 @@ class SerpensSimulation(rebound.Simulation):
         """
         hash_str = str(particle_hash)
         with h5py.File(self.h5_filename, 'r') as f:
-            if hash_str in f[param_name]:
+            if param_name in f and hash_str in f[param_name]:
                 return f[param_name][hash_str][()]
         return None
 
@@ -233,9 +243,30 @@ class SerpensSimulation(rebound.Simulation):
         """
         hash_str = str(particle_hash)
         with h5py.File(self.h5_filename, 'a') as f:
+            f.require_group(param_name)
             if hash_str in f[param_name]:
                 del f[param_name][hash_str]
             f[param_name].create_dataset(hash_str, data=value)
+
+    def set_grain_record(self, particle_hash, record):
+        """Persist immutable birth properties, keyed by REBOUND hash."""
+        validate_grain_record(record)
+        if record.get('particle_kind') != 1:
+            raise ValueError('Expected a grain record')
+        hash_str = str(particle_hash)
+        with h5py.File(self.h5_filename, 'a') as f:
+            if hash_str in f['particle_kind']:
+                raise ValueError(f'Particle hash already registered: {particle_hash}')
+            for field in GRAIN_METADATA_FIELDS:
+                f.require_group(field).create_dataset(hash_str, data=record[field])
+
+    def get_grain_record(self, particle_hash):
+        hash_str = str(particle_hash)
+        with h5py.File(self.h5_filename, 'r') as f:
+            record = {field: f[field][hash_str][()] for field in GRAIN_METADATA_FIELDS
+                      if field in f and hash_str in f[field]}
+        validate_grain_record(record)
+        return record if record.get('particle_kind', 0) == 1 else None
 
     def rebound_setup(self):
         """
@@ -259,7 +290,7 @@ class SerpensSimulation(rebound.Simulation):
         self.rebx = reboundx.Extras(self)
         rf = self.rebx.load_force("radiation_forces")
         self.rebx.add_force(rf)
-        rf.params["c"] = 3.e8
+        rf.params["c"] = 299792458.
 
         # For CERPENS or catching errors in SERPENS
         self.rebx.register_param("q_over_m", "REBX_TYPE_DOUBLE")
@@ -339,7 +370,7 @@ class SerpensSimulation(rebound.Simulation):
             else:
                 self.N_active += 1
 
-    def _add_particles(self) -> None:
+    def _add_particles(self, interval_s=None) -> None:
         """
         Internal use only.
         Calls particle creation and adds the created particles to the REBOUND simulation instance.
@@ -353,6 +384,32 @@ class SerpensSimulation(rebound.Simulation):
 
             # Load parameters specific to the current source
             parameter_set = self.source_parameter_sets[source_index]
+
+            if (GLOBAL_PARAMETERS.get('gen_max') is None or
+                    self.serpens_iter < GLOBAL_PARAMETERS.get('gen_max')):
+                for population_id, population in parameter_set.get('grains', {}).items():
+                    if interval_s is None:
+                        raise ValueError('Grain injection requires the actual interval_s')
+                    states, properties = generate_grains(
+                        population, source_state, source.r,
+                        self.particles[population.radiation_source].m, interval_s, self.grain_rng)
+                    for index, coord in enumerate(states):
+                        identifier = f'grain_{population_id}_{self.grain_batch}_{index}'
+                        particle_hash = rebound.hash(identifier).value
+                        if self.get_particle_param(particle_hash, 'particle_kind') is not None:
+                            raise ValueError('Particle hash collision during grain injection')
+                        if any(p.hash.value == particle_hash for p in self.particles):
+                            raise ValueError('Particle hash collision with existing body')
+                        record = {key: values[index] for key, values in properties.items()}
+                        record.update(particle_kind=1, grain_population_id=population_id,
+                                      source_hash=source.hash.value, serpens_creation_time=self.t)
+                        self.set_grain_record(particle_hash, record)
+                        self.add(x=coord[0], y=coord[1], z=coord[2],
+                                 vx=coord[3], vy=coord[4], vz=coord[5], m=0., r=0.,
+                                 hash=identifier, test_particle=True)
+                        self.particles[-1].params['beta'] = record['beta']
+                        self.particles[-1].params['q_over_m'] = record['q_over_m']
+                    self.grain_batch += 1
 
             # Use GLOBAL_PARAMETERS as a context to temporarily modify
             with GLOBAL_PARAMETERS.as_context({
@@ -384,11 +441,12 @@ class SerpensSimulation(rebound.Simulation):
                             if species.reactions:
                                 # Sample exponential decay times for all possible reactions
                                 pos = [coord[0], coord[1], coord[2]]
-                                # TODO: Implement logic and not hardcode!
-                                if any([react.lifetime_kwargs for react in species.reactions]):
-                                    [react.lifetime_kwargs for react in species.reactions][0].update({'xyz_J': self.particles[1].xyz})
 
-                                sampled_times = [np.random.exponential(r.get_lifetime(pos)) for r in species.reactions]
+                                for react in species.reactions:
+                                    react.update_reaction_state(self)
+
+                                lifetimes = [r.get_lifetime(pos) for r in species.reactions]
+                                sampled_times = np.random.exponential(scale=lifetimes)
                                 idx = np.argmin(sampled_times)
 
                                 reaction_time = self.t + sampled_times[idx]
@@ -400,6 +458,7 @@ class SerpensSimulation(rebound.Simulation):
                                     target_species_id = get_species_by_name(chosen_reaction.target_species_name).id
 
                             # Set particle-specific parameters in h5 file using the rebound hash
+                            self.set_particle_param(particle_hash, 'particle_kind', 0)
                             self.set_particle_param(particle_hash, "beta", species.beta)
                             self.set_particle_param(particle_hash, "serpens_species", species.id)
                             self.set_particle_param(particle_hash, "source_hash", source.hash.value)
@@ -414,7 +473,7 @@ class SerpensSimulation(rebound.Simulation):
 
         return
 
-    def object_to_source(self, name, species):
+    def object_to_source(self, name, species=None, *, grains=None):
         """
         Convert a celestial object to a particle source.
 
@@ -442,11 +501,31 @@ class SerpensSimulation(rebound.Simulation):
         The source will generate particles during simulation advancement based on
         the properties of the specified species.
         """
+        grains = [] if grains is None else ([grains] if isinstance(grains, GrainPopulation) else list(grains))
+        species = [] if species is None else ([species] if not isinstance(species, list) else species)
+        if not species and not grains:
+            raise ValueError('A source requires species or grain populations')
+        radiation_sources = {g.radiation_source for g in grains if isinstance(g, GrainPopulation)}
+        if self.grain_radiation_source is not None:
+            radiation_sources.add(self.grain_radiation_source)
+        if len(radiation_sources) > 1:
+            raise ValueError('All grain populations must use the same radiation source')
+        for population in grains:
+            if not isinstance(population, GrainPopulation):
+                raise TypeError('grains must contain GrainPopulation instances')
+            star = self.particles[population.radiation_source]
+            if star.m <= 0 or star.index >= self.N_active:
+                raise ValueError('Radiation source must be a massive active body')
+            if population.potential_v != 0 and not getattr(self, 'supports_lorentz', False):
+                raise ValueError('Charged grains require CERPENS')
+            if population.potential_v != 0 and not GLOBAL_PARAMETERS.get('lorentz_enabled', True):
+                raise ValueError('Charged grains require lorentz_enabled=True')
+
         self.source_obj_dict[f"source{self.num_sources}"] = name
         self.num_sources += 1
 
         # Get the rebound hash value of the particle
-        particle_hash = self.particles[name].hash.value
+        particle_hash: int = self.particles[name].hash.value
 
         # Assign SERPENS parameters to the source particle using h5 storage.
         primary = self.obj_primary_dict[name]
@@ -459,7 +538,6 @@ class SerpensSimulation(rebound.Simulation):
 
         self.set_particle_param(particle_hash, 'source_primary', primary_hash)
 
-        species: list = [species] if not isinstance(species, list) else species
         # Ensure all Species variants are uniquely identifiable *within this source*.
         # If multiple instances of the same chemical species are provided without an explicit
         # `duplicate=...`, they would otherwise share the same `id` and get merged in analysis.
@@ -499,7 +577,23 @@ class SerpensSimulation(rebound.Simulation):
                 with open("simdata/parameters.pkl", 'wb') as f:
                     pickle.dump(GLOBAL_PARAMETERS.params, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        with GLOBAL_PARAMETERS.as_context(dict(species=species)):
+        registered_grains = {}
+        for population in grains:
+            population_id = len(self.grain_populations) + 1
+            self.grain_populations[population_id] = copy.deepcopy(population)
+            registered_grains[population_id] = copy.deepcopy(population)
+        if grains:
+            self.grain_radiation_source = grains[0].radiation_source
+            for body in self.particles[:self.N_active]:
+                body.params['radiation_source'] = int(body.hash.value == self.particles[self.grain_radiation_source].hash.value)
+        GLOBAL_PARAMETERS.set('all_grains', copy.deepcopy(self.grain_populations))
+        with h5py.File(self.h5_filename, 'a') as f:
+            for population_id, population in registered_grains.items():
+                f['grain_populations'].create_dataset(str(population_id), data=json.dumps(population.to_dict()))
+        with open('simdata/parameters.pkl', 'wb') as f:
+            pickle.dump(GLOBAL_PARAMETERS.params, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with GLOBAL_PARAMETERS.as_context(dict(species=species, grains=registered_grains)):
             # Save the source parameters.
             self.source_parameter_sets.append(
                 copy.deepcopy(
@@ -511,60 +605,115 @@ class SerpensSimulation(rebound.Simulation):
 
     def advance_integrate(self, time):
 
-        if GLOBAL_PARAMETERS.get("lorentz_enabled", True):
+        if GLOBAL_PARAMETERS.get("lorentz_enabled", False):
             raise Exception(
                 "Lorentz force is only supported in CERPENS (C-version). \n" +
                 'Please set GLOBAL_PARAMETERS.set("lorentz_enabled", False)'
             )
 
-        threads_count = multiprocessing.cpu_count()
-    
-        particle_indices = list(range(self.N_active, self.N))
-        particle_splits = np.array_split(particle_indices, threads_count)
-    
-        proc_indices = [list(range(self.N_active)) + test_split.tolist() for test_split in particle_splits]
-    
+        if not np.isfinite(time) or time <= 0:
+            raise ValueError('Integration interval must be finite and positive')
+        target_time = self.t + time
+        max_dt = GLOBAL_PARAMETERS.get('integration_max_dt', time)
+        if max_dt is None:
+            max_dt = time
+        if not np.isfinite(max_dt) or max_dt <= 0:
+            raise ValueError('integration_max_dt must be finite and positive')
+        threads_count = max(1, min(int(GLOBAL_PARAMETERS.get('integration_threads', multiprocessing.cpu_count())),
+                                   max(1, self.N - self.N_active)))
+        particle_splits = np.array_split(np.arange(self.N_active, self.N), threads_count)
+        force_parameters = {}
+        for particle in self.particles:
+            values = {}
+            for key in ('beta', 'q_over_m', 'radiation_source'):
+                try:
+                    value = particle.params[key]
+                    if key != 'radiation_source' or value:
+                        values[key] = value
+                except (AttributeError, KeyError):
+                    pass
+            force_parameters[particle.hash.value] = values
+        with h5py.File(self.h5_filename, 'r') as f:
+            grain_hashes = {int(h) for h, value in f.get('particle_kind', {}).items() if value[()] == 1}
+
+        def resolve_collision(sim_pointer, collision):
+            simulation = sim_pointer.contents
+            first = simulation.particles[collision.p1]
+            second = simulation.particles[collision.p2]
+            first_grain = first.hash.value in grain_hashes
+            second_grain = second.hash.value in grain_hashes
+            if first_grain or second_grain:
+                if first_grain and collision.p2 < simulation.N_active:
+                    return 1
+                if second_grain and collision.p1 < simulation.N_active:
+                    return 2
+                return 0
+            return rebound.clibrebound.reb_collision_resolve_merge(sim_pointer, collision)
+
+        def particle_state(particle):
+            return dict(x=particle.x, y=particle.y, z=particle.z, vx=particle.vx,
+                        vy=particle.vy, vz=particle.vz, m=particle.m, r=particle.r,
+                        hash=particle.hash)
+
         processes = []
         processes_rebx = []
-        for i in range(threads_count):
-            copy = self.copy()
-    
-            copy.integrator = "ias15"
-            copy.ri_ias15.min_dt = 1e-4
-            copy.collision = "direct"
-            copy.collision_resolve = "merge"
-            copy_rebx = reboundx.Extras(copy, "simdata/rebx.bin")
+        for split in particle_splits:
+            simulation = rebound.Simulation()
+            simulation.G = self.G
+            simulation.t = self.t
+            simulation.dt = self.dt
+            simulation.integrator = 'ias15'
+            simulation.ri_ias15.epsilon = self.ri_ias15.epsilon
+            simulation.ri_ias15.min_dt = self.ri_ias15.min_dt
+            simulation.collision = 'line' if grain_hashes else self.collision
+            simulation.collision_resolve = resolve_collision
+            simulation.collision_resolve_keep_sorted = 1
+            rebx = reboundx.Extras(simulation)
+            rebx.register_param('q_over_m', 'REBX_TYPE_DOUBLE')
+            rf = rebx.load_force('radiation_forces')
+            rf.params['c'] = 299792458.
+            rebx.add_force(rf)
+            simulation.force_is_velocity_dependent = 1
+            for index in list(range(self.N_active)) + split.tolist():
+                particle = self.particles[index]
+                simulation.add(**particle_state(particle))
+                for key, value in force_parameters[particle.hash.value].items():
+                    simulation.particles[-1].params[key] = value
+            simulation.N_active = self.N_active
+            processes.append(simulation)
+            processes_rebx.append(rebx)
 
-            indices_to_keep_set = set(proc_indices[i])
-            for j in reversed(range(copy.N)):
-                if j not in indices_to_keep_set:
-                    copy.remove(index=j)
-    
-            processes.append(copy)
-            processes_rebx.append(copy_rebx)
-    
+        def integrate_worker(simulation):
+            while simulation.t < target_time:
+                simulation.integrate(min(target_time, simulation.t + max_dt), exact_finish_time=1)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads_count) as executor:
-            future_to_result = {
-                executor.submit(
-                    lambda x: x.integrate(time * (self.serpens_iter + 1), exact_finish_time=0), p): p for p in processes
-            }
-    
-            for future in concurrent.futures.as_completed(future_to_result):
-                future.result()
-    
-        n_active = self.N_active
+            list(executor.map(integrate_worker, processes))
+
+        n_active = processes[0].N_active
         del self.particles
-    
-        for i in range(n_active):
-            self.add(processes[0].particles[i])
-    
-        for simulation, rebx in zip(processes, processes_rebx):
-            for p in simulation.particles[simulation.N_active:]:
-                self.add(p)
-            rebx.detach(simulation)
-    
+        self.N_active = 0
+        for particle in processes[0].particles[:n_active]:
+            self.add(**particle_state(particle))
+        for simulation in processes:
+            for particle in simulation.particles[simulation.N_active:]:
+                self.add(**particle_state(particle), test_particle=True)
+        for particle in self.particles:
+            for key, value in force_parameters[particle.hash.value].items():
+                particle.params[key] = value
         self.N_active = n_active
         self.t = processes[0].t
+
+    def record_grain_removal(self, particle_hash, cause, interval_start=None):
+        """Retain birth properties; loss time is bounded by the integration interval."""
+        if self.get_particle_param(particle_hash, 'particle_kind') != 1:
+            return
+        if self.get_particle_param(particle_hash, 'removal_cause') is not None:
+            return
+        self.set_particle_param(particle_hash, 'removal_cause', cause)
+        self.set_particle_param(particle_hash, 'removal_time', self.t)
+        self.set_particle_param(particle_hash, 'removal_interval_start',
+                                self.t if interval_start is None else interval_start)
 
     def _fix_source_orbits_circular(self):
         """Fix all source orbits to be circular (e=0).
@@ -610,9 +759,16 @@ class SerpensSimulation(rebound.Simulation):
         The simulation state is saved to disk after the integration step.
         """
         # ADD & REMOVE PARTICLES
-        self._add_particles()
+        if time is None or not np.isfinite(time) or time <= 0:
+            raise ValueError('Advance interval must be finite and positive')
+        self._add_particles(interval_s=time)
+        interval_start = self.t
+        grain_hashes_before = {p.hash.value for p in self.particles[self.N_active:]
+                               if self.get_particle_param(p.hash.value, 'particle_kind') == 1}
         self.rebx.save("simdata/rebx.bin")
         self.advance_integrate(time=time)
+        for particle_hash in grain_hashes_before - {p.hash.value for p in self.particles}:
+            self.record_grain_removal(particle_hash, 'impact', interval_start)
 
         # Fix source orbits to circular after integration (before boundary checks)
         if GLOBAL_PARAMETERS.get('fix_source_circular_orbit', True):
@@ -644,6 +800,7 @@ class SerpensSimulation(rebound.Simulation):
             particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(primary.xyz))
 
             if particle_distance > boundary0:
+                self.record_grain_removal(particle.hash.value, 'domain_exit', interval_start)
                 try:
                     remove.append(particle.hash)
                 except RuntimeError:
@@ -652,6 +809,8 @@ class SerpensSimulation(rebound.Simulation):
                 finally:
                     continue
             # Reaction logic
+            if self.get_particle_param(particle.hash.value, 'particle_kind') == 1:
+                continue
             rx_time = self.get_particle_param(particle.hash.value, "serpens_reaction_time")
             if rx_time <= self.t:
                 target_id = self.get_particle_param(particle.hash.value, "serpens_reaction_target")
@@ -661,7 +820,7 @@ class SerpensSimulation(rebound.Simulation):
                 else:
                     # Perform the conversion
                     new_species = get_species_by_id(target_id)
-                    new_reaction_time = self.t + np.random.exponential(scale=new_species.tau)
+                    new_reaction_time = self.t + np.random.exponential(scale=new_species.tau)   # TODO: Update this!
                     self.set_particle_param(particle.hash.value, "serpens_species", target_id)
                     self.set_particle_param(particle.hash.value, "serpens_reaction_time", new_reaction_time)
                     self.set_particle_param(particle.hash.value, "serpens_creation_time", self.t)

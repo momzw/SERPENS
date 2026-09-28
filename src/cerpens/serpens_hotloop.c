@@ -3,7 +3,7 @@
  *
  * Drop-in C replacement for SerpensSimulation.advance_integrate().
  * Implements:
- *   - Magnetic dipole Lorentz force (additional_forces callback)
+ *   - Magnetic dipole Lorentz force composed with REBOUNDx radiation forces
  *   - Threaded split-integrate-merge of test particles via pthreads
  */
 
@@ -77,17 +77,19 @@ static inline void dipole_B(const double m_vec[3], const double r_vec[3], double
 }
 
 /* ========================================================================
- *  REBOUND additional_forces callback — Lorentz force
+ *  REBOUNDx velocity-dependent callback — Lorentz force
  * ======================================================================== */
 
-static void lorentz_force(struct reb_simulation* sim)
+static void lorentz_force(struct reb_simulation* sim, struct rebx_force* force,
+                          struct reb_particle* particles, const int N)
 {
+    (void)force;
     if (!g_lorentz.enabled) return;
 
     int ci = g_lorentz.central_index;
-    if (ci < 0 || (uint32_t)ci >= sim->N) return;
+    if (ci < 0 || ci >= N) return;
 
-    struct reb_particle* central = &sim->particles[ci];
+    struct reb_particle* central = &particles[ci];
 
     /* Time-dependent dipole orientation */
     double tilt = g_lorentz.mag_tilt_rad;
@@ -102,8 +104,8 @@ static void lorentz_force(struct reb_simulation* sim)
 
     struct rebx_extras* rebx = sim->extras;  /* rebx attached to this sim */
 
-    for (uint32_t i = sim->N_active; i < sim->N; i++) {
-        struct reb_particle* p = &sim->particles[i];
+    for (int i = sim->N_active; i < N; i++) {
+        struct reb_particle* p = &particles[i];
 
         /* Get q/m from REBOUNDx params */
         double* q_over_m_ptr = rebx_get_param(rebx, p->ap, "q_over_m");
@@ -160,53 +162,39 @@ typedef struct {
     struct reb_simulation*  sim;
     struct rebx_extras*     rebx;
     double                  target_time;
-    int                     fix_circular;
+    double                  max_dt;
+    int                     status;
+    int                     started;
 } worker_arg_t;
 
-/* Heartbeat: fix source orbit to circular */
-static void heartbeat_c(struct reb_simulation* sim)
+/* Grain impacts remove only the tracer; other pairs retain historical merging. */
+static enum REB_COLLISION_RESOLVE_OUTCOME resolve_collision(struct reb_simulation* sim, struct reb_collision collision)
 {
-    /* Iterate over sources.
-     * In the threaded copies, sources are still present as active particles.
-     * We look for particles with source_primary set via REBOUNDx. */
     struct rebx_extras* rebx = sim->extras;
-    for (int i = 0; i < sim->N_active; i++) {
-        struct reb_particle* source = &sim->particles[i];
-        uint32_t* sp_hash_ptr = rebx_get_param(rebx, source->ap, "source_primary");
-        if (sp_hash_ptr == NULL) continue;
-
-        /* Find primary by hash */
-        struct reb_particle* primary = NULL;
-        for (int j = 0; j < sim->N_active; j++) {
-            if (sim->particles[j].hash == *sp_hash_ptr) {
-                primary = &sim->particles[j];
-                break;
-            }
-        }
-        if (primary == NULL) continue;
-
-        struct reb_orbit o = reb_orbit_from_particle(sim->G, *source, *primary);
-        struct reb_particle newP = reb_particle_from_orbit(
-            sim->G, *primary, source->m, o.a, 0.0, o.inc, o.Omega, o.omega, o.f);
-
-        source->x  = newP.x;  source->y  = newP.y;  source->z  = newP.z;
-        source->vx = newP.vx; source->vy = newP.vy; source->vz = newP.vz;
-    }
+    int* kind1 = rebx_get_param(rebx, sim->particles[collision.p1].ap, "particle_kind");
+    int* kind2 = rebx_get_param(rebx, sim->particles[collision.p2].ap, "particle_kind");
+    if (collision.p1 >= sim->N_active && kind1 && *kind1 == 1 && collision.p2 < sim->N_active)
+        return 1;
+    if (collision.p2 >= sim->N_active && kind2 && *kind2 == 1 && collision.p1 < sim->N_active)
+        return 2;
+    if ((kind1 && *kind1 == 1) || (kind2 && *kind2 == 1)) return 0;
+    return reb_collision_resolve_merge(sim, collision);
 }
 
 static void* worker_thread(void* arg)
 {
     worker_arg_t* w = (worker_arg_t*)arg;
 
-    if (w->fix_circular) {
-        w->sim->heartbeat = heartbeat_c;
+    while (w->sim->t < w->target_time) {
+        double end = w->target_time;
+        if (w->max_dt > 0.0) end = fmin(end, w->sim->t + w->max_dt);
+        if (end <= w->sim->t) {
+            w->status = REB_STATUS_GENERIC_ERROR;
+            break;
+        }
+        w->status = reb_simulation_integrate(w->sim, end);
+        if (w->status != REB_STATUS_SUCCESS) break;
     }
-
-    /* Attach additional forces */
-    w->sim->additional_forces          = lorentz_force;
-    w->sim->force_is_velocity_dependent = 1;
-
-    reb_simulation_integrate(w->sim, w->target_time);
     return NULL;
 }
 
@@ -229,13 +217,13 @@ static void* worker_thread(void* arg)
  *    G_value         – gravitational constant
  *    min_dt          – minimum timestep for IAS15
  *    n_threads       – number of threads to use
- *    fix_circular    – 1 if heartbeat should fix circular orbits
+ *    max_dt          – optional maximum collision-search interval (0 disables)
  *    state_out       – output array, same layout as state_in (preallocated)
  *    n_out           – output: actual number of particles after merges/collisions
  *    sim_time_out    – output: final simulation time
  * ======================================================================== */
 
-void serpens_advance_integrate(
+int serpens_advance_integrate(
     int n_active,
     int n_total,
     const double* state_in,
@@ -244,18 +232,30 @@ void serpens_advance_integrate(
     const double* qm_values,
     const int* rad_source_flags,
     const uint32_t* source_primary_hashes,
+    const double* radii_in,
+    const int* particle_kinds,
     double target_time,
     double G_value,
     double min_dt,
+    double epsilon,
     double sim_t0,
+    double initial_dt,
+    double max_dt,
+    double radiation_c,
     int n_threads,
-    int fix_circular,
+    int force_is_velocity_dependent,
     /* outputs */
     double* state_out,
     uint32_t* hashes_out,
+    double* radii_out,
     int* n_out,
+    int* n_active_out,
     double* sim_time_out)
 {
+    int has_grains = 0;
+    for (int i = n_active; i < n_total; i++) {
+        if (particle_kinds[i] == 1) has_grains = 1;
+    }
     if (n_threads < 1) n_threads = 1;
     int n_test = n_total - n_active;
     if (n_threads > n_test && n_test > 0) n_threads = n_test;
@@ -264,6 +264,11 @@ void serpens_advance_integrate(
     /* --- Allocate worker data --- */
     worker_arg_t* workers = (worker_arg_t*)calloc(n_threads, sizeof(worker_arg_t));
     pthread_t*    threads = (pthread_t*)calloc(n_threads, sizeof(pthread_t));
+    if (!workers || !threads) {
+        free(workers);
+        free(threads);
+        return REB_STATUS_GENERIC_ERROR;
+    }
 
     /* Compute how many test particles per thread */
     int base_count = n_test / n_threads;
@@ -278,8 +283,12 @@ void serpens_advance_integrate(
         sim->G = G_value;
         sim->integrator = REB_INTEGRATOR_IAS15;
         sim->ri_ias15.min_dt = min_dt;
-        sim->collision = REB_COLLISION_DIRECT;
-        sim->collision_resolve = reb_collision_resolve_merge;
+        sim->ri_ias15.epsilon = epsilon;
+        sim->collision = has_grains ? REB_COLLISION_LINE : REB_COLLISION_DIRECT;
+        sim->collision_resolve = resolve_collision;
+        sim->collision_resolve_keep_sorted = 1;
+        sim->exact_finish_time = 1;
+        sim->dt = initial_dt;
         sim->t = sim_t0;
 
         /* Add active particles */
@@ -293,6 +302,7 @@ void serpens_advance_integrate(
             p.vy = state_in[i*7 + 5];
             p.vz = state_in[i*7 + 6];
             p.hash = hashes_in[i];
+            p.r = radii_in[i];
             reb_simulation_add(sim, p);
         }
 
@@ -308,6 +318,7 @@ void serpens_advance_integrate(
             p.vy = state_in[gi*7 + 5];
             p.vz = state_in[gi*7 + 6];
             p.hash = hashes_in[gi];
+            p.r = radii_in[gi];
             reb_simulation_add(sim, p);
         }
 
@@ -319,11 +330,19 @@ void serpens_advance_integrate(
         /* Register custom parameters */
         rebx_register_param(rebx, "q_over_m", REBX_TYPE_DOUBLE);
         rebx_register_param(rebx, "source_primary", REBX_TYPE_UINT32);
+        rebx_register_param(rebx, "particle_kind", REBX_TYPE_INT);
 
         /* Radiation forces */
         struct rebx_force* rf = rebx_load_force(rebx, "radiation_forces");
         rebx_add_force(rebx, rf);
-        rebx_set_param_double(rebx, &rf->ap, "c", 3.0e8);
+        rebx_set_param_double(rebx, &rf->ap, "c", radiation_c);
+        if (g_lorentz.enabled) {
+            struct rebx_force* lf = rebx_create_force(rebx, "lorentz_force");
+            lf->force_type = REBX_FORCE_VEL;
+            lf->update_accelerations = lorentz_force;
+            rebx_add_force(rebx, lf);
+        }
+        sim->force_is_velocity_dependent |= force_is_velocity_dependent;
 
         /* Active particles: set radiation_source flag and source_primary */
         for (int i = 0; i < n_active; i++) {
@@ -337,7 +356,7 @@ void serpens_advance_integrate(
             if (qm_values[i] != 0.0) {
                 rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[i].ap, "q_over_m", qm_values[i]);
             }
-            /* source_primary hash for heartbeat circular orbit fixing */
+            /* Preserve source identity without modifying its orbit in workers. */
             if (source_primary_hashes[i] != 0) {
                 rebx_set_param_uint32(rebx, (struct rebx_node**)&sim->particles[i].ap, "source_primary", source_primary_hashes[i]);
             }
@@ -349,24 +368,31 @@ void serpens_advance_integrate(
             int li = n_active + j;  /* local index in this sim */
             rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[li].ap, "beta", beta_values[gi]);
             rebx_set_param_double(rebx, (struct rebx_node**)&sim->particles[li].ap, "q_over_m", qm_values[gi]);
+            rebx_set_param_int(rebx, (struct rebx_node**)&sim->particles[li].ap, "particle_kind", particle_kinds[gi]);
+            if (rad_source_flags[gi]) {
+                rebx_set_param_int(rebx, (struct rebx_node**)&sim->particles[li].ap, "radiation_source", 1);
+            }
         }
 
         workers[t].sim          = sim;
         workers[t].rebx         = rebx;
         workers[t].target_time  = target_time;
-        workers[t].fix_circular = fix_circular;
+        workers[t].max_dt       = max_dt;
 
         test_offset += my_test_count;
     }
 
     /* --- Launch threads --- */
     for (int t = 0; t < n_threads; t++) {
-        pthread_create(&threads[t], NULL, worker_thread, &workers[t]);
+        workers[t].started = pthread_create(&threads[t], NULL, worker_thread, &workers[t]) == 0;
+        if (!workers[t].started) worker_thread(&workers[t]);
     }
 
     /* --- Join threads --- */
+    int status = REB_STATUS_SUCCESS;
     for (int t = 0; t < n_threads; t++) {
-        pthread_join(threads[t], NULL);
+        if (workers[t].started) pthread_join(threads[t], NULL);
+        if (workers[t].status != REB_STATUS_SUCCESS) status = workers[t].status;
     }
 
     /* --- Merge results back --- */
@@ -383,6 +409,7 @@ void serpens_advance_integrate(
         state_out[out_idx*7 + 5] = p->vy;
         state_out[out_idx*7 + 6] = p->vz;
         hashes_out[out_idx] = p->hash;
+        radii_out[out_idx] = p->r;
         out_idx++;
     }
 
@@ -399,11 +426,13 @@ void serpens_advance_integrate(
             state_out[out_idx*7 + 5] = p->vy;
             state_out[out_idx*7 + 6] = p->vz;
             hashes_out[out_idx] = p->hash;
+            radii_out[out_idx] = p->r;
             out_idx++;
         }
     }
 
     *n_out = out_idx;
+    *n_active_out = workers[0].sim->N_active;
     *sim_time_out = workers[0].sim->t;
 
     /* --- Cleanup --- */
@@ -411,17 +440,14 @@ void serpens_advance_integrate(
         struct reb_simulation* sim = workers[t].sim;
         struct rebx_extras* rebx = workers[t].rebx;
 
-        if (rebx && sim) {
-            rebx_detach(sim, rebx);
-            workers[t].rebx = NULL;
-        }
-
         if (sim) {
             reb_simulation_free(sim);
             workers[t].sim = NULL;
         }
+        if (rebx) rebx_free(rebx);
     }
     free(workers);
     free(threads);
+    return status;
 }
 
