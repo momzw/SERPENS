@@ -6,6 +6,7 @@ from src.species import Species
 def initialize_global_defaults(parameters):
     """Set up default global parameters."""
     parameters.update({'celest': {}})
+    parameters.update({'grains': {}, 'all_grains': {}})
 
     try:
         # Read initial defaults from a JSON file

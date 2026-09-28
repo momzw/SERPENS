@@ -1,6 +1,8 @@
 import multiprocessing
 import warnings
 
+import numpy as np
+
 from ..parameters import GLOBAL_PARAMETERS
 from ..serpens_simulation import SerpensSimulation
 from .hotloop_bridge import advance_integrate_c
@@ -31,18 +33,21 @@ class CerpensSimulation(SerpensSimulation):
     - Flexible time advancement options (by time, orbits, or spawning events)
     """
 
+    supports_lorentz = True
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def advance_integrate(self, time):
-        n_threads = multiprocessing.cpu_count()
-        fix_circular = GLOBAL_PARAMETERS.get("fix_source_circular_orbit", False)
-        target_time = time * (self.serpens_iter + 1)
+        if not np.isfinite(time) or time <= 0:
+            raise ValueError('Integration interval must be finite and positive')
+        n_threads = GLOBAL_PARAMETERS.get("integration_threads", multiprocessing.cpu_count())
+        target_time = self.t + time
 
         advance_integrate_c(
             sim=self,
             target_time=target_time,
             n_threads=n_threads,
-            fix_circular=fix_circular,
+            fix_circular=False,
             params=GLOBAL_PARAMETERS,
         )

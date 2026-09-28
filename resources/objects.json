@@ -77,5 +77,10 @@
     "SYSTEM-NAME": "55-Cnc-e",
     "star": {"m": 1.8e+30, "r": 6.56e8},
     "planet": {"m": 4.772e25, "r": 1.196e7, "a": 2.31e9, "primary": "star"}
+  },
+  {
+    "SYSTEM-NAME": "TOI-561-b",
+    "star": {"m": 1.61e+30, "r": 5.84e8},
+    "planet": {"m": 1.31e25, "r": 8.9103e6, "a": 1.5917e9, "primary": "star"}
   }
 ]

@@ -1,4 +1,5 @@
 #from src.network import Network
+from typing import Callable, Optional
 
 
 class SpeciesSpecifics:
@@ -32,14 +33,15 @@ class Species(SpeciesSpecifics):
         "O+": (16, 9),
         "CO2": (44, 10),
         "K": (39, 11),
-        "Na+": (24, 1)
+        "Na+": (23, 1),
+        "SiO2": (60, 12)
     }
 
     default_sput_spec = {
         "sput_model": 'smyth',
         "model_maxwell_max": 3000,
-        "v_b": 4000,
-        "v_M": 60000,
+        "v_b": 400,
+        "v_M": 6000,
         "a": 7 / 3
     }
 
@@ -159,15 +161,30 @@ class Species(SpeciesSpecifics):
             print("Could not set/expand reaction network.")
 
 
-
 class Reaction:
-    def __init__(self, target_species_name, lifetime, **lifetime_kwargs):
+    def __init__(
+            self,
+            target_species_name: str,
+            lifetime: Callable | float,
+            lifetime_kwargs: Optional[dict] = None,
+            updater: Optional[Callable[["Reaction", "Simulation"], None]] = None,
+    ):
         self.target_species_name = target_species_name
         self.lifetime = lifetime
-        self.lifetime_kwargs = lifetime_kwargs
+        self._lifetime_kwargs = lifetime_kwargs if lifetime_kwargs else {}
+        self.updater = updater
+
+    def update_reaction_state(self, sim):
+        """If this reaction has an updater, execute it using the simulation state."""
+        if self.updater:
+            self.updater(self, sim)
+
+    @property
+    def lifetime_kwargs(self) -> dict:
+        return self._lifetime_kwargs
 
     def get_lifetime(self, pos):
         if callable(self.lifetime):
-            return self.lifetime(*pos, **self.lifetime_kwargs)
+            return self.lifetime(*pos, **self._lifetime_kwargs)
         return self.lifetime
 

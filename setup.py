@@ -38,6 +38,9 @@ setup(
         "notebook>=7.5",
         "ipykernel>=7.2"
     ],
+    extras_require={
+        "web": ["dash>=2.11,<4"],
+    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
