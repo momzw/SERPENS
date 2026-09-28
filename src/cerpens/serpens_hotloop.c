@@ -606,7 +606,7 @@ static void gc_rk_step(const body_track_t* bt, double t, const double y[4],
         dc4 = 125.0/594.0   - 13525.0/55296.0,
         dc5 = -277.0/14336.0,
         dc6 = 512.0/1771.0  - 0.25;
-    (void)force;
+
     if (!g_lorentz.enabled) return;
 
     const double mu = ion->mu_bar, qm = ion->q_over_m, beta = ion->beta;
@@ -1004,12 +1004,12 @@ int serpens_advance_integrate(
         struct rebx_force* rf = rebx_load_force(rebx, "radiation_forces");
         rebx_add_force(rebx, rf);
         rebx_set_param_double(rebx, &rf->ap, "c", radiation_c);
-        if (g_lorentz.enabled) {
+        /*if (g_lorentz.enabled) {
             struct rebx_force* lf = rebx_create_force(rebx, "lorentz_force");
             lf->force_type = REBX_FORCE_VEL;
             lf->update_accelerations = lorentz_force;
             rebx_add_force(rebx, lf);
-        }
+        } */
         sim->force_is_velocity_dependent |= force_is_velocity_dependent;
 
         /* Active particles: set radiation_source flag and source_primary */
@@ -1048,7 +1048,6 @@ int serpens_advance_integrate(
         workers[t].t0           = sim_t0;
         workers[t].target_time  = target_time;
         workers[t].max_dt       = max_dt;
-        workers[t].fix_circular = fix_circular;
         workers[t].ions         = ions;
         workers[t].n_ions       = n_ions;
         workers[t].gc_rtol      = gc_rtol > 0.0 ? gc_rtol : 1e-6;
